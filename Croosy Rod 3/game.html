@@ -1,0 +1,899 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Croosy Rod 3</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #333;
+            font-family: 'Press Start 2P', monospace;
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: none; /* Prevent default touch actions like scrolling */
+        }
+
+        #game-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+
+        /* UI Overlay */
+        #ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 10;
+            pointer-events: none; /* Let clicks pass through to game when playing */
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+        }
+
+        .title {
+            font-size: 40px;
+            color: #fff;
+            text-shadow: 4px 4px 0px #3859b3;
+            margin-bottom: 20px;
+            text-transform: uppercase;
+            line-height: 1.5;
+            animation: float 3s ease-in-out infinite;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+
+        .subtitle {
+            font-size: 14px;
+            color: #ffd700;
+            margin-bottom: 40px;
+            text-shadow: 2px 2px 0px #000;
+            line-height: 1.5;
+        }
+
+        .score-display {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            font-size: 30px;
+            color: white;
+            text-shadow: 3px 3px 0 #000;
+            z-index: 20;
+        }
+
+        .btn {
+            pointer-events: auto;
+            background: #ff5722;
+            color: white;
+            border: 4px solid #fff;
+            padding: 15px 30px;
+            font-family: 'Press Start 2P', monospace;
+            font-size: 18px;
+            cursor: pointer;
+            text-transform: uppercase;
+            box-shadow: 0 6px 0 #9f2b06;
+            transition: transform 0.1s, box-shadow 0.1s;
+            outline: none;
+        }
+
+        .btn:active {
+            transform: translateY(4px);
+            box-shadow: 0 2px 0 #9f2b06;
+        }
+
+        /* Screens */
+        #start-screen, #game-over-screen {
+            background: rgba(87, 193, 255, 0.7);
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            pointer-events: auto;
+            backdrop-filter: blur(4px);
+        }
+
+        #game-over-screen {
+            display: none;
+            background: rgba(0, 0, 0, 0.7);
+        }
+
+        .controls-hint {
+            margin-top: 30px;
+            font-size: 10px;
+            color: #fff;
+            opacity: 0.9;
+            text-shadow: 1px 1px 0 #000;
+            line-height: 1.6;
+        }
+        
+        .key-icon {
+            display: inline-block;
+            border: 2px solid white;
+            border-radius: 4px;
+            padding: 2px 5px;
+            margin: 0 2px;
+            background: rgba(0,0,0,0.3);
+        }
+
+        /* Invisible touch area for gameplay */
+        #touch-controls {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 5;
+            display: none; 
+        }
+    </style>
+</head>
+<body>
+
+    <div id="game-container"></div>
+
+    <div id="ui-layer">
+        <div class="score-display" id="score">0</div>
+        
+        <div id="start-screen">
+            <div class="title">Croosy<br>Rod 3</div>
+            <div class="subtitle">Voxel Chicken Adventure</div>
+            <button class="btn" id="start-btn">PLAY</button>
+            <div class="controls-hint">
+                Desktop: <span class="key-icon">WASD</span> or <span class="key-icon">Arrows</span><br>
+                Mobile: Swipe to Move
+            </div>
+        </div>
+
+        <div id="game-over-screen">
+            <div class="title" style="color: #ff5722; text-shadow: 4px 4px 0px #fff;">WASTED</div>
+            <div class="subtitle" id="final-score">Score: 0</div>
+            <button class="btn" id="restart-btn">TRY AGAIN</button>
+        </div>
+    </div>
+    
+    <!-- Touch inputs detected here -->
+    <div id="touch-controls"></div>
+
+    <!-- Three.js from CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+    <script>
+        /**
+         * CROOSY ROD 3
+         * Fully functional 3D Crossy Road Clone
+         */
+
+        // --- Configuration ---
+        const TILE_SIZE = 20;
+        const BOARD_WIDTH = 15; 
+        const BOARD_WIDTH_PIXELS = BOARD_WIDTH * TILE_SIZE;
+        
+        const TYPE_GRASS = 'grass';
+        const TYPE_ROAD = 'road';
+        const TYPE_RIVER = 'river';
+
+        // Colors
+        const PALETTE = {
+            grassLight: 0x87cb54,
+            grassDark: 0x7ebb48,
+            road: 0x555555,
+            river: 0x4da6ff,
+            chickenBody: 0xffffff,
+            chickenComb: 0xff0000,
+            chickenBeak: 0xffa500,
+            treeTrunk: 0x8B4513,
+            treeLeaves: 0x228b22
+        };
+        
+        // --- Globals ---
+        let scene, camera, renderer;
+        let ambientLight, dirLight;
+        let player;
+        let map = [];
+        let lanesCreated = 0;
+        let currentLaneIndex = 0;
+        let score = 0;
+        let isGameOver = false;
+        let isGamePaused = true;
+        let audioCtx; // For synthesized sounds
+
+        // --- Init ---
+        function init() {
+            // 1. Scene
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x87ceeb);
+            // Simple Fog to hide the chunk loading
+            scene.fog = new THREE.Fog(0x87ceeb, 100, 900);
+
+            // 2. Camera (Orthographic/Isometric)
+            const aspect = window.innerWidth / window.innerHeight;
+            const d = 140; 
+            camera = new THREE.OrthographicCamera(-d * aspect, d * aspect, d, -d, 1, 1000);
+            camera.position.set(100, 100, 100); 
+            camera.lookAt(0, 0, 0);
+
+            // 3. Renderer
+            renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            document.getElementById('game-container').appendChild(renderer.domElement);
+
+            // 4. Lighting
+            ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+            scene.add(ambientLight);
+
+            dirLight = new THREE.DirectionalLight(0xffffff, 0.5);
+            dirLight.position.set(100, 200, 50);
+            dirLight.castShadow = true;
+            
+            // Optimize Shadow Map
+            dirLight.shadow.mapSize.width = 1024;
+            dirLight.shadow.mapSize.height = 1024;
+            dirLight.shadow.camera.left = -150;
+            dirLight.shadow.camera.right = 150;
+            dirLight.shadow.camera.top = 150;
+            dirLight.shadow.camera.bottom = -150;
+            scene.add(dirLight);
+
+            // 5. Player
+            player = new Player();
+            scene.add(player.mesh);
+
+            // 6. Events
+            window.addEventListener('resize', onWindowResize, false);
+            document.addEventListener('keydown', handleKeyDown);
+            
+            const touchZone = document.getElementById('touch-controls');
+            let sx=0, sy=0;
+            touchZone.addEventListener('touchstart', e => { sx = e.touches[0].clientX; sy = e.touches[0].clientY; }, {passive: false});
+            touchZone.addEventListener('touchend', e => { 
+                handleSwipe(sx, sy, e.changedTouches[0].clientX, e.changedTouches[0].clientY); 
+            }, {passive: false});
+
+            // Buttons
+            document.getElementById('start-btn').addEventListener('click', startGame);
+            document.getElementById('restart-btn').addEventListener('click', resetGame);
+            
+            // Loop
+            animate();
+        }
+
+        // --- Classes ---
+
+        class Player {
+            constructor() {
+                this.mesh = new THREE.Group();
+                
+                // Construct the Chicken Voxel Model
+                const matBody = new THREE.MeshLambertMaterial({ color: PALETTE.chickenBody });
+                const matRed = new THREE.MeshLambertMaterial({ color: PALETTE.chickenComb });
+                const matOrange = new THREE.MeshLambertMaterial({ color: PALETTE.chickenBeak });
+                const matDark = new THREE.MeshLambertMaterial({ color: 0x111111 });
+
+                // Main Cube
+                const body = new THREE.Mesh(new THREE.BoxGeometry(12, 12, 12), matBody);
+                body.position.y = 6;
+                body.castShadow = true;
+                this.mesh.add(body);
+
+                // Wings
+                const wingGeo = new THREE.BoxGeometry(2, 6, 8);
+                const wingL = new THREE.Mesh(wingGeo, matBody); wingL.position.set(-7, 5, 0);
+                const wingR = new THREE.Mesh(wingGeo, matBody); wingR.position.set(7, 5, 0);
+                this.mesh.add(wingL); this.mesh.add(wingR);
+
+                // Comb (Mohawk)
+                const comb = new THREE.Mesh(new THREE.BoxGeometry(4, 4, 8), matRed);
+                comb.position.set(0, 14, 0);
+                this.mesh.add(comb);
+
+                // Beak
+                const beak = new THREE.Mesh(new THREE.BoxGeometry(4, 4, 4), matOrange);
+                beak.position.set(0, 8, 8);
+                this.mesh.add(beak);
+
+                // Wattle
+                const wattle = new THREE.Mesh(new THREE.BoxGeometry(2, 4, 2), matRed);
+                wattle.position.set(0, 4, 8);
+                this.mesh.add(wattle);
+
+                // Eyes
+                const eyeGeo = new THREE.BoxGeometry(2, 2, 2);
+                const eyeL = new THREE.Mesh(eyeGeo, matDark); eyeL.position.set(-3, 10, 6);
+                const eyeR = new THREE.Mesh(eyeGeo, matDark); eyeR.position.set(3, 10, 6);
+                this.mesh.add(eyeL); this.mesh.add(eyeR);
+
+                // State
+                this.currentLane = 0;
+                this.currentCol = 0;
+                this.isMoving = false;
+                this.isDead = false;
+                
+                // Animation
+                this.jumpHeight = 15;
+                this.jumpSpeed = 0.12; 
+                this.moveStartTime = 0;
+                this.startPos = new THREE.Vector3();
+                this.targetPos = new THREE.Vector3();
+                this.rotationTarget = 0;
+            }
+
+            move(dx, dz) {
+                if (this.isMoving || this.isDead || isGamePaused) return;
+
+                // Wall check
+                const newCol = this.currentCol + dx;
+                if (Math.abs(newCol) > Math.floor(BOARD_WIDTH/2)) return;
+
+                // Tree check
+                const targetLaneIdx = this.currentLane + dz;
+                const targetLane = map.find(l => l.index === targetLaneIdx);
+                if (targetLane && targetLane.hasObstacleAt(newCol)) {
+                    // Bonk effect?
+                    return;
+                }
+
+                // Setup movement
+                this.isMoving = true;
+                this.startPos.copy(this.mesh.position);
+                this.currentCol = newCol;
+                this.currentLane = targetLaneIdx;
+                
+                // Snap target X/Z to grid
+                this.targetPos.set(newCol * TILE_SIZE, 0, targetLaneIdx * TILE_SIZE);
+                this.moveStartTime = performance.now();
+
+                // Rotation
+                if (dx === 1) this.rotationTarget = -Math.PI/2;
+                if (dx === -1) this.rotationTarget = Math.PI/2;
+                if (dz === 1) this.rotationTarget = 0;
+                if (dz === -1) this.rotationTarget = Math.PI;
+                this.mesh.rotation.y = this.rotationTarget;
+
+                // Gameplay logic
+                if (dz > 0) {
+                    if (this.currentLane > currentLaneIndex) {
+                        currentLaneIndex = this.currentLane;
+                        score++;
+                        document.getElementById('score').innerText = score;
+                        playSound('point');
+                        addLane(); // Infinite world
+                    }
+                }
+                playSound('hop');
+            }
+
+            update(time) {
+                if (this.isDead) return;
+
+                if (this.isMoving) {
+                    const elapsed = (time - this.moveStartTime) / 1000;
+                    const alpha = Math.min(elapsed / this.jumpSpeed, 1);
+                    
+                    // Move X/Z
+                    this.mesh.position.x = THREE.MathUtils.lerp(this.startPos.x, this.targetPos.x, alpha);
+                    this.mesh.position.z = THREE.MathUtils.lerp(this.startPos.z, this.targetPos.z, alpha);
+                    
+                    // Jump Y (Parabola)
+                    const y = 4 * alpha * (1 - alpha) * this.jumpHeight;
+                    this.mesh.position.y = y;
+
+                    // Stretch/Squash
+                    const s = 1 + (y/20) * 0.2;
+                    this.mesh.scale.set(1/s, s, 1/s);
+
+                    if (alpha === 1) {
+                        this.isMoving = false;
+                        this.mesh.position.y = 0;
+                        this.mesh.scale.set(1,1,1);
+                        this.mesh.position.x = this.currentCol * TILE_SIZE;
+                        this.mesh.position.z = this.currentLane * TILE_SIZE;
+                    }
+                } else {
+                    // Breathing idle
+                    const s = 1 + Math.sin(time/200)*0.03;
+                    this.mesh.scale.set(1, s, 1);
+                }
+            }
+
+            die(type) {
+                if (this.isDead) return;
+                this.isDead = true;
+                playSound('die');
+
+                if (type === 'water') {
+                    // Sink
+                    new TWEEN(this.mesh.position).to({ y: -20 }, 500).start();
+                    createSplash(this.mesh.position);
+                } else {
+                    // Flatten
+                    this.mesh.scale.set(1.5, 0.1, 1.5);
+                }
+                gameOver();
+            }
+        }
+
+        class Lane {
+            constructor(index) {
+                this.index = index;
+                this.mesh = new THREE.Group();
+                this.mesh.position.z = index * TILE_SIZE;
+                this.obstacles = new Set();
+                this.vehicles = [];
+                this.type = TYPE_GRASS;
+
+                // Procedural Generation Logic
+                if (index > 2) {
+                    const r = Math.random();
+                    if (r < 0.4) this.type = TYPE_GRASS;
+                    else if (r < 0.7) this.type = TYPE_ROAD;
+                    else this.type = TYPE_RIVER;
+                }
+
+                this.setup();
+                scene.add(this.mesh);
+            }
+
+            setup() {
+                const geo = new THREE.BoxGeometry(BOARD_WIDTH_PIXELS, TILE_SIZE, TILE_SIZE);
+                let mat;
+
+                if (this.type === TYPE_GRASS) {
+                    const isDark = this.index % 2 === 0;
+                    mat = new THREE.MeshLambertMaterial({ color: isDark ? PALETTE.grassDark : PALETTE.grassLight });
+                    const floor = new THREE.Mesh(geo, mat);
+                    floor.position.y = -TILE_SIZE/2;
+                    floor.receiveShadow = true;
+                    this.mesh.add(floor);
+                    this.addTrees();
+                } 
+                else if (this.type === TYPE_ROAD) {
+                    mat = new THREE.MeshLambertMaterial({ color: PALETTE.road });
+                    const floor = new THREE.Mesh(geo, mat);
+                    floor.position.y = -TILE_SIZE/2;
+                    floor.receiveShadow = true;
+                    this.mesh.add(floor);
+                    
+                    // Road lines
+                    const line = new THREE.Mesh(new THREE.BoxGeometry(BOARD_WIDTH_PIXELS, 1, 2), new THREE.MeshBasicMaterial({color:0xffffff}));
+                    line.position.y = 0.1;
+                    this.mesh.add(line);
+                    
+                    this.setupVehicles();
+                } 
+                else if (this.type === TYPE_RIVER) {
+                    mat = new THREE.MeshLambertMaterial({ color: PALETTE.river });
+                    const floor = new THREE.Mesh(geo, mat);
+                    floor.position.y = -TILE_SIZE/2 - 2; 
+                    this.mesh.add(floor);
+                    this.setupLogs();
+                }
+            }
+
+            addTrees() {
+                if (this.index < 3) return; // clear start
+                const count = Math.floor(Math.random() * 4);
+                
+                for(let i=0; i<count; i++) {
+                    const col = Math.floor(Math.random() * BOARD_WIDTH) - Math.floor(BOARD_WIDTH/2);
+                    if (!this.obstacles.has(col)) {
+                        this.obstacles.add(col);
+                        
+                        // Tree Group
+                        const tree = new THREE.Group();
+                        tree.position.set(col * TILE_SIZE, 0, 0);
+                        
+                        // Trunk
+                        const trunk = new THREE.Mesh(
+                            new THREE.BoxGeometry(6, 15, 6),
+                            new THREE.MeshLambertMaterial({color: PALETTE.treeTrunk})
+                        );
+                        trunk.position.y = 7.5;
+                        trunk.castShadow = true;
+                        tree.add(trunk);
+                        
+                        // Leaves
+                        const leaves = new THREE.Mesh(
+                            new THREE.BoxGeometry(16, 16, 16),
+                            new THREE.MeshLambertMaterial({color: PALETTE.treeLeaves})
+                        );
+                        leaves.position.y = 18;
+                        leaves.castShadow = true;
+                        tree.add(leaves);
+
+                        this.mesh.add(tree);
+                    }
+                }
+            }
+
+            setupVehicles() {
+                this.speed = (Math.random() * 0.08 + 0.04) * TILE_SIZE; 
+                this.dir = Math.random() > 0.5 ? 1 : -1;
+                
+                const num = Math.floor(Math.random() * 2) + 1;
+                const carLen = Math.random() > 0.5 ? 25 : 45; // Car vs Truck
+                const color = Math.random() * 0xffffff;
+
+                for(let i=0; i<num; i++) {
+                    const car = new THREE.Group();
+                    
+                    // Chassis
+                    const chassis = new THREE.Mesh(new THREE.BoxGeometry(carLen, 12, 12), new THREE.MeshLambertMaterial({color: color}));
+                    chassis.position.y = 6;
+                    chassis.castShadow = true;
+                    car.add(chassis);
+                    
+                    // Cabin
+                    const cabin = new THREE.Mesh(new THREE.BoxGeometry(carLen-10, 8, 10), new THREE.MeshLambertMaterial({color: 0x333333}));
+                    cabin.position.y = 14;
+                    car.add(cabin);
+                    
+                    // Wheels
+                    const wheelGeo = new THREE.BoxGeometry(6,6,14);
+                    const wheelMat = new THREE.MeshLambertMaterial({color:0x000000});
+                    const w1 = new THREE.Mesh(wheelGeo, wheelMat); w1.position.set(-8,3,0);
+                    const w2 = new THREE.Mesh(wheelGeo, wheelMat); w2.position.set(8,3,0);
+                    car.add(w1); car.add(w2);
+
+                    // Spacing
+                    const x = (Math.random() * BOARD_WIDTH_PIXELS - BOARD_WIDTH_PIXELS/2);
+                    car.position.set(x, 0, 0);
+                    this.mesh.add(car);
+                    this.vehicles.push({ mesh: car, width: carLen, type: 'car' });
+                }
+            }
+
+            setupLogs() {
+                this.speed = (Math.random() * 0.06 + 0.03) * TILE_SIZE;
+                this.dir = Math.random() > 0.5 ? 1 : -1;
+
+                const num = Math.floor(Math.random() * 2) + 2;
+                const len = Math.random() > 0.5 ? 40 : 70;
+
+                for(let i=0; i<num; i++) {
+                    const log = new THREE.Mesh(
+                        new THREE.BoxGeometry(len, 6, 12),
+                        new THREE.MeshLambertMaterial({color: 0x5c3a21})
+                    );
+                    log.castShadow = true;
+                    
+                    // Spread logs out so there's always a path
+                    const offset = (i / num) * BOARD_WIDTH_PIXELS - BOARD_WIDTH_PIXELS/2;
+                    log.position.set(offset + Math.random()*20, -2, 0);
+                    
+                    this.mesh.add(log);
+                    this.vehicles.push({ mesh: log, width: len, type: 'log' });
+                }
+            }
+
+            hasObstacleAt(col) {
+                return this.obstacles.has(col);
+            }
+
+            update(dt) {
+                if (this.type === TYPE_GRASS) return;
+
+                const limit = BOARD_WIDTH_PIXELS/2 + 60;
+
+                this.vehicles.forEach(v => {
+                    v.mesh.position.x += this.speed * this.dir;
+                    
+                    // Wrap around
+                    if (this.dir === 1 && v.mesh.position.x > limit) v.mesh.position.x = -limit;
+                    if (this.dir === -1 && v.mesh.position.x < -limit) v.mesh.position.x = limit;
+                });
+            }
+        }
+
+        // --- Logic ---
+
+        function addLane() {
+            const l = new Lane(lanesCreated);
+            map.push(l);
+            lanesCreated++;
+            
+            // Cleanup old lanes
+            if (map.length > 25) {
+                const old = map.shift();
+                scene.remove(old.mesh);
+            }
+        }
+
+        function checkCollisions() {
+            if (player.isDead) return;
+
+            const pLane = map.find(l => l.index === player.currentLane);
+            if (!pLane) return; // Should allow this case if player is super far back, but we handle that with cleanup logic usually
+
+            // Road Collision
+            if (pLane.type === TYPE_ROAD) {
+                const pMin = player.mesh.position.x - 5;
+                const pMax = player.mesh.position.x + 5;
+                
+                pLane.vehicles.forEach(car => {
+                    const cMin = car.mesh.position.x - car.width/2;
+                    const cMax = car.mesh.position.x + car.width/2;
+                    
+                    // Hit detection (simple range overlap)
+                    if (pMax > cMin && pMin < cMax) {
+                        // Allow tight jumps, check Y height (if jumping over car?)
+                        // Classic crossy road kills you unless you are way high. 
+                        // Our jump height is 15. Car height is 14 + wheels. 
+                        // Let's say if y < 10, splat.
+                        if (player.mesh.position.y < 10) {
+                            player.die('car');
+                        }
+                    }
+                });
+            }
+
+            // River Logic
+            if (pLane.type === TYPE_RIVER) {
+                let onLog = false;
+                const pMin = player.mesh.position.x - 4;
+                const pMax = player.mesh.position.x + 4;
+
+                pLane.vehicles.forEach(log => {
+                    const lMin = log.mesh.position.x - log.width/2;
+                    const lMax = log.mesh.position.x + log.width/2;
+                    
+                    if (pMax > lMin && pMin < lMax) {
+                        onLog = true;
+                        // Ride the log
+                        if (!player.isMoving) {
+                            player.mesh.position.x += pLane.speed * pLane.dir;
+                            // Update logical column
+                            player.currentCol = Math.round(player.mesh.position.x / TILE_SIZE);
+                        }
+                    }
+                });
+
+                if (!onLog && !player.isMoving && player.mesh.position.y < 5) {
+                    player.die('water');
+                }
+            }
+
+            // Bounds Check
+            if (Math.abs(player.mesh.position.x) > BOARD_WIDTH_PIXELS/2 + 20) {
+                player.die('bounds');
+            }
+        }
+
+        function createSplash(pos) {
+            const geo = new THREE.BoxGeometry(4,4,4);
+            const mat = new THREE.MeshBasicMaterial({color:0xffffff});
+            const p1 = new THREE.Mesh(geo, mat); p1.position.copy(pos); p1.position.x += 5;
+            const p2 = new THREE.Mesh(geo, mat); p2.position.copy(pos); p2.position.x -= 5;
+            const p3 = new THREE.Mesh(geo, mat); p3.position.copy(pos); p3.position.z += 5;
+            const p4 = new THREE.Mesh(geo, mat); p4.position.copy(pos); p4.position.z -= 5;
+            
+            scene.add(p1); scene.add(p2); scene.add(p3); scene.add(p4);
+            
+            // Tween them out (using simple animation object since no TWEEN lib included)
+            const particles = [p1, p2, p3, p4];
+            let step = 0;
+            const anim = setInterval(() => {
+                step++;
+                particles.forEach(p => {
+                    p.position.y += 1;
+                    p.scale.multiplyScalar(0.9);
+                });
+                if(step > 20) {
+                    clearInterval(anim);
+                    particles.forEach(p => scene.remove(p));
+                }
+            }, 30);
+        }
+
+        function updateCamera() {
+            // Smoothly follow player
+            const targetX = player.mesh.position.x + 100;
+            const targetZ = player.mesh.position.z + 100;
+            
+            camera.position.x += (targetX - camera.position.x) * 0.1;
+            camera.position.z += (targetZ - camera.position.z) * 0.1;
+        }
+
+        // --- Core Loop ---
+        function animate() {
+            requestAnimationFrame(animate);
+            const time = performance.now();
+
+            if (!isGamePaused) {
+                player.update(time);
+                map.forEach(l => l.update(time));
+                checkCollisions();
+                updateCamera();
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        // --- Inputs ---
+        function handleKeyDown(e) {
+            if(isGamePaused || isGameOver) return;
+            switch(e.key) {
+                case 'ArrowUp': case 'w': case 'W': player.move(0, 1); break;
+                case 'ArrowDown': case 's': case 'S': player.move(0, -1); break;
+                case 'ArrowLeft': case 'a': case 'A': player.move(-1, 0); break;
+                case 'ArrowRight': case 'd': case 'D': player.move(1, 0); break;
+            }
+        }
+
+        function handleSwipe(x1, y1, x2, y2) {
+            const dx = x2 - x1;
+            const dy = y2 - y1;
+            if (Math.abs(dx) < 10 && Math.abs(dy) < 10) { player.move(0,1); return; } // Tap = forward
+            
+            if (Math.abs(dx) > Math.abs(dy)) {
+                if (dx > 0) player.move(1, 0); else player.move(-1, 0);
+            } else {
+                if (dy > 0) player.move(0, -1); else player.move(0, 1); // Swipe Up (dy negative) is forward usually, but here Y grows down? No clientY grows down. So swipe up is dy < 0.
+                // Wait, clientY: 0 is top. Swipe UP means y1 > y2. dy is negative.
+                // So if dy < 0 -> Forward.
+            }
+            // Correction for touch:
+            if (Math.abs(dy) > Math.abs(dx)) {
+                 if (dy < 0) player.move(0, 1); // Up
+                 else player.move(0, -1); // Down
+            }
+        }
+
+        function onWindowResize() {
+            const aspect = window.innerWidth / window.innerHeight;
+            const d = 140;
+            camera.left = -d * aspect;
+            camera.right = d * aspect;
+            camera.top = d;
+            camera.bottom = -d;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        // --- Helpers ---
+        // Simple manual Tween for water death
+        class TWEEN_MANUAL {
+            constructor(target) { this.target = target; }
+            to(props, duration) {
+                this.props = props;
+                this.duration = duration;
+                this.startTime = performance.now();
+                this.startVals = {};
+                for(let k in props) this.startVals[k] = this.target[k];
+                this.running = true;
+                
+                // Add to global update list roughly
+                const loop = () => {
+                    if(!this.running) return;
+                    const now = performance.now();
+                    let progress = (now - this.startTime) / this.duration;
+                    if(progress > 1) progress = 1;
+                    
+                    for(let k in this.props) {
+                        this.target[k] = this.startVals[k] + (this.props[k] - this.startVals[k]) * progress;
+                    }
+                    
+                    if(progress < 1) requestAnimationFrame(loop);
+                    else this.running = false;
+                };
+                loop();
+                return this;
+            }
+            start() { return this; }
+        }
+        window.TWEEN = TWEEN_MANUAL; // Hacky polyfill
+
+        function startGame() {
+            document.getElementById('start-screen').style.display = 'none';
+            document.getElementById('touch-controls').style.display = 'block';
+            
+            // Initialize Audio
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            
+            resetGame();
+        }
+
+        // --- ADDED MISSING FUNCTION ---
+        function gameOver() {
+            isGameOver = true;
+            setTimeout(() => {
+                isGamePaused = true;
+                document.getElementById('game-over-screen').style.display = 'flex';
+                document.getElementById('final-score').innerText = "Score: " + score;
+                document.getElementById('touch-controls').style.display = 'none';
+            }, 500);
+        }
+
+        function resetGame() {
+            document.getElementById('game-over-screen').style.display = 'none';
+            document.getElementById('touch-controls').style.display = 'block';
+            
+            // Clean Scene
+            map.forEach(l => scene.remove(l.mesh));
+            map = [];
+            lanesCreated = 0;
+            currentLaneIndex = 0;
+            score = 0;
+            document.getElementById('score').innerText = score;
+            
+            // Reset Player
+            player.mesh.position.set(0, 0, 0);
+            player.mesh.rotation.y = 0;
+            player.mesh.scale.set(1, 1, 1);
+            player.currentLane = 0;
+            player.currentCol = 0;
+            player.isDead = false;
+            player.isMoving = false;
+            player.startPos.set(0,0,0);
+            player.targetPos.set(0,0,0);
+            
+            // Reset Camera
+            camera.position.set(100, 100, 100);
+            
+            // Initial World
+            for(let i=0; i<15; i++) addLane();
+            
+            isGamePaused = false;
+            isGameOver = false;
+        }
+
+        function playSound(type) {
+            if(!audioCtx) return;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            
+            const now = audioCtx.currentTime;
+            
+            if(type === 'hop') {
+                osc.frequency.setValueAtTime(400, now);
+                osc.frequency.exponentialRampToValueAtTime(600, now + 0.1);
+                gain.gain.setValueAtTime(0.1, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now+0.1);
+                osc.start(now); osc.stop(now+0.1);
+            }
+            else if(type === 'point') {
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(600, now);
+                osc.frequency.exponentialRampToValueAtTime(1000, now + 0.1);
+                gain.gain.setValueAtTime(0.1, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now+0.15);
+                osc.start(now); osc.stop(now+0.15);
+            }
+            else if(type === 'die') {
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(200, now);
+                osc.frequency.exponentialRampToValueAtTime(50, now + 0.4);
+                gain.gain.setValueAtTime(0.2, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now+0.4);
+                osc.start(now); osc.stop(now+0.4);
+            }
+        }
+
+        // Boot
+        init();
+
+    </script>
+</body>
+</html>
