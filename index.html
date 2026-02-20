@@ -71,6 +71,15 @@
             border-radius: 0.5rem;
             margin-bottom: 2rem;
         }
+
+        .platform-badge {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 0.65rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
     </style>
 </head>
 <body>
@@ -85,8 +94,9 @@
             <a href="#" class="hover:text-white">Discover</a>
             <a href="https://ohioroadblocks.vercel.app/dev.html" target="_blank" class="hover:text-white">Develop</a>
         </div>
-        <div class="flex gap-4">
-            <div class="w-8 h-8 rounded-full bg-blue-500"></div>
+        <div class="flex gap-4 items-center">
+            <div id="device-indicator" class="text-xs text-gray-400 font-mono bg-white/5 px-2 py-1 rounded">DETECTING...</div>
+            <div class="w-8 h-8 rounded-full bg-blue-500 ml-2"></div>
         </div>
     </nav>
 
@@ -129,6 +139,37 @@
         const statusContainer = document.getElementById('status-container');
         const overlay = document.getElementById('game-overlay');
         const frame = document.getElementById('game-frame');
+        const deviceIndicator = document.getElementById('device-indicator');
+
+        // Determine current platform
+        function getDeviceType() {
+            const ua = navigator.userAgent;
+            if (/(tablet|ipad|playbook|silk)|(android(?!.*mobi))/i.test(ua)) {
+                return "mobile";
+            }
+            if (/Mobile|Android|iP(hone|od)|IEMobile|BlackBerry|Kindle|Silk-Accelerated|(hpw|web)OS|Opera M(obi|ini)/.test(ua)) {
+                return "mobile";
+            }
+            return "pc";
+        }
+
+        const currentPlatform = getDeviceType();
+        deviceIndicator.textContent = `PLATFORM: ${currentPlatform.toUpperCase()}`;
+
+        async function checkDeviceSupport(folderName) {
+            try {
+                const response = await fetch(`${RAW_URL}/${folderName}/device.txt`);
+                if (!response.ok) return true; // Default to showing if file doesn't exist
+                
+                const text = await response.json().catch(() => response.text());
+                const supportedPlatforms = text.toString().toLowerCase().split(',').map(s => s.trim());
+                
+                return supportedPlatforms.includes(currentPlatform);
+            } catch (e) {
+                console.warn(`Could not verify device support for ${folderName}, showing by default.`);
+                return true; 
+            }
+        }
 
         async function fetchExperiences() {
             try {
@@ -150,13 +191,27 @@
                     return;
                 }
 
-                renderExperiences(folders);
+                // Check device support for each folder
+                const filteredByDevice = [];
+                for (const folder of folders) {
+                    const isSupported = await checkDeviceSupport(folder.name);
+                    if (isSupported) {
+                        filteredByDevice.push(folder);
+                    }
+                }
+
+                if (filteredByDevice.length === 0) {
+                    statusContainer.innerHTML = `<div class="text-gray-400">No experiences available for ${currentPlatform}.</div>`;
+                    grid.innerHTML = '';
+                    return;
+                }
+
+                renderExperiences(filteredByDevice);
             } catch (error) {
                 console.error(error);
                 statusContainer.innerHTML = `
                     <div class="error-msg">
                         <strong>Error:</strong> Could not connect to the Roadblocks API. 
-                        Please ensure the repository is public.
                     </div>
                 `;
                 grid.innerHTML = '';
@@ -170,9 +225,7 @@
                 const card = document.createElement('div');
                 card.className = 'game-card cursor-pointer group';
                 
-                // Format the folder name for display
                 const displayName = folder.name.replace(/([A-Z])/g, ' $1').trim();
-                
                 const iconUrl = `${RAW_URL}/${folder.name}/icon.png`;
                 const gameUrl = `${PAGES_URL}/${folder.name}/game.html`;
 
@@ -182,7 +235,9 @@
                              alt="${displayName}" 
                              class="w-full h-full object-cover"
                              onerror="this.src='https://placehold.co/400x400/222/white?text=${folder.name}'">
-                        <div class="absolute inset-0 bg-black/20 group-hover:bg-black/0 transition-colors"></div>
+                        <div class="absolute inset-0 bg-black/20 group-hover:bg-black/0 transition-colors flex items-end p-2">
+                             <span class="platform-badge opacity-0 group-hover:opacity-100 transition-opacity">${currentPlatform}</span>
+                        </div>
                     </div>
                     <p class="font-bold text-sm truncate px-1">${displayName}</p>
                     <p class="text-xs text-gray-400 px-1">Active Now</p>
