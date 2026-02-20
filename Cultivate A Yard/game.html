@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cultivate a Yard</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { margin: 0; overflow: hidden; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        canvas { display: block; }
+        #ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 20px;
+            color: white;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+        }
+        .pointer-events-auto { pointer-events: auto; }
+        .glass {
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 12px;
+        }
+        .btn {
+            transition: transform 0.1s, background-color 0.2s;
+            cursor: pointer;
+        }
+        .btn:active { transform: scale(0.95); }
+        .inventory-slot {
+            min-width: 80px;
+            text-align: center;
+        }
+        ::-webkit-scrollbar {
+            height: 6px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255,255,255,0.3);
+            border-radius: 10px;
+        }
+    </style>
+</head>
+<body>
+
+<div id="ui-layer">
+    <!-- Top Bar: Stats -->
+    <div class="flex justify-between items-start pointer-events-none">
+        <div class="glass p-4 pointer-events-auto">
+            <h1 class="text-2xl font-bold text-green-400">Cultivate a Yard</h1>
+            <div class="flex items-center gap-4 mt-2">
+                <div class="flex items-center">
+                    <span class="text-yellow-400 font-bold mr-2 text-xl">💰</span>
+                    <span id="money-display" class="text-2xl font-mono">50</span>
+                </div>
+                <div id="save-indicator" class="text-xs text-green-400 opacity-0 transition-opacity">Progress Saved</div>
+            </div>
+        </div>
+        
+        <div class="glass p-4 pointer-events-auto text-right">
+            <div class="font-bold text-yellow-300">☀️ Eternal Sunshine</div>
+            <div id="restock-timer" class="text-xs text-blue-300 mt-1">Restock in: 30s</div>
+            <button id="reset-game" class="mt-2 text-[10px] bg-red-900/50 hover:bg-red-700 px-2 py-1 rounded">Reset Progress</button>
+        </div>
+    </div>
+
+    <!-- Center: Interaction Prompts -->
+    <div class="flex justify-center items-center h-full">
+        <div id="interaction-label" class="text-xl font-medium opacity-0 transition-opacity bg-black/40 px-4 py-2 rounded-full">
+            [Click to Interact]
+        </div>
+    </div>
+
+    <!-- Bottom: Inventory/Shop Toggle -->
+    <div class="flex flex-col items-center gap-4 pointer-events-auto w-full">
+        <div class="flex justify-center gap-4 w-full max-w-6xl">
+            <div id="shop-btn" class="glass btn p-4 flex flex-col items-center justify-center gap-1 hover:bg-green-700 min-w-[100px]">
+                <span class="text-2xl">🛒</span>
+                <span class="text-xs font-bold uppercase tracking-tighter">Market</span>
+            </div>
+            <div id="inventory-display" class="glass p-3 flex gap-3 overflow-x-auto flex-1 items-center">
+                <!-- Seed items populated by JS -->
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Shop Modal -->
+<div id="shop-modal" class="fixed inset-0 bg-black bg-opacity-70 hidden flex items-center justify-center z-50 p-4">
+    <div class="glass p-6 w-[700px] max-w-full max-h-[90vh] flex flex-col">
+        <div class="flex justify-between items-center mb-4">
+            <div>
+                <h2 class="text-2xl font-bold text-white">Marketplace</h2>
+                <p id="shop-timer-hint" class="text-xs text-blue-300">Restock in 30s</p>
+            </div>
+            <button id="close-shop" class="text-white text-3xl hover:text-gray-300">&times;</button>
+        </div>
+        <div id="shop-items" class="grid grid-cols-2 sm:grid-cols-3 gap-4 overflow-y-auto pr-2">
+            <!-- Shop items generated here -->
+        </div>
+    </div>
+</div>
+
+<script>
+/**
+ * Game Configuration & State
+ */
+const STORAGE_KEY = 'cultivate_a_yard_save_v2';
+
+const CONFIG = {
+    PLOTS: 9,
+    PLOT_SIZE: 4,
+    SPACING: 1,
+    RESTOCK_TIME: 30, // seconds
+    PLANT_TYPES: {
+        CARROT:     { name: 'Carrot', cost: 10, growTime: 5000, value: 25, color: 0xffa500, modelType: 'cone', rarity: 0.8 },
+        TOMATO:     { name: 'Tomato', cost: 25, growTime: 8000, value: 65, color: 0xff4444, modelType: 'sphere', rarity: 0.7 },
+        PUMPKIN:    { name: 'Pumpkin', cost: 50, growTime: 15000, value: 140, color: 0xff8c00, modelType: 'cube', rarity: 0.5 },
+        BLUEBERRY:  { name: 'Blueberry', cost: 80, growTime: 12000, value: 220, color: 0x4169e1, modelType: 'sphere', rarity: 0.4 },
+        WATERMELON: { name: 'Watermelon', cost: 150, growTime: 25000, value: 450, color: 0x2e8b57, modelType: 'cube', rarity: 0.3 },
+        STARFRUIT:  { name: 'Starfruit', cost: 400, growTime: 40000, value: 1300, color: 0xffd700, modelType: 'cone', rarity: 0.15 },
+        DRAGONFRUIT:{ name: 'Dragonfruit', cost: 900, growTime: 60000, value: 3200, color: 0xff1493, modelType: 'cone', rarity: 0.1 },
+        GOLDEN_APPLE:{ name: 'Gold Apple', cost: 2500, growTime: 120000, value: 10000, color: 0xffff00, modelType: 'sphere', rarity: 0.05 }
+    }
+};
+
+let state = {
+    money: 50,
+    seeds: { CARROT: 2 },
+    selectedSeed: 'CARROT',
+    plots: [],
+    shopStock: {}, // type: count
+    nextRestock: Date.now() + (CONFIG.RESTOCK_TIME * 1000)
+};
+
+/**
+ * Persistence Logic
+ */
+function saveGame() {
+    const saveData = {
+        money: state.money,
+        seeds: state.seeds,
+        selectedSeed: state.selectedSeed,
+        plots: state.plots.map(p => ({
+            occupied: p.occupied,
+            plantType: p.plantType,
+            growth: p.growth,
+            watered: p.watered
+        })),
+        shopStock: state.shopStock,
+        nextRestock: state.nextRestock
+    };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(saveData));
+    
+    const indicator = document.getElementById('save-indicator');
+    indicator.style.opacity = 1;
+    setTimeout(() => { indicator.style.opacity = 0; }, 1000);
+}
+
+function loadGame() {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+        try {
+            const parsed = JSON.parse(saved);
+            state.money = parsed.money;
+            state.seeds = parsed.seeds;
+            state.selectedSeed = parsed.selectedSeed;
+            state.shopStock = parsed.shopStock || {};
+            state.nextRestock = parsed.nextRestock || (Date.now() + 30000);
+            return parsed.plots;
+        } catch (e) { console.error(e); }
+    }
+    return null;
+}
+
+/**
+ * Shop Logic
+ */
+function restockShop() {
+    state.shopStock = {};
+    Object.keys(CONFIG.PLANT_TYPES).forEach(type => {
+        const plant = CONFIG.PLANT_TYPES[type];
+        // Randomly determine if item is in stock based on rarity
+        if (Math.random() < plant.rarity + 0.1) {
+            state.shopStock[type] = Math.floor(Math.random() * 5) + 1;
+        }
+    });
+    // Ensure at least carrots are always available
+    if (!state.shopStock.CARROT) state.shopStock.CARROT = 10;
+    
+    state.nextRestock = Date.now() + (CONFIG.RESTOCK_TIME * 1000);
+    updateUI();
+    saveGame();
+}
+
+/**
+ * Three.js Setup
+ */
+let scene, camera, renderer, raycaster, mouse;
+let sun, ambientLight;
+let plotMeshes = [];
+
+function init() {
+    const savedPlots = loadGame();
+    if (Object.keys(state.shopStock).length === 0) restockShop();
+
+    scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x87ceeb);
+    
+    camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+    camera.position.set(12, 16, 12);
+    camera.lookAt(0, 0, 0);
+
+    renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.shadowMap.enabled = true;
+    document.body.appendChild(renderer.domElement);
+
+    raycaster = new THREE.Raycaster();
+    mouse = new THREE.Vector2();
+
+    setupLights();
+    setupEnvironment();
+    setupPlots(savedPlots);
+
+    window.addEventListener('resize', onWindowResize);
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mousedown', onMouseDown);
+    
+    updateUI();
+    animate();
+
+    setInterval(saveGame, 10000);
+    
+    // Timer Tick
+    setInterval(() => {
+        const remaining = Math.max(0, Math.floor((state.nextRestock - Date.now()) / 1000));
+        document.getElementById('restock-timer').innerText = `Restock in: ${remaining}s`;
+        document.getElementById('shop-timer-hint').innerText = `Next restock in ${remaining}s`;
+        if (remaining <= 0) restockShop();
+    }, 1000);
+}
+
+function setupLights() {
+    ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+    scene.add(ambientLight);
+    sun = new THREE.DirectionalLight(0xffffff, 1.1);
+    sun.position.set(30, 50, 20);
+    sun.castShadow = true;
+    sun.shadow.mapSize.width = 1024;
+    sun.shadow.mapSize.height = 1024;
+    scene.add(sun);
+}
+
+function setupEnvironment() {
+    const groundGeo = new THREE.PlaneGeometry(100, 100);
+    const groundMat = new THREE.MeshStandardMaterial({ color: 0x3d8c40 });
+    const ground = new THREE.Mesh(groundGeo, groundMat);
+    ground.rotation.x = -Math.PI / 2;
+    ground.receiveShadow = true;
+    scene.add(ground);
+}
+
+function setupPlots(savedPlots) {
+    const gridDim = Math.sqrt(CONFIG.PLOTS);
+    const startX = -((gridDim - 1) * (CONFIG.PLOT_SIZE + CONFIG.SPACING)) / 2;
+    const startZ = startX;
+
+    for (let i = 0; i < gridDim; i++) {
+        for (let j = 0; j < gridDim; j++) {
+            const index = i * gridDim + j;
+            const x = startX + i * (CONFIG.PLOT_SIZE + CONFIG.SPACING);
+            const z = startZ + j * (CONFIG.PLOT_SIZE + CONFIG.SPACING);
+            createPlot(x, z, index, savedPlots ? savedPlots[index] : null);
+        }
+    }
+}
+
+function createPlot(x, z, id, savedPlotData) {
+    const plotGeo = new THREE.BoxGeometry(CONFIG.PLOT_SIZE, 0.2, CONFIG.PLOT_SIZE);
+    const initialColor = (savedPlotData && !savedPlotData.watered) ? 0x8d6e63 : 0x5d4037;
+    const plotMat = new THREE.MeshStandardMaterial({ color: initialColor });
+    const plotMesh = new THREE.Mesh(plotGeo, plotMat);
+    plotMesh.position.set(x, 0.1, z);
+    plotMesh.receiveShadow = true;
+    plotMesh.userData = { type: 'plot', id: id };
+    scene.add(plotMesh);
+    plotMeshes.push(plotMesh);
+
+    const borderGeo = new THREE.BoxGeometry(CONFIG.PLOT_SIZE + 0.4, 0.3, CONFIG.PLOT_SIZE + 0.4);
+    const borderMat = new THREE.MeshStandardMaterial({ color: 0x3e2723 });
+    const border = new THREE.Mesh(borderGeo, borderMat);
+    border.position.set(x, 0.05, z);
+    scene.add(border);
+
+    state.plots[id] = {
+        id: id,
+        occupied: savedPlotData ? savedPlotData.occupied : false,
+        plantType: savedPlotData ? savedPlotData.plantType : null,
+        growth: savedPlotData ? savedPlotData.growth : 0,
+        watered: savedPlotData ? savedPlotData.watered : true,
+        lastUpdate: Date.now(),
+        mesh: null
+    };
+
+    if (state.plots[id].occupied) spawnPlantMesh(id, state.plots[id].plantType, state.plots[id].growth);
+}
+
+function updateUI() {
+    document.getElementById('money-display').innerText = Math.floor(state.money).toLocaleString();
+    
+    // Inventory
+    const inv = document.getElementById('inventory-display');
+    inv.innerHTML = '';
+    const activeSeeds = Object.keys(state.seeds).filter(k => state.seeds[k] > 0 || k === state.selectedSeed);
+    
+    if (activeSeeds.length === 0) {
+        inv.innerHTML = '<div class="text-sm opacity-50 italic px-4">Buy seeds at the market...</div>';
+    }
+
+    activeSeeds.forEach(type => {
+        const count = state.seeds[type] || 0;
+        const card = document.createElement('div');
+        card.className = `btn glass p-2 px-3 rounded inventory-slot flex flex-col items-center ${state.selectedSeed === type ? 'ring-2 ring-yellow-400 bg-green-900/40' : ''}`;
+        card.innerHTML = `
+            <div class="text-[10px] font-bold uppercase opacity-80">${CONFIG.PLANT_TYPES[type].name}</div>
+            <div class="text-lg font-bold">${count}</div>
+        `;
+        card.onclick = () => { state.selectedSeed = type; updateUI(); };
+        inv.appendChild(card);
+    });
+
+    // Shop
+    const shopList = document.getElementById('shop-items');
+    shopList.innerHTML = '';
+    Object.keys(state.shopStock).forEach(type => {
+        const plant = CONFIG.PLANT_TYPES[type];
+        const stock = state.shopStock[type];
+        const card = document.createElement('div');
+        const canAfford = state.money >= plant.cost;
+        card.className = `glass p-4 rounded-lg flex flex-col items-center justify-between border ${stock > 0 ? 'border-white/10' : 'opacity-50 border-red-900'}`;
+        card.innerHTML = `
+            <div class="w-10 h-10 mb-2 rounded shadow-inner" style="background: ${'#' + plant.color.toString(16).padStart(6, '0')}"></div>
+            <div class="font-bold text-sm text-white text-center">${plant.name}</div>
+            <div class="text-xs text-yellow-400 font-mono mt-1">$${plant.cost.toLocaleString()}</div>
+            <div class="text-[10px] text-blue-300 mt-1">${stock} in stock</div>
+            <button class="mt-3 w-full ${canAfford && stock > 0 ? 'bg-green-600 hover:bg-green-500' : 'bg-gray-700 cursor-not-allowed'} text-white py-1 rounded text-xs font-bold transition-colors">
+                ${stock > 0 ? 'BUY' : 'SOLD OUT'}
+            </button>
+        `;
+        if (canAfford && stock > 0) card.querySelector('button').onclick = () => buySeed(type);
+        shopList.appendChild(card);
+    });
+}
+
+function buySeed(type) {
+    if (state.shopStock[type] > 0 && state.money >= CONFIG.PLANT_TYPES[type].cost) {
+        state.money -= CONFIG.PLANT_TYPES[type].cost;
+        state.shopStock[type]--;
+        state.seeds[type] = (state.seeds[type] || 0) + 1;
+        updateUI();
+        saveGame();
+    }
+}
+
+function handlePlotClick(plotId) {
+    const plot = state.plots[plotId];
+    if (!plot.occupied) {
+        if (state.seeds[state.selectedSeed] > 0) {
+            state.seeds[state.selectedSeed]--;
+            plantInPlot(plotId, state.selectedSeed);
+            updateUI();
+            saveGame();
+        } else alertMessage("No seeds!");
+    } else {
+        if (plot.growth >= 1) { harvestPlot(plotId); saveGame(); }
+        else if (!plot.watered) {
+            plot.watered = true;
+            plotMeshes[plotId].material.color.setHex(0x3e2723); 
+            alertMessage("Watered!");
+            saveGame();
+        }
+    }
+}
+
+function alertMessage(msg) {
+    const label = document.getElementById('interaction-label');
+    label.innerText = msg;
+    label.style.opacity = 1;
+    setTimeout(() => { label.style.opacity = 0; }, 1500);
+}
+
+function spawnPlantMesh(plotId, type, initialGrowth) {
+    const plantDef = CONFIG.PLANT_TYPES[type];
+    let geo;
+    if (plantDef.modelType === 'cone') geo = new THREE.ConeGeometry(0.5, 1, 8);
+    else if (plantDef.modelType === 'sphere') geo = new THREE.SphereGeometry(0.5, 8, 8);
+    else geo = new THREE.BoxGeometry(0.8, 0.8, 0.8);
+    const mat = new THREE.MeshStandardMaterial({ color: plantDef.color });
+    const mesh = new THREE.Mesh(geo, mat);
+    const worldPos = plotMeshes[plotId].position;
+    const s = 0.2 + (initialGrowth * 1.5);
+    mesh.position.set(worldPos.x, worldPos.y + 0.1 + (s/2), worldPos.z);
+    mesh.scale.set(s, s, s);
+    mesh.castShadow = true;
+    scene.add(mesh);
+    state.plots[plotId].mesh = mesh;
+}
+
+function plantInPlot(plotId, type) {
+    const plot = state.plots[plotId];
+    plot.occupied = true;
+    plot.plantType = type;
+    plot.growth = 0;
+    plot.watered = true;
+    plot.lastUpdate = Date.now();
+    spawnPlantMesh(plotId, type, 0);
+}
+
+function harvestPlot(plotId) {
+    const plot = state.plots[plotId];
+    const value = CONFIG.PLANT_TYPES[plot.plantType].value;
+    state.money += value;
+    scene.remove(plot.mesh);
+    plot.occupied = false;
+    plot.mesh = null;
+    plotMeshes[plotId].material.color.setHex(0x5d4037);
+    updateUI();
+    alertMessage(`+$${value.toLocaleString()}`);
+}
+
+function onWindowResize() {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+}
+function onMouseMove(event) {
+    mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+    mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+}
+function onMouseDown(event) {
+    if (event.target.tagName !== 'CANVAS') return;
+    raycaster.setFromCamera(mouse, camera);
+    const intersects = raycaster.intersectObjects(plotMeshes);
+    if (intersects.length > 0) handlePlotClick(intersects[0].object.userData.id);
+}
+
+function animate() {
+    requestAnimationFrame(animate);
+    const now = Date.now();
+    state.plots.forEach((plot, index) => {
+        if (plot.occupied && plot.growth < 1) {
+            if (plot.watered && Math.random() < 0.0006) {
+                plot.watered = false;
+                plotMeshes[index].material.color.setHex(0x8d6e63); 
+            }
+            if (plot.watered) {
+                plot.growth += ((now - plot.lastUpdate) / CONFIG.PLANT_TYPES[plot.plantType].growTime);
+                if (plot.growth > 1) plot.growth = 1;
+            }
+            if (plot.mesh) {
+                const s = 0.2 + (plot.growth * 1.5);
+                plot.mesh.scale.set(s, s, s);
+                plot.mesh.position.y = 0.1 + (s/2);
+            }
+            plot.lastUpdate = now;
+        }
+    });
+    renderer.render(scene, camera);
+}
+
+document.getElementById('reset-game').onclick = () => {
+    if (confirm("Wipe all data and restart?")) {
+        localStorage.removeItem(STORAGE_KEY);
+        location.reload();
+    }
+};
+document.getElementById('shop-btn').onclick = () => document.getElementById('shop-modal').classList.remove('hidden');
+document.getElementById('close-shop').onclick = () => document.getElementById('shop-modal').classList.add('hidden');
+
+init();
+</script>
+
+</body>
+</html>
