@@ -159,10 +159,18 @@
         async function checkDeviceSupport(folderName) {
             try {
                 const response = await fetch(`${RAW_URL}/${folderName}/device.txt`);
-                if (!response.ok) return true; // Default to showing if file doesn't exist
+                if (!response.ok) return true; // Default to showing if file doesn't exist (e.g., 404)
                 
-                const text = await response.json().catch(() => response.text());
-                const supportedPlatforms = text.toString().toLowerCase().split(',').map(s => s.trim());
+                const rawText = await response.text();
+                if (!rawText || rawText.trim() === "") return true;
+
+                // Clean up the text: lowercase it, remove whitespace, and split by comma
+                // This handles "pc", "pc, mobile", and "mobile" correctly
+                const supportedPlatforms = rawText
+                    .toLowerCase()
+                    .split(',')
+                    .map(item => item.trim())
+                    .filter(item => item !== "");
                 
                 return supportedPlatforms.includes(currentPlatform);
             } catch (e) {
@@ -178,7 +186,6 @@
                 
                 const contents = await response.json();
                 
-                // Filter for folders only and EXCLUDE folders starting with # or ?
                 const folders = contents.filter(item => 
                     item.type === 'dir' && 
                     !item.name.startsWith('#') && 
