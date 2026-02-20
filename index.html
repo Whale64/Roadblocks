@@ -92,7 +92,7 @@
 
     <!-- Main Content -->
     <main class="max-w-7xl mx-auto p-8">
-        <h1 class="text-3xl font-extrabold mb-8">Games:</h1>
+        <h1 class="text-3xl font-extrabold mb-8">Recommended Experiences</h1>
         
         <div id="status-container"></div>
 
@@ -123,8 +123,6 @@
         const REPO_NAME = "Roadblocks";
         const API_URL = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents`;
         const RAW_URL = `https://raw.githubusercontent.com/Whale64/${REPO_NAME}/main`;
-        
-        // Updated to use the requested Vercel domain
         const PAGES_URL = `https://ohioroadblocks.vercel.app`;
 
         const grid = document.getElementById('experience-grid');
@@ -139,11 +137,13 @@
                 
                 const contents = await response.json();
                 
-                // Filter for folders only
-                const folders = contents.filter(item => item.type === 'dir');
+                // Filter for folders only and EXCLUDE folders starting with #
+                const folders = contents.filter(item => 
+                    item.type === 'dir' && !item.name.startsWith('#')
+                );
                 
                 if (folders.length === 0) {
-                    statusContainer.innerHTML = `<div class="text-gray-400">No experiences found in the repository.</div>`;
+                    statusContainer.innerHTML = `<div class="text-gray-400">No public experiences found in the repository.</div>`;
                     grid.innerHTML = '';
                     return;
                 }
@@ -168,13 +168,10 @@
                 const card = document.createElement('div');
                 card.className = 'game-card cursor-pointer group';
                 
-                // Format the folder name for display (e.g., "SpeedRun" -> "Speed Run")
+                // Format the folder name for display
                 const displayName = folder.name.replace(/([A-Z])/g, ' $1').trim();
                 
-                // Asset URLs
                 const iconUrl = `${RAW_URL}/${folder.name}/icon.png`;
-                
-                // Constructing game URL: https://ohioroadblocks.vercel.app/FolderName/game.html
                 const gameUrl = `${PAGES_URL}/${folder.name}/game.html`;
 
                 card.innerHTML = `
@@ -206,7 +203,6 @@
             document.body.style.overflow = 'auto';
         }
 
-        // Initialize by fetching from the real API
         window.onload = fetchExperiences;
     </script>
 </body>
