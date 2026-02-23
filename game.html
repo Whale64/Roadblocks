@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Five Nights at Gary's</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        body, html {
+            margin: 0; padding: 0; width: 100%; height: 100%;
+            background-color: #000; color: #fff;
+            font-family: 'Courier New', Courier, monospace;
+            overflow: hidden; user-select: none;
+            touch-action: none;
+        }
+        #gameCanvas {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 1;
+        }
+        .ui-layer {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 10; pointer-events: none;
+        }
+        #hud { display: none; }
+        .hud-text {
+            position: absolute; font-size: 24px; text-shadow: 2px 2px 0 #000;
+        }
+        #time-display { top: 20px; right: 30px; text-align: right; }
+        #power-display { bottom: 20px; left: 30px; }
+        #usage-bars { color: #0f0; }
+        
+        .interactive { pointer-events: auto; cursor: pointer; }
+        .side-panel {
+            position: absolute; top: 40%; width: 80px; height: 180px;
+            display: flex; flex-direction: column; justify-content: space-around;
+            padding: 10px; background: rgba(30,30,30,0.85); border: 2px solid #444;
+            border-radius: 8px; box-sizing: border-box;
+        }
+        #left-panel { left: 20px; }
+        #right-panel { right: 20px; }
+        .control-btn {
+            width: 100%; height: 45%; font-weight: bold; background: #333;
+            border: 3px outset #666; color: white; border-radius: 4px;
+            text-transform: uppercase; font-size: 11px;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .door-btn.active { background: #900; border-color: #f00; box-shadow: 0 0 10px #f00; }
+        .light-btn.active { background: #990; border-color: #ff0; box-shadow: 0 0 10px #ff0; }
+        
+        #monitor-toggle {
+            position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%);
+            width: min(400px, 80%); height: 50px; background: rgba(255,255,255,0.1);
+            border: 2px solid rgba(255,255,255,0.3); border-radius: 5px;
+            font-size: 20px; color: #fff; transition: 0.2s; pointer-events: auto;
+        }
+        #monitor-toggle:hover { background: rgba(255,255,255,0.2); border-color: #fff; }
+
+        #camera-system {
+            display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.9); z-index: 20; border: 10px solid #222; box-sizing: border-box;
+            pointer-events: auto;
+        }
+        .cam-noise {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            opacity: 0.12; pointer-events: none; mix-blend-mode: screen;
+        }
+        .cam-overlay {
+            position: absolute; top: 30px; left: 30px; font-size: 24px; color: #fff;
+            text-shadow: 2px 2px 0 #000; animation: blink 1s infinite;
+        }
+        @keyframes blink { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
+        
+        #map-container {
+            position: absolute; bottom: 40px; right: 40px; width: 280px; height: 230px;
+            border: 2px solid #fff; background: rgba(0,0,0,0.7);
+        }
+        .cam-btn {
+            position: absolute; background: #222; color: white; border: 1px solid #fff;
+            padding: 8px; font-size: 12px; cursor: pointer; min-width: 55px;
+        }
+        .cam-btn.active { background: #080; font-weight: bold; border-width: 2px; }
+        #cam1 { top: 20px; right: 20px; } 
+        #cam2 { top: 90px; left: 50%; transform: translateX(-50%); } 
+        #cam3 { bottom: 40px; left: 20px; } 
+        #cam4 { bottom: 40px; right: 20px; } 
+
+        .screen {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            background: #000; z-index: 100; pointer-events: auto;
+        }
+        #main-menu { background: radial-gradient(circle, #222 0%, #000 100%); }
+        #main-menu h1 { font-size: min(60px, 10vw); margin-bottom: 5px; color: #fff; text-shadow: 0 0 15px red; letter-spacing: 5px; text-align: center; }
+        #start-btn {
+            padding: 15px 40px; font-size: 24px; background: transparent; color: #fff;
+            border: 3px solid #fff; cursor: pointer; font-family: inherit; margin-top: 40px;
+        }
+        
+        #jumpscare-screen { display: none; background: #000; z-index: 200; pointer-events: none; }
+        #jumpscare-img { width: 100%; height: 100%; object-fit: cover; animation: shake 0.05s infinite; }
+        @keyframes shake {
+            0% { transform: translate(5px, 5px); }
+            50% { transform: translate(-5px, -5px); }
+            100% { transform: translate(5px, -5px); }
+        }
+        
+        #game-over { display: none; }
+        #win-screen { display: none; }
+        
+        .scanlines {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.2) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.03), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.03));
+            background-size: 100% 4px, 3px 100%; pointer-events: none; z-index: 40;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="gameCanvas"></div>
+    <div class="scanlines"></div>
+
+    <div id="main-menu" class="screen">
+        <h1 id="menu-title">FIVE NIGHTS AT GARY'S</h1>
+        <p style="color: #666;">A security simulation</p>
+        <button id="start-btn" class="interactive">NEW GAME</button>
+    </div>
+
+    <div id="hud" class="ui-layer">
+        <div id="time-display" class="hud-text">
+            <span id="time-val">12</span> AM<br>
+            <span style="font-size: 16px; color: #aaa;">Night 1</span>
+        </div>
+        
+        <div id="power-display" class="hud-text">
+            Power: <span id="power-val">100</span>%<br>
+            <span style="font-size: 16px;">Usage: <span id="usage-bars">|</span></span>
+        </div>
+
+        <div id="left-panel" class="side-panel">
+            <button class="control-btn door-btn interactive" id="btn-door-left">DOOR</button>
+            <button class="control-btn light-btn interactive" id="btn-light-left">LIGHT</button>
+        </div>
+
+        <div id="right-panel" class="side-panel">
+            <button class="control-btn door-btn interactive" id="btn-door-right">DOOR</button>
+            <button class="control-btn light-btn interactive" id="btn-light-right">LIGHT</button>
+        </div>
+
+        <button id="monitor-toggle">MONITOR</button>
+    </div>
+
+    <div id="camera-system">
+        <canvas id="noise-canvas" class="cam-noise"></canvas>
+        <div class="cam-overlay">● LIVE <span id="cam-name">CAM 1 - Stage</span></div>
+        <div id="map-container">
+            <div style="border:1px solid #444; width:210px; height:170px; position:absolute; top:30px; left:35px;"></div>
+            <button class="cam-btn active" id="cam1">CAM 1</button>
+            <button class="cam-btn" id="cam2">CAM 2</button>
+            <button class="cam-btn" id="cam3">CAM 3</button>
+            <button class="cam-btn" id="cam4">CAM 4</button>
+        </div>
+        <button id="monitor-close" class="interactive" style="position:absolute; bottom:20px; left:50%; transform:translateX(-50%); width:min(400px, 70%); height:50px; background:rgba(0,0,0,0.5); border:2px solid #fff; color:#fff; cursor:pointer;">CLOSE MONITOR</button>
+    </div>
+
+    <div id="jumpscare-screen" class="screen">
+        <canvas id="jumpscare-img"></canvas>
+    </div>
+
+    <div id="game-over" class="screen">
+        <canvas id="static-canvas" style="position:absolute; top:0; left:0; width:100%; height:100%; opacity:0.3;"></canvas>
+        <h1 style="color:red; font-size:70px; letter-spacing:10px;">GAME OVER</h1>
+        <button id="restart-btn" class="interactive" style="padding:15px 40px; background:none; color:white; border:2px solid white; cursor:pointer; font-family:inherit;">RETRY</button>
+    </div>
+
+    <div id="win-screen" class="screen">
+        <h1 style="color:#0f0; font-size:80px; text-shadow: 0 0 20px #0f0;">6:00 AM</h1>
+        <p>Shift complete.</p>
+        <button id="win-restart-btn" class="interactive" style="padding:15px 40px; margin-top:20px; background:none; color:white; border:2px solid white; cursor:pointer;">RESTART</button>
+    </div>
+
+    <script>
+        const State = {
+            power: 100, hour: 0, usage: 1, 
+            leftDoor: false, rightDoor: false,
+            leftLight: false, rightLight: false,
+            monitorUp: false, activeCam: 1,
+            isDead: false, isPowerOut: false, won: false,
+            timeElapsed: 0, powerTimer: 0,
+            garyLoc: 0, aiTimer: 0, aiDiff: 4,
+            doorPatience: 0,
+            lastMonitorToggle: 0
+        };
+
+        const Views = {
+            office: { pos: [0, 15, 0], rot: [0, 0, 0] },
+            cam1: { pos: [120, 30, -110], rot: [-0.6, 0.4, 0] }, // Stage
+            cam2: { pos: [220, 30, -100], rot: [-0.7, 0.8, 0] }, // Dining
+            cam3: { pos: [320, 25, -90], rot: [-0.4, -1.8, 0] }, // L Hall
+            cam4: { pos: [420, 25, -90], rot: [-0.4, 1.8, 0] }   // R Hall
+        };
+
+        const GaryPoints = {
+            0: [120, 12, -130], 1: [220, 12, -110], 2: [320, 12, -100],
+            3: [420, 12, -100], 4: [-34, 12, -5], 5: [34, 12, -5]
+        };
+
+        let scene, camera, renderer, officeGroup, gary;
+        let lDoorMesh, rDoorMesh, lLight, rLight, mainLight, deskGlow;
+        let mouseX = 0, targetRotY = 0;
+
+        function init3D() {
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x000000);
+            scene.fog = new THREE.Fog(0x000000, 5, 200);
+
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(0, 15, 0);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            document.getElementById('gameCanvas').appendChild(renderer.domElement);
+
+            // Office ambient light
+            scene.add(new THREE.AmbientLight(0x222222, 1.5)); 
+
+            buildEnvironment();
+            buildGary();
+
+            window.addEventListener('resize', () => {
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+            });
+
+            const handleMove = (x) => {
+                if (State.monitorUp || State.isDead || State.won) return;
+                mouseX = (x / window.innerWidth) * 2 - 1;
+                targetRotY = -mouseX * 0.9;
+            };
+
+            document.addEventListener('mousemove', (e) => handleMove(e.clientX));
+            document.addEventListener('touchmove', (e) => handleMove(e.touches[0].clientX));
+
+            renderer.render(scene, camera);
+        }
+
+        function buildEnvironment() {
+            officeGroup = new THREE.Group();
+            scene.add(officeGroup);
+
+            const grayMat = new THREE.MeshStandardMaterial({ color: 0x444444, roughness: 0.7 });
+            const wallMat = new THREE.MeshStandardMaterial({ color: 0x333333, roughness: 0.9 });
+            const floorMat = new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.6 });
+
+            officeGroup.add(box(80, 1, 80, 0, 0, 0, floorMat));
+            officeGroup.add(box(80, 1, 80, 0, 30, 0, grayMat));
+            officeGroup.add(box(80, 30, 2, 0, 15, -30, wallMat));
+            officeGroup.add(box(80, 30, 2, 0, 15, 40, wallMat));
+            
+            officeGroup.add(box(2, 30, 15, -30, 15, 20, wallMat)); 
+            officeGroup.add(box(2, 30, 15, -30, 15, -20, wallMat)); 
+            officeGroup.add(box(2, 10, 25, -30, 25, 0, wallMat)); 
+            
+            officeGroup.add(box(2, 30, 15, 30, 15, 20, wallMat)); 
+            officeGroup.add(box(2, 30, 15, 30, 15, -20, wallMat)); 
+            officeGroup.add(box(2, 10, 25, 30, 25, 0, wallMat));
+
+            const hallFloorMat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 1 });
+            const hallWallMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 1 });
+
+            const lHall = new THREE.Group();
+            lHall.position.set(-60, 0, 0);
+            lHall.add(box(60, 1, 30, 0, 0, 0, hallFloorMat)); 
+            lHall.add(box(60, 1, 30, 0, 30, 0, grayMat)); 
+            lHall.add(box(60, 30, 2, 0, 15, 15, hallWallMat)); 
+            lHall.add(box(60, 30, 2, 0, 15, -15, hallWallMat)); 
+            officeGroup.add(lHall);
+
+            const rHall = new THREE.Group();
+            rHall.position.set(60, 0, 0);
+            rHall.add(box(60, 1, 30, 0, 0, 0, hallFloorMat)); 
+            rHall.add(box(60, 1, 30, 0, 30, 0, grayMat));
+            rHall.add(box(60, 30, 2, 0, 15, 15, hallWallMat)); 
+            rHall.add(box(60, 30, 2, 0, 15, -15, hallWallMat));
+            officeGroup.add(rHall);
+
+            lDoorMesh = box(2.6, 22, 28, -29, 31, 0, new THREE.MeshStandardMaterial({color: 0x555555, metalness: 0.3}));
+            officeGroup.add(lDoorMesh);
+            rDoorMesh = box(2.6, 22, 28, 29, 31, 0, new THREE.MeshStandardMaterial({color: 0x555555, metalness: 0.3}));
+            officeGroup.add(rDoorMesh);
+
+            officeGroup.add(box(30, 8, 12, 0, 4, -20, new THREE.MeshStandardMaterial({color: 0x2a1a0f})));
+
+            mainLight = new THREE.PointLight(0xfff0e0, 0.9, 100);
+            mainLight.position.set(0, 28, 0);
+            scene.add(mainLight);
+
+            deskGlow = new THREE.PointLight(0x4488ff, 0.5, 40);
+            deskGlow.position.set(0, 10, -15);
+            scene.add(deskGlow);
+
+            lLight = new THREE.PointLight(0xffffff, 0, 60);
+            lLight.position.set(-45, 15, 0);
+            scene.add(lLight);
+
+            rLight = new THREE.PointLight(0xffffff, 0, 60);
+            rLight.position.set(45, 15, 0);
+            scene.add(rLight);
+
+            buildRoom(120, 15, -120, 60, 40, 60, 0x6666ff); 
+            buildRoom(220, 15, -110, 80, 40, 80, 0xffffff); 
+            buildRoom(320, 15, -100, 30, 40, 80, 0xffcccc); 
+            buildRoom(420, 15, -100, 30, 40, 80, 0xccffcc); 
+        }
+
+        function box(w, h, d, x, y, z, mat) {
+            const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+            m.position.set(x, y, z);
+            return m;
+        }
+
+        function buildRoom(x, y, z, w, h, d, lightColor) {
+            const mat = new THREE.MeshStandardMaterial({ color: 0x222222, side: THREE.BackSide });
+            const r = box(w, h, d, x, y, z, mat);
+            scene.add(r);
+            const p = new THREE.PointLight(lightColor, 1.2, 150);
+            p.position.set(x, y + h/2 - 5, z);
+            scene.add(p);
+            const furnitureMat = new THREE.MeshStandardMaterial({color: 0x111111});
+            scene.add(box(5, 5, 5, x - 10, y - h/2 + 2.5, z - 10, furnitureMat));
+            scene.add(box(8, 2, 8, x + 15, y - h/2 + 1, z + 5, furnitureMat));
+        }
+
+        function buildGary() {
+            gary = new THREE.Group();
+            const mat = new THREE.MeshStandardMaterial({ color: 0x4B0082 });
+            const head = box(6, 6, 6, 0, 12, 0, mat);
+            const body = box(8, 10, 5, 0, 5, 0, mat);
+            const snout = box(4, 3, 3, 0, 11, 3, new THREE.MeshStandardMaterial({color: 0x222222}));
+            const lEye = box(1.2, 1.2, 1.2, -1.8, 13, 3, new THREE.MeshBasicMaterial({color: 0xff0000}));
+            const rEye = box(1.2, 1.2, 1.2, 1.8, 13, 3, new THREE.MeshBasicMaterial({color: 0xff0000}));
+            gary.add(head, body, snout, lEye, rEye);
+            scene.add(gary);
+            updateGary();
+        }
+
+        function updateGary() {
+            const p = GaryPoints[State.garyLoc];
+            gary.position.set(p[0], p[1], p[2]);
+            if (State.garyLoc === 4) gary.rotation.y = Math.PI/2;
+            else if (State.garyLoc === 5) gary.rotation.y = -Math.PI/2;
+            else gary.rotation.y = 0;
+        }
+
+        let audioCtx;
+        function playSfx(type) {
+            try {
+                if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.connect(gain); gain.connect(audioCtx.destination);
+                const now = audioCtx.currentTime;
+                if (type === 'door') {
+                    osc.frequency.setValueAtTime(80, now);
+                    osc.frequency.exponentialRampToValueAtTime(30, now + 0.3);
+                    gain.gain.setValueAtTime(0.5, now);
+                    gain.gain.linearRampToValueAtTime(0, now + 0.3);
+                    osc.start(); osc.stop(now + 0.3);
+                } else if (type === 'scare') {
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(100, now);
+                    osc.frequency.linearRampToValueAtTime(500, now + 0.1);
+                    gain.gain.setValueAtTime(1, now);
+                    osc.start(); osc.stop(now + 2);
+                } else if (type === 'blip') {
+                    osc.frequency.value = 800;
+                    gain.gain.setValueAtTime(0.1, now);
+                    osc.start(); osc.stop(now + 0.05);
+                }
+            } catch(e) {}
+        }
+
+        function toggleDoor(side) {
+            if (State.isPowerOut || State.isDead || State.won) return;
+            playSfx('door');
+            if (side === 'left') State.leftDoor = !State.leftDoor;
+            else State.rightDoor = !State.rightDoor;
+            updateUI();
+        }
+
+        function toggleLight(side) {
+            if (State.isPowerOut || State.isDead || State.won) return;
+            if (side === 'left') {
+                State.leftLight = !State.leftLight;
+                if(State.leftLight) State.rightLight = false;
+            } else {
+                State.rightLight = !State.rightLight;
+                if(State.rightLight) State.leftLight = false;
+            }
+            lLight.intensity = State.leftLight ? 3.0 : 0;
+            rLight.intensity = State.rightLight ? 3.0 : 0;
+            updateUI();
+        }
+
+        function toggleMonitor() {
+            if (State.isPowerOut || State.isDead || State.won) return;
+            const now = Date.now();
+            if (now - State.lastMonitorToggle < 250) return;
+            State.lastMonitorToggle = now;
+            State.monitorUp = !State.monitorUp;
+            playSfx('blip');
+            document.getElementById('camera-system').style.display = State.monitorUp ? 'block' : 'none';
+            if (State.monitorUp) switchCam(State.activeCam);
+            else { camera.position.set(0, 15, 0); camera.rotation.set(0, 0, 0); }
+            updateUI();
+        }
+
+        function switchCam(id) {
+            if (!State.monitorUp) return;
+            playSfx('blip');
+            State.activeCam = id;
+            document.querySelectorAll('.cam-btn').forEach(b => b.classList.remove('active'));
+            document.getElementById('cam'+id).classList.add('active');
+            const v = Views['cam'+id];
+            camera.position.set(v.pos[0], v.pos[1], v.pos[2]);
+            camera.rotation.set(v.rot[0], v.rot[1], v.rot[2]);
+            const names = ["Stage", "Dining Area", "West Hallway", "East Hallway"];
+            document.getElementById('cam-name').innerText = "CAM " + id + " - " + names[id-1];
+        }
+
+        function updateUI() {
+            document.getElementById('btn-door-left').classList.toggle('active', State.leftDoor);
+            document.getElementById('btn-door-right').classList.toggle('active', State.rightDoor);
+            document.getElementById('btn-light-left').classList.toggle('active', State.leftLight);
+            document.getElementById('btn-light-right').classList.toggle('active', State.rightLight);
+            let u = 1;
+            if (State.leftDoor) u++; if (State.rightDoor) u++;
+            if (State.leftLight || State.rightLight) u++;
+            if (State.monitorUp) u++;
+            State.usage = u;
+            let b = ""; for(let i=0; i<u; i++) b += "|";
+            document.getElementById('usage-bars').innerText = b;
+            document.getElementById('usage-bars').style.color = u > 3 ? "red" : u > 2 ? "yellow" : "lime";
+        }
+
+        function loop() {
+            if (State.isDead || State.won) return;
+            requestAnimationFrame(loop);
+            const dt = 1/60; 
+            if (!State.monitorUp && !State.isPowerOut) {
+                camera.rotation.y += (targetRotY - camera.rotation.y) * 0.1;
+            }
+            const dSpeed = 1.2;
+            if (State.leftDoor && lDoorMesh.position.y > 11) lDoorMesh.position.y -= dSpeed;
+            else if (!State.leftDoor && lDoorMesh.position.y < 31) lDoorMesh.position.y += dSpeed;
+            if (State.rightDoor && rDoorMesh.position.y > 11) rDoorMesh.position.y -= dSpeed;
+            else if (!State.rightDoor && rDoorMesh.position.y < 31) rDoorMesh.position.y += dSpeed;
+            if (!State.isPowerOut) {
+                State.powerTimer += dt;
+                if (State.powerTimer >= 1.0) {
+                    State.powerTimer = 0;
+                    State.power -= (0.15 * State.usage);
+                    if (State.power <= 0) { State.power = 0; powerOut(); }
+                    document.getElementById('power-val').innerText = Math.floor(State.power);
+                    State.timeElapsed++;
+                    if (State.timeElapsed >= 60) {
+                        State.timeElapsed = 0; State.hour++;
+                        if (State.hour >= 6) win();
+                        else document.getElementById('time-val').innerText = State.hour;
+                    }
+                    aiTick();
+                }
+            }
+            renderer.render(scene, camera);
+        }
+
+        function aiTick() {
+            State.aiTimer++;
+            if (State.aiTimer >= State.aiDiff) {
+                State.aiTimer = 0;
+                if (Math.random() > 0.4) moveGary();
+            }
+            if (State.garyLoc === 4 || State.garyLoc === 5) {
+                State.doorPatience++;
+                const closed = State.garyLoc === 4 ? State.leftDoor : State.rightDoor;
+                if (State.doorPatience > 10) {
+                    if (closed) { State.garyLoc = 1; State.doorPatience = 0; updateGary(); }
+                    else if (!State.monitorUp) jumpscare();
+                } else if (State.monitorUp && !closed) { toggleMonitor(); jumpscare(); }
+            }
+        }
+
+        function moveGary() {
+            const loc = State.garyLoc;
+            let next = [0];
+            if (loc === 0) next = [1];
+            else if (loc === 1) next = [0, 2, 3];
+            else if (loc === 2) next = [1, 4];
+            else if (loc === 3) next = [1, 5];
+            State.garyLoc = next[Math.floor(Math.random() * next.length)];
+            updateGary();
+        }
+
+        function powerOut() {
+            State.isPowerOut = true;
+            State.leftDoor = State.rightDoor = State.leftLight = State.rightLight = State.monitorUp = false;
+            lLight.intensity = rLight.intensity = mainLight.intensity = deskGlow.intensity = 0;
+            document.getElementById('hud').style.display = 'none';
+            document.getElementById('camera-system').style.display = 'none';
+            camera.position.set(0, 15, 0); camera.rotation.set(0,0,0);
+            setTimeout(() => { if(!State.won) jumpscare(); }, 5000 + Math.random()*5000);
+        }
+
+        function jumpscare() {
+            if (State.isDead || State.won) return;
+            State.isDead = true;
+            playSfx('scare');
+            const c = document.getElementById('jumpscare-img');
+            c.width = 600; c.height = 600;
+            const ctx = c.getContext('2d');
+            ctx.fillStyle = '#000'; ctx.fillRect(0,0,600,600);
+            ctx.fillStyle = '#4B0082'; ctx.beginPath(); ctx.arc(300, 300, 220, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = 'red'; ctx.beginPath(); ctx.arc(220, 250, 25, 0, Math.PI*2); ctx.fill();
+            ctx.beginPath(); ctx.arc(380, 250, 25, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = 'white'; ctx.fillRect(180, 420, 240, 30); 
+            document.getElementById('jumpscare-screen').style.display = 'flex';
+            setTimeout(() => {
+                document.getElementById('jumpscare-screen').style.display = 'none';
+                document.getElementById('game-over').style.display = 'flex';
+            }, 1200);
+        }
+
+        function win() {
+            State.won = true;
+            document.getElementById('hud').style.display = 'none';
+            document.getElementById('camera-system').style.display = 'none';
+            document.getElementById('win-screen').style.display = 'flex';
+        }
+
+        window.onload = () => {
+            init3D();
+            const startBtn = document.getElementById('start-btn');
+            startBtn.addEventListener('click', () => {
+                document.getElementById('main-menu').style.display = 'none';
+                document.getElementById('hud').style.display = 'block';
+                loop();
+            });
+            document.getElementById('restart-btn').onclick = () => location.reload();
+            document.getElementById('win-restart-btn').onclick = () => location.reload();
+            document.getElementById('btn-door-left').onclick = () => toggleDoor('left');
+            document.getElementById('btn-light-left').onclick = () => toggleLight('left');
+            document.getElementById('btn-door-right').onclick = () => toggleDoor('right');
+            document.getElementById('btn-light-right').onclick = () => toggleLight('right');
+            document.getElementById('monitor-toggle').onclick = toggleMonitor;
+            document.getElementById('monitor-close').onclick = toggleMonitor;
+            [1,2,3,4].forEach(i => { document.getElementById('cam'+i).onclick = () => switchCam(i); });
+            const s = document.getElementById('static-canvas');
+            const sx = s.getContext('2d');
+            setInterval(() => {
+                if(State.isDead) return;
+                const id = sx.createImageData(100, 100);
+                for(let i=0; i<id.data.length; i+=4) {
+                    const v = Math.random()*255;
+                    id.data[i] = id.data[i+1] = id.data[i+2] = v; id.data[i+3] = 255;
+                }
+                sx.putImageData(id, 0, 0);
+            }, 60);
+            const n = document.getElementById('noise-canvas');
+            const nx = n.getContext('2d');
+            setInterval(() => {
+                if(!State.monitorUp) return;
+                const id = nx.createImageData(120, 120);
+                for(let i=0; i<id.data.length; i+=4) {
+                    const v = Math.random()*255;
+                    id.data[i] = id.data[i+1] = id.data[i+2] = v; id.data[i+3] = 100;
+                }
+                nx.putImageData(id, 0, 0);
+            }, 50);
+        };
+    </script>
+</body>
+</html>
