@@ -1,7 +1,9 @@
-<!DOCTYPE html><html lang="en"><head>
+<!DOCTYPE html>
+<html lang="en">
+<head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Dog Park Dash - Ultimate Park Edition</title>
+    <title>Dog Park Dash - Enhanced Edition</title>
     <style>
         body {
             margin: 0;
@@ -35,11 +37,13 @@
             color: white;
             display: flex;
             align-items: center;
-            gap: 12px;
-            background: rgba(0,0,0,0.2);
+            gap: 10px;
+            background: rgba(0,0,0,0.3);
             padding: 8px 16px;
             border-radius: 15px;
             backdrop-filter: blur(5px);
+            pointer-events: auto;
+            border: 2px solid rgba(255,255,255,0.2);
         }
         .tennis-icon {
             width: 24px;
@@ -48,8 +52,59 @@
             border-radius: 50%;
             display: inline-block;
             border: 3px solid white;
-            box-shadow: inset -4px -4px 6px rgba(0,0,0,0.2);
+            box-shadow: inset -2px -2px 4px rgba(0,0,0,0.2);
         }
+
+        #ability-indicator {
+            position: absolute;
+            bottom: 30px;
+            right: 30px;
+            width: 90px;
+            height: 90px;
+            background: rgba(0,0,0,0.7);
+            border-radius: 50%;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            pointer-events: auto;
+            z-index: 100;
+            transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.3);
+        }
+        
+        #ability-indicator.ready { transform: scale(1.1); animation: readyPulse 2s infinite ease-in-out; cursor: pointer; }
+        #ability-indicator.active { transform: scale(1.2); animation: activeShake 0.15s infinite; }
+
+        @keyframes readyPulse {
+            0% { box-shadow: 0 0 0 0px rgba(76, 175, 80, 0.6); }
+            70% { box-shadow: 0 0 0 20px rgba(76, 175, 80, 0); }
+            100% { box-shadow: 0 0 0 0px rgba(76, 175, 80, 0); }
+        }
+
+        @keyframes activeShake {
+            0% { transform: scale(1.2) rotate(0deg); }
+            25% { transform: scale(1.2) rotate(2deg); }
+            75% { transform: scale(1.2) rotate(-2deg); }
+            100% { transform: scale(1.2) rotate(0deg); }
+        }
+
+        #ability-icon { font-size: 36px; margin-bottom: -2px; z-index: 3; filter: drop-shadow(0 2px 2px rgba(0,0,0,0.5)); pointer-events: none; }
+        #ability-status-text { font-size: 11px; color: white; font-weight: 900; text-transform: uppercase; z-index: 3; letter-spacing: 1px; pointer-events: none; }
+
+        .cooldown-ring {
+            position: absolute;
+            top: -6px;
+            left: -6px;
+            width: 102px;
+            height: 102px;
+            border-radius: 50%;
+            z-index: 2;
+            mask: radial-gradient(transparent 36px, #000 37px);
+            -webkit-mask: radial-gradient(transparent 36px, #000 37px);
+            pointer-events: none;
+        }
+
         #screens {
             position: absolute;
             top: 0;
@@ -60,228 +115,778 @@
             display: flex;
             flex-direction: column;
             align-items: center;
-            justify-content: center;
+            justify-content: flex-start;
             pointer-events: auto;
             backdrop-filter: blur(8px);
             z-index: 20;
-        }
-        .panel {
-            background: white;
-            padding: 25px;
-            border-radius: 30px;
-            text-align: center;
-            box-shadow: 0 20px 50px rgba(0,0,0,0.3);
-            max-width: 450px;
-            width: 90%;
-            border: 8px solid #5D4037;
-            max-height: 90vh;
             overflow-y: auto;
+            padding: 40px 0;
         }
-        .char-select {
+
+        .cover-art {
+            width: 100%;
+            height: 220px;
+            background: linear-gradient(to bottom, #a3e4ff, #4CAF50);
+            border-radius: 30px 30px 0 0;
+            margin: -30px -30px 20px -30px;
             display: flex;
             align-items: center;
             justify-content: center;
-            margin: 10px 0;
-            gap: 15px;
+            overflow: hidden;
+            position: relative;
         }
+
+        .cover-dog {
+            font-size: 120px;
+            filter: drop-shadow(0 10px 10px rgba(0,0,0,0.2));
+            animation: coverFloat 3s infinite ease-in-out;
+        }
+
+        @keyframes coverFloat {
+            0%, 100% { transform: translateY(0) rotate(0deg); }
+            50% { transform: translateY(-15px) rotate(5deg); }
+        }
+
+        .panel {
+            background: white;
+            padding: 30px;
+            border-radius: 40px;
+            text-align: center;
+            box-shadow: 0 30px 60px rgba(0,0,0,0.4);
+            max-width: 480px;
+            width: 90%;
+            border: 10px solid #5D4037;
+            margin-bottom: 30px;
+            flex-shrink: 0;
+            position: relative;
+        }
+        
+        .char-select { display: flex; align-items: center; justify-content: center; margin: 10px 0; gap: 20px; }
         .char-btn {
             background: #795548;
             color: white;
-            padding: 10px 20px;
+            padding: 12px 24px;
             font-size: 24px;
-            border-radius: 15px;
+            border-radius: 20px;
             cursor: pointer;
             border: none;
-            transition: transform 0.2s;
+            transition: transform 0.1s;
         }
         .char-btn:active { transform: scale(0.9); }
-        .char-info {
-            font-size: 14px;
-            color: #555;
-            min-height: 35px;
-            margin-bottom: 10px;
-            font-weight: 500;
-        }
-        .shop-container {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 10px;
-            margin-bottom: 20px;
-            max-height: 250px;
-            overflow-y: auto;
-            padding: 5px;
-            background: #f5f5f5;
-            border-radius: 15px;
-        }
-        .shop-item {
-            background: white;
-            padding: 12px;
-            border-radius: 18px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            border: 2px solid #e0e0e0;
-            transition: all 0.2s;
-        }
-        .shop-item.purchased { background: #dcedc8; border-color: #689f38; }
-        .shop-item h4 { margin: 0; font-size: 13px; color: #33691e; }
-        .shop-item p { margin: 4px 0; font-size: 10px; color: #666; }
-        .shop-item .price { font-weight: bold; color: #43a047; font-size: 13px; margin-bottom: 6px; }
-        .shop-btn {
-            padding: 6px 10px;
-            font-size: 11px;
-            width: 100%;
-            background-color: #689f38;
-            color: white;
-            border-radius: 8px;
-            border: none;
-            cursor: pointer;
-            font-weight: bold;
-        }
-        .shop-btn:disabled { background-color: #bdbdbd; cursor: not-allowed; }
-        h1 { color: #5D4037; font-size: 32px; margin: 0; font-weight: 900; letter-spacing: -1px; }
-        .btn-group {
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-            align-items: center;
-            margin-top: 15px;
-        }
-        .play-btn {
-            background-color: #43a047;
-            color: white;
-            border: none;
-            padding: 12px 40px;
-            font-size: 20px;
-            font-weight: bold;
-            border-radius: 50px;
-            cursor: pointer;
-            box-shadow: 0 6px 0 #2e7d32;
-            transition: all 0.1s;
-            width: 100%;
-            max-width: 280px;
-        }
-        .play-btn:active { transform: translateY(4px); box-shadow: 0 2px 0 #2e7d32; }
-        .secondary-btn {
-            background-color: #795548;
-            color: white;
-            border: none;
-            padding: 8px 25px;
-            font-size: 14px;
-            font-weight: bold;
-            border-radius: 50px;
-            cursor: pointer;
-            box-shadow: 0 4px 0 #3e2723;
-            transition: all 0.1s;
-            width: 100%;
-            max-width: 220px;
-        }
-        .secondary-btn:active { transform: translateY(2px); box-shadow: 0 1px 0 #3e2723; }
-        .hidden { display: none !important; }
         
-        #ghost-indicator {
-            position: absolute;
-            bottom: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: rgba(255,255,255,0.8);
-            padding: 5px 15px;
-            border-radius: 20px;
+        .char-info {
+            background: #fdfdfd;
+            padding: 20px;
+            border-radius: 25px;
+            margin-bottom: 20px;
+            text-align: left;
+            border: 2px solid #eee;
+            position: relative;
+        }
+        .char-info h3 { margin: 0 0 5px 0; color: #5D4037; font-size: 22px; }
+        .char-dedication { 
+            font-size: 11px; 
+            color: #8D6E63; 
+            font-style: italic; 
+            margin-bottom: 10px; 
+            display: block;
+        }
+        
+        .evo-container {
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 2px dashed #ddd;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            text-align: center;
+        }
+        .evo-btn {
+            background: #FF9800;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 12px;
             font-weight: bold;
-            color: #1565C0;
+            cursor: pointer;
+            box-shadow: 0 4px 0 #E65100;
+        }
+        .evo-btn:active { transform: translateY(2px); box-shadow: 0 2px 0 #E65100; }
+        .evo-btn:disabled { background: #ccc; box-shadow: 0 4px 0 #999; cursor: not-allowed; }
+
+        .ability-tag {
+            display: inline-block;
+            background: #2196F3;
+            color: white;
+            padding: 6px 14px;
+            border-radius: 12px;
+            font-weight: bold;
+            font-size: 13px;
+            margin-top: 10px;
+        }
+
+        .locked-overlay {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.8);
+            border-radius: 25px;
             display: none;
+            flex-direction: column; align-items: center; justify-content: center;
+            color: white; text-align: center; padding: 10px; z-index: 5;
+        }
+
+        .play-btn {
+            background: linear-gradient(135deg, #4CAF50, #2E7D32);
+            color: white;
+            border: none;
+            padding: 22px 60px;
+            font-size: 28px;
+            font-weight: 900;
+            border-radius: 60px;
+            cursor: pointer;
+            box-shadow: 0 10px 0 #1B5E20, 0 15px 30px rgba(0,0,0,0.3);
+            margin: 15px 0;
+            transition: all 0.1s;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 15px;
+            width: 100%;
+        }
+
+        .play-btn:active { 
+            transform: translateY(6px); 
+            box-shadow: 0 4px 0 #1B5E20, 0 5px 15px rgba(0,0,0,0.3); 
+        }
+
+        .play-btn:disabled {
+            background: #9e9e9e;
+            box-shadow: 0 8px 0 #757575;
+            cursor: not-allowed;
+            opacity: 0.7;
+        }
+
+        .play-icon {
+            width: 0;
+            height: 0;
+            border-top: 12px solid transparent;
+            border-bottom: 12px solid transparent;
+            border-left: 20px solid white;
+        }
+        
+        .retry-btn {
+            background: linear-gradient(135deg, #FF5722, #E64A19);
+            box-shadow: 0 10px 0 #BF360C, 0 15px 30px rgba(0,0,0,0.3);
+        }
+        .retry-btn:active {
+            box-shadow: 0 4px 0 #BF360C, 0 5px 15px rgba(0,0,0,0.3);
+        }
+
+        .shop-panel { background: #fdf5e6; border-color: #8D6E63; }
+        .shop-wallet {
+            display: flex; align-items: center; justify-content: center; gap: 8px;
+            background: #fff; padding: 10px 20px; border-radius: 20px;
+            border: 3px solid #ccff00; width: fit-content; margin: 0 auto 20px auto;
+            font-weight: 900; color: #5D4037; font-size: 20px;
+        }
+
+        .shop-list { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        .shop-item {
+            background: white; padding: 12px; border-radius: 20px; border: 2px solid #ddd;
+            display: flex; flex-direction: column; gap: 6px;
+            transition: transform 0.2s;
+        }
+        .shop-item.owned { opacity: 0.7; background: #e8f5e9; border-color: #4caf50; }
+        .shop-item p { margin: 0; font-weight: bold; color: #5D4037; }
+        .shop-item span { font-size: 11px; color: #757575; height: 30px; display: block; }
+        .shop-btn {
+            padding: 8px; background: #689f38; color: white; border-radius: 12px;
+            border: none; cursor: pointer; font-weight: bold; font-size: 13px;
+            box-shadow: 0 4px 0 #33691e;
+        }
+        .shop-btn:disabled { background: #bdbdbd; box-shadow: 0 4px 0 #9e9e9e; cursor: default; }
+        .hidden { display: none !important; }
+
+        @media (max-width: 400px) {
+            .shop-list { grid-template-columns: 1fr; }
+            .panel { padding: 15px; }
+            .cover-art { height: 160px; margin-top: -15px; }
         }
     </style>
 </head>
 <body>
-    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 
     <div id="ui-layer">
         <div class="hud">
             <div class="stat"><span id="score-display">0</span> m</div>
             <div class="stat"><div class="tennis-icon"></div><span id="ball-display">0</span></div>
         </div>
-        <div id="ghost-indicator">GHOST READY</div>
+
+        <div id="ability-indicator" onmousedown="activateAbility()" ontouchstart="activateAbility()">
+            <div class="cooldown-ring" id="cooldown-ring"></div>
+            <div id="ability-icon">🐕</div>
+            <div id="ability-status-text">Wait</div>
+        </div>
     </div>
 
     <div id="screens">
+        <!-- Start Screen -->
         <div class="panel" id="start-screen">
-            <h1>Dog Park Dash</h1>
-            <div class="char-select">
-                <button id="prev-dog" class="char-btn">◀</button>
-                <h2 id="dog-name" style="margin: 0; min-width: 160px; color: #5D4037;">Retriever</h2>
-                <button id="next-dog" class="char-btn">▶</button>
+            <div class="cover-art">
+                <div class="cover-dog" id="cover-dog-emoji">🦮</div>
+                <div style="position: absolute; bottom: 10px; width: 100%; color: white; font-weight: 900; font-size: 24px; text-shadow: 2px 2px 0px #5D4037;">DOG PARK DASH</div>
             </div>
-            <div class="char-info" id="dog-info">Balanced stats.</div>
-            
-            <div style="border-top: 2px solid #eee; margin-top: 5px; padding-top: 10px;">
-                <h3 style="margin: 0 0 8px 0; font-size: 14px; color: #5D4037; text-transform: uppercase;">Park Shop</h3>
-                <div class="shop-container">
-                    <div class="shop-item" id="item-jump">
-                        <h4>Super Leap</h4>
-                        <p>+25% Jump</p>
-                        <div class="price">15 🎾</div>
-                        <button class="shop-btn">Buy</button>
-                    </div>
-                    <div class="shop-item" id="item-speed">
-                        <h4>Turbo Paws</h4>
-                        <p>Agile turns</p>
-                        <div class="price">25 🎾</div>
-                        <button class="shop-btn">Buy</button>
-                    </div>
-                    <div class="shop-item" id="item-magnet">
-                        <h4>Magnet</h4>
-                        <p>2x Ball Value</p>
-                        <div class="price">40 🎾</div>
-                        <button class="shop-btn">Buy</button>
-                    </div>
-                    <div class="shop-item" id="item-luck">
-                        <h4>Lucky Bone</h4>
-                        <p>More Balls</p>
-                        <div class="price">50 🎾</div>
-                        <button class="shop-btn">Buy</button>
-                    </div>
-                    <div class="shop-item" id="item-golden">
-                        <h4>Golden Fur</h4>
-                        <p>Shiny Look</p>
-                        <div class="price">100 🎾</div>
-                        <button class="shop-btn">Buy</button>
-                    </div>
-                    <div class="shop-item" id="item-ghost">
-                        <h4>Ghost Mode</h4>
-                        <p>Revive once</p>
-                        <div class="price">150 🎾</div>
-                        <button class="shop-btn">Buy</button>
-                    </div>
-                    <div class="shop-item" id="item-multiplier">
-                        <h4>Double Dash</h4>
-                        <p>2x Score Mult</p>
-                        <div class="price">200 🎾</div>
-                        <button class="shop-btn">Buy</button>
-                    </div>
-                    <div class="shop-item" id="item-slowmo">
-                        <h4>Slow-Mo Treat</h4>
-                        <p>Slower Speedup</p>
-                        <div class="price">120 🎾</div>
-                        <button class="shop-btn">Buy</button>
-                    </div>
+
+            <div class="char-select">
+                <button class="char-btn" onclick="changeDog(-1)">◀</button>
+                <h2 id="dog-name" style="margin: 0; min-width: 160px;">Goldie</h2>
+                <button class="char-btn" onclick="changeDog(1)">▶</button>
+            </div>
+
+            <div class="char-info">
+                <div id="locked-overlay" class="locked-overlay">
+                    <span style="font-size: 40px;">🔒</span>
+                    <p id="lock-message" style="margin: 10px 0 0 0; font-weight: bold;">Reach 3000m to unlock!</p>
+                </div>
+                <h3 id="info-name">Goldie</h3>
+                <span id="info-dedication" class="char-dedication"></span>
+                <p><strong>Pros:</strong> <span id="info-pro">Balanced</span></p>
+                <p><strong>Cons:</strong> <span id="info-con">None</span></p>
+                <div class="ability-tag" id="info-ability">SHIELD: Become immune to hits</div>
+                <div class="evo-container">
+                    <span id="evo-stars" style="font-size: 20px; color: #FFD700;">⭐⭐⭐</span>
+                    <button class="evo-btn" id="evo-btn" onclick="evolveDog()">EVOLVE: 50 🎾</button>
+                    <p id="evo-stats" style="font-size: 12px; color: #43A047; font-weight: bold; margin: 4px 0 0 0;">Speed +0% | Ability Duration +0%</p>
                 </div>
             </div>
-            <button id="start-btn" class="play-btn">START DASH</button>
+
+            <button class="play-btn" id="start-dash-btn" onclick="startGame()">
+                <div class="play-icon"></div>
+                START DASH
+            </button>
         </div>
 
+        <!-- Shop Section -->
+        <div class="panel shop-panel" id="shop-section">
+            <h2 class="shop-title" style="margin-top:0;">PARK SHOP</h2>
+            <div class="shop-wallet"><div class="tennis-icon"></div><span id="shop-ball-count">0</span></div>
+            <div class="shop-list" id="shop-list-container">
+                <!-- Shop items injected here -->
+            </div>
+        </div>
+
+        <!-- Game Over Screen -->
         <div class="panel hidden" id="game-over-screen">
-            <h1 style="color: #d32f2f;">Oh no!</h1>
-            <p style="font-size: 20px; color: #666;">You ran <strong id="final-score" style="color: #333;">0</strong> meters!</p>
-            <div style="margin: 10px 0; font-size: 18px; display: flex; align-items: center; justify-content: center; gap: 8px;">
-                Collected: <span class="tennis-icon"></span> <strong id="final-balls">0</strong>
+            <div style="font-size: 60px; margin-bottom: 10px;">💨</div>
+            <h1 style="color: #d32f2f; margin: 0 0 10px 0; font-size: 42px;">Wiped Out!</h1>
+            
+            <div style="background: #f5f5f5; padding: 20px; border-radius: 20px; margin-bottom: 20px; border: 2px solid #eee;">
+                <p style="margin: 5px 0; font-size: 18px; color: #666;">Distance Travelled</p>
+                <p style="margin: 0; font-size: 32px; font-weight: 900; color: #5D4037;"><strong id="final-score">0</strong>m</p>
+                <hr style="border: none; border-top: 2px dashed #ddd; margin: 15px 0;">
+                <p style="margin: 0; font-size: 14px; color: #999;">Personal Best: <span id="high-score-display">0</span>m</p>
             </div>
-            <div class="btn-group">
-                <button id="restart-btn" class="play-btn">RETRY DASH</button>
-                <button id="menu-btn" class="secondary-btn">MAIN MENU</button>
-            </div>
+
+            <button class="play-btn retry-btn" onclick="startGame()">
+                <div style="font-size: 24px; transform: scaleX(-1);">↺</div>
+                RETRY DASH
+            </button>
+            <button class="play-btn" style="background:#5D4037; box-shadow: 0 8px 0 #3E2723;" onclick="resetToMenu()">
+                BACK TO DOGHOUSE
+            </button>
         </div>
     </div>
 
-    
+    <script>
+        let scene, camera, renderer, dog;
+        let objects = [];
+        let scenery = [];
+        let isPlaying = false;
+        let score = 0, highScore = 0, totalBalls = 0, sessionBalls = 0;
+        
+        let gameSpeed = 0.35; 
+        const SPEED_RAMP = 0.000045; 
+        const MAX_SPEED = 1.5; 
+        
+        let animationTime = 0;
+        let upgrades = { jump: false, speed: false, magnet: false, double: false, golden: false, lucky: false };
 
+        const dogTypes = [
+            { name: "Goldie", emoji: "🦮", bodyColor: 0xDAA520, snoutColor: 0xF5DEB3, jumpForce: 0.34, baseSpeed: 0.35, agility: 0.22, multiplier: 1.0, pro: "Perfectly balanced.", con: "No special passive stats.", ability: "shield", abilityName: "Shield", abilityDesc: "SHIELD: Become immune to hits", unlockRequirement: 0, evoLevel: 0, abilityDurationMod: 1.0 },
+            { name: "Corgi", emoji: "🦊", bodyColor: 0xCD853F, snoutColor: 0xFFF8DC, jumpForce: 0.30, baseSpeed: 0.30, agility: 0.25, multiplier: 1.0, pro: "Compact size.", con: "Lower jump height.", ability: "magnet", abilityName: "Magnet", abilityDesc: "MAGNET: Pull all tennis balls to you", unlockRequirement: 0, evoLevel: 0, abilityDurationMod: 1.0 },
+            { name: "Pug", emoji: "🐶", bodyColor: 0xD7B58E, snoutColor: 0x3E2723, jumpForce: 0.31, baseSpeed: 0.28, agility: 0.45, multiplier: 1.2, pro: "Snappy turns.", con: "Slower runs.", ability: "snuffle", abilityName: "Snuffle", abilityDesc: "SNUFFLE: Sniff out extra tennis balls", unlockRequirement: 0, evoLevel: 0, abilityDurationMod: 1.0 },
+            { name: "Husky", emoji: "🐺", bodyColor: 0x2C3E50, snoutColor: 0xECF0F1, jumpForce: 0.35, baseSpeed: 0.45, agility: 0.20, multiplier: 1.3, pro: "Endurance master.", con: "Slower to turn.", ability: "ghost", abilityName: "Ghost", abilityDesc: "GHOST: Phase through obstacles", unlockRequirement: 3000, evoLevel: 0, abilityDurationMod: 1.0 },
+            { name: "Aussie Shepherd", emoji: "🐕", dedication: "By Wyatt to Sadie", bodyColor: 0x546E7A, snoutColor: 0xFFFFFF, jumpForce: 0.38, baseSpeed: 0.50, agility: 0.35, multiplier: 1.1, pro: "God-tier energy.", con: "Requires elite focus.", ability: "herodash", abilityName: "Call of the Wild", abilityDesc: "CALL OF THE WILD: 6x Speed & Invincibility", unlockRequirement: 6000, evoLevel: 0, abilityDurationMod: 2.0 }
+        ];
+        let currentDogIndex = 0;
+
+        const shopItems = [
+            { id: 'jump', name: 'Strong Legs', desc: 'Jump 20% higher', price: 15 },
+            { id: 'speed', name: 'Turbo Kibble', desc: 'Slightly higher start speed', price: 25 },
+            { id: 'magnet', name: 'Dog Whistle', desc: 'Passive small ball magnet', price: 40 },
+            { id: 'golden', name: 'Golden Brush', desc: '2x Ball value', price: 60 },
+            { id: 'lucky', name: 'Lucky Collar', desc: '10% chance to survive hits', price: 80 },
+            { id: 'double', name: 'Double Jump', desc: 'Ability to jump twice!', price: 120 }
+        ];
+
+        let abilityActive = false;
+        let abilityCooldown = 1.0; 
+        const BASE_ABILITY_DUR = 4000;
+        const COOLDOWN_REFILL_RATE = 0.0015;
+
+        const LANE_WIDTH = 2.8;
+        let currentLane = 0, targetX = 0, isJumping = false, jumpCount = 0, yVelocity = 0;
+        const GRAVITY = 0.015;
+        let spawnTimer = 0, sceneryTimer = 0;
+
+        const materials = {
+            dogBody: new THREE.MeshLambertMaterial({ color: 0x8B4513 }),
+            dogSnout: new THREE.MeshLambertMaterial({ color: 0xD2B48C }),
+            ball: new THREE.MeshPhongMaterial({ color: 0xccff00, shininess: 100, emissive: 0x333300 }),
+            bush: new THREE.MeshLambertMaterial({ color: 0x2E7D32 }),
+            foliage: new THREE.MeshLambertMaterial({ color: 0x1B5E20 }),
+            trunk: new THREE.MeshLambertMaterial({ color: 0x3E2723 }),
+            hydrantBody: new THREE.MeshPhongMaterial({ color: 0xD32F2F, shininess: 80 }),
+            hydrantMetal: new THREE.MeshPhongMaterial({ color: 0xBDBDBD }),
+            trashCan: new THREE.MeshPhongMaterial({ color: 0x9E9E9E }),
+            grass: new THREE.MeshLambertMaterial({ color: 0x4CAF50 }),
+            path: new THREE.MeshLambertMaterial({ color: 0x795548 }),
+            shield: new THREE.MeshPhongMaterial({ color: 0x00ccff, transparent: true, opacity: 0.4 }),
+            ghost: new THREE.MeshPhongMaterial({ color: 0xffffff, transparent: true, opacity: 0.3 }),
+            alphaEffect: new THREE.MeshPhongMaterial({ color: 0xFFD700, transparent: true, opacity: 0.5, emissive: 0xFFAA00 })
+        };
+
+        function init() {
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0xa3e4ff);
+            scene.fog = new THREE.Fog(0xa3e4ff, 40, 160);
+            camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 400);
+            camera.position.set(0, 6.5, 13);
+            camera.lookAt(0, 1, -5);
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.shadowMap.enabled = true;
+            document.body.appendChild(renderer.domElement);
+            
+            scene.add(new THREE.AmbientLight(0xffffff, 0.8));
+            const sun = new THREE.DirectionalLight(0xffffff, 1.2);
+            sun.position.set(30, 60, 20); sun.castShadow = true;
+            sun.shadow.camera.left = -50; sun.shadow.camera.right = 50;
+            sun.shadow.camera.top = 50; sun.shadow.camera.bottom = -50;
+            scene.add(sun);
+
+            createEnvironment();
+            createDog();
+            renderShop();
+            window.addEventListener('resize', onWindowResize);
+            setupInput();
+            updateDogVisuals();
+            animate();
+        }
+
+        function createEnvironment() {
+            const floor = new THREE.Mesh(new THREE.PlaneGeometry(3000, 3000), materials.grass);
+            floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; scene.add(floor);
+            const path = new THREE.Mesh(new THREE.PlaneGeometry(LANE_WIDTH * 3 + 4, 3000), materials.path);
+            path.rotation.x = -Math.PI / 2; path.position.y = 0.02; path.receiveShadow = true; scene.add(path);
+        }
+
+        function createTree(x, z) {
+            const tree = new THREE.Group();
+            const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.45, 4), materials.trunk);
+            trunk.position.y = 2; tree.add(trunk);
+            for(let i=0; i < 4; i++) {
+                const layer = new THREE.Mesh(new THREE.ConeGeometry(2.2 - (i * 0.4), 2.5, 8), materials.foliage);
+                layer.position.y = 3.5 + (i * 1.3); tree.add(layer);
+            }
+            tree.position.set(x, 0, z); scene.add(tree); scenery.push(tree);
+        }
+
+        function createHydrant() {
+            const group = new THREE.Group();
+            const body = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.4, 1.4, 16), materials.hydrantBody);
+            body.position.y = 0.7; body.castShadow = true; group.add(body);
+            const cap = new THREE.Mesh(new THREE.SphereGeometry(0.42, 12, 12), materials.hydrantBody);
+            cap.position.y = 1.4; group.add(cap);
+            const side1 = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 0.6, 8), materials.hydrantMetal);
+            side1.rotation.z = Math.PI/2; side1.position.y = 0.8; group.add(side1);
+            return group;
+        }
+
+        function createTrashCan() {
+            const group = new THREE.Group();
+            const body = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.5, 1.6, 16), materials.trashCan);
+            body.position.y = 0.8; body.castShadow = true; group.add(body);
+            const lid = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.6, 0.15, 16), materials.trashCan);
+            lid.position.y = 1.6; group.add(lid);
+            const handle = new THREE.Mesh(new THREE.TorusGeometry(0.12, 0.04, 8, 12), materials.trashCan);
+            handle.position.y = 1.7; handle.rotation.x = Math.PI/2; group.add(handle);
+            return group;
+        }
+
+        function createDog() {
+            dog = new THREE.Group();
+            const bodyGroup = new THREE.Group(); bodyGroup.name = "bodyGroup"; dog.add(bodyGroup);
+            const body = new THREE.Mesh(new THREE.BoxGeometry(0.85, 0.75, 1.5), materials.dogBody);
+            body.position.y = 0.55; body.castShadow = true; bodyGroup.add(body);
+            const head = new THREE.Mesh(new THREE.BoxGeometry(0.65, 0.65, 0.65), materials.dogBody);
+            head.position.set(0, 1.0, -0.65); bodyGroup.add(head);
+            const snout = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.3, 0.45), materials.dogSnout);
+            snout.position.set(0, 0.9, -1.05); bodyGroup.add(snout);
+            const earR = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.3, 0.1), materials.dogBody);
+            earR.position.set(0.3, 1.35, -0.6); bodyGroup.add(earR);
+            const earL = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.3, 0.1), materials.dogBody);
+            earL.position.set(-0.3, 1.35, -0.6); bodyGroup.add(earL);
+
+            const createLeg = (name, x, z) => {
+                const leg = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.6, 0.22), materials.dogBody);
+                leg.position.set(x, 0.3, z); leg.name = name; dog.add(leg);
+            };
+            createLeg("legFR", 0.32, -0.5); createLeg("legFL", -0.32, -0.5);
+            createLeg("legBR", 0.32, 0.5); createLeg("legBL", -0.32, 0.5);
+
+            const tail = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.15, 0.5), materials.dogBody);
+            tail.position.set(0, 0.8, 0.9); tail.name = "tail"; dog.add(tail);
+
+            const shield = new THREE.Mesh(new THREE.SphereGeometry(1.4, 24, 24), materials.shield);
+            shield.name = "shieldEffect"; shield.visible = false; dog.add(shield);
+            const ghost = new THREE.Mesh(new THREE.BoxGeometry(1.3, 2, 2.2), materials.ghost);
+            ghost.name = "ghostEffect"; ghost.visible = false; dog.add(ghost);
+            const alpha = new THREE.Mesh(new THREE.SphereGeometry(1.8, 32, 32), materials.alphaEffect);
+            alpha.name = "alphaEffect"; alpha.visible = false; dog.add(alpha);
+            
+            scene.add(dog); dog.userData.hitbox = new THREE.Box3();
+        }
+
+        function spawnObject() {
+            const laneIdx = Math.floor(Math.random() * 3);
+            const z = -180;
+            const rand = Math.random();
+            if (rand < 0.4) {
+                const subRand = Math.random();
+                let obj;
+                if (subRand > 0.7) obj = createHydrant();
+                else if (subRand > 0.4) obj = createTrashCan();
+                else {
+                    obj = new THREE.Mesh(new THREE.DodecahedronGeometry(1.2, 1), materials.bush);
+                    obj.position.y = 0.8; obj.castShadow = true;
+                }
+                obj.position.x = (laneIdx - 1) * LANE_WIDTH;
+                obj.position.z = z;
+                obj.userData = { type: 'obstacle', active: true, bbox: new THREE.Box3() };
+                scene.add(obj); objects.push(obj);
+            } else {
+                const ballCount = Math.random() > 0.8 ? 3 : 1;
+                for(let i=0; i<ballCount; i++) {
+                    const ball = new THREE.Mesh(new THREE.SphereGeometry(0.45, 16, 16), materials.ball);
+                    ball.position.set((laneIdx - 1) * LANE_WIDTH, 0.75, z - (i*3));
+                    ball.userData = { type: 'ball', active: true, bbox: new THREE.Box3() };
+                    scene.add(ball); objects.push(ball);
+                }
+            }
+        }
+
+        function renderShop() {
+            const container = document.getElementById('shop-list-container');
+            container.innerHTML = '';
+            shopItems.forEach(item => {
+                const isOwned = upgrades[item.id];
+                const itemDiv = document.createElement('div');
+                itemDiv.className = `shop-item ${isOwned ? 'owned' : ''}`;
+                itemDiv.innerHTML = `
+                    <p>${item.name}</p>
+                    <span>${item.desc}</span>
+                    <button class="shop-btn" ${isOwned ? 'disabled' : ''} onclick="buyUpgrade('${item.id}')">
+                        ${isOwned ? 'OWNED' : `${item.price} 🎾`}
+                    </button>
+                `;
+                container.appendChild(itemDiv);
+            });
+        }
+
+        function move(dir) {
+            if (!isPlaying) return;
+            currentLane = Math.max(-1, Math.min(1, currentLane + dir));
+            targetX = currentLane * LANE_WIDTH;
+        }
+
+        function jump() {
+            if (!isPlaying) return;
+            const maxJumps = upgrades.double ? 2 : 1;
+            if (jumpCount >= maxJumps) return;
+            isJumping = true; jumpCount++;
+            const d = dogTypes[currentDogIndex];
+            yVelocity = d.jumpForce * (upgrades.jump ? 1.25 : 1.0) * (1 + (d.evoLevel * 0.05));
+        }
+
+        function activateAbility() {
+            if (!isPlaying || abilityActive || abilityCooldown < 1.0) return;
+            
+            abilityActive = true;
+            abilityCooldown = 0;
+            const d = dogTypes[currentDogIndex];
+            
+            if (d.ability === 'shield') dog.getObjectByName('shieldEffect').visible = true;
+            if (d.ability === 'ghost') dog.getObjectByName('ghostEffect').visible = true;
+            if (d.ability === 'herodash') dog.getObjectByName('alphaEffect').visible = true;
+            
+            const duration = BASE_ABILITY_DUR * (1 + (d.evoLevel * 0.25)) * d.abilityDurationMod;
+            
+            setTimeout(() => {
+                abilityActive = false;
+                dog.getObjectByName('shieldEffect').visible = false;
+                dog.getObjectByName('ghostEffect').visible = false;
+                dog.getObjectByName('alphaEffect').visible = false;
+            }, duration);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            if (!isPlaying) {
+                renderer.render(scene, camera);
+                return;
+            }
+
+            const d = dogTypes[currentDogIndex];
+            gameSpeed = Math.min(MAX_SPEED, gameSpeed + SPEED_RAMP);
+            
+            let effectiveSpeed = gameSpeed;
+            if (abilityActive && d.ability === 'herodash') effectiveSpeed *= 6.0;
+
+            score += (effectiveSpeed * 0.5) * d.multiplier;
+            animationTime += effectiveSpeed * 0.5;
+
+            const legSwing = Math.sin(animationTime * 10) * 0.5;
+            dog.getObjectByName("legFR").rotation.x = legSwing;
+            dog.getObjectByName("legFL").rotation.x = -legSwing;
+            dog.getObjectByName("legBR").rotation.x = -legSwing;
+            dog.getObjectByName("legBL").rotation.x = legSwing;
+            dog.getObjectByName("tail").rotation.y = Math.sin(animationTime * 15) * 0.4;
+
+            dog.position.x += (targetX - dog.position.x) * (d.agility * (1 + d.evoLevel * 0.15));
+            dog.position.y += yVelocity;
+            yVelocity -= GRAVITY;
+            if (dog.position.y <= 0) {
+                dog.position.y = 0;
+                if (yVelocity < 0) { yVelocity = 0; isJumping = false; jumpCount = 0; }
+            }
+
+            if (!abilityActive && abilityCooldown < 1.0) {
+                abilityCooldown = Math.min(1.0, abilityCooldown + (COOLDOWN_REFILL_RATE * (1 + d.evoLevel * 0.15)));
+            }
+            updateAbilityUI();
+
+            dog.userData.hitbox.setFromCenterAndSize(
+                new THREE.Vector3(dog.position.x, dog.position.y + 0.6, dog.position.z),
+                new THREE.Vector3(0.7, 0.9, 1.3)
+            );
+
+            for (let i = objects.length - 1; i >= 0; i--) {
+                let obj = objects[i];
+                obj.position.z += effectiveSpeed;
+                obj.userData.bbox.setFromObject(obj);
+
+                const magnetRange = upgrades.magnet ? 6 : 0;
+                const isMagnet = magnetRange > 0 || (abilityActive && (d.ability === 'magnet' || d.ability === 'herodash'));
+                
+                if (isMagnet && obj.userData.type === 'ball' && obj.userData.active) {
+                    const activeRange = (abilityActive && (d.ability === 'magnet' || d.ability === 'herodash')) ? 25 : magnetRange;
+                    if (dog.position.distanceTo(obj.position) < activeRange) {
+                        obj.position.lerp(dog.position, 0.2);
+                    }
+                }
+
+                if (obj.userData.active && dog.userData.hitbox.intersectsBox(obj.userData.bbox)) {
+                    if (obj.userData.type === 'ball') {
+                        obj.userData.active = false; scene.remove(obj);
+                        let val = (abilityActive && d.ability === 'snuffle') ? 2 : 1;
+                        if (upgrades.golden) val *= 2;
+                        sessionBalls += val;
+                        updateHUD();
+                    } else {
+                        const immune = abilityActive && (d.ability === 'shield' || d.ability === 'herodash' || d.ability === 'ghost');
+                        if (!immune) { 
+                            if (upgrades.lucky && Math.random() < 0.1) {
+                                obj.userData.active = false; scene.remove(obj);
+                            } else {
+                                endGame(); return; 
+                            }
+                        }
+                    }
+                }
+                if (obj.position.z > 25) { scene.remove(obj); objects.splice(i, 1); }
+            }
+
+            for (let i = scenery.length - 1; i >= 0; i--) {
+                scenery[i].position.z += effectiveSpeed;
+                if (scenery[i].position.z > 25) { scene.remove(scenery[i]); scenery.splice(i, 1); }
+            }
+
+            spawnTimer += effectiveSpeed;
+            if (spawnTimer > 15) { spawnObject(); spawnTimer = 0; }
+            sceneryTimer += effectiveSpeed;
+            if (sceneryTimer > 5) {
+                createTree(Math.random() > 0.5 ? 9 : -9, -160);
+                sceneryTimer = 0;
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        function startGame() {
+            objects.forEach(o => scene.remove(o)); scenery.forEach(s => scene.remove(s));
+            objects = []; scenery = [];
+            totalBalls += sessionBalls; sessionBalls = 0;
+            score = 0; 
+            
+            const d = dogTypes[currentDogIndex];
+            gameSpeed = d.baseSpeed * (1 + (d.evoLevel * 0.05));
+            if (upgrades.speed) gameSpeed += 0.1;
+            
+            dog.position.set(0, 0, 0); targetX = 0; currentLane = 0;
+            abilityCooldown = 1.0; abilityActive = false;
+            isPlaying = true;
+            document.getElementById('screens').classList.add('hidden');
+            document.getElementById('ability-indicator').style.display = 'flex';
+            updateHUD();
+        }
+
+        function endGame() {
+            isPlaying = false;
+            if (score > highScore) highScore = score;
+            totalBalls += sessionBalls;
+            document.getElementById('final-score').innerText = Math.floor(score);
+            document.getElementById('high-score-display').innerText = Math.floor(highScore);
+            document.getElementById('start-screen').classList.add('hidden');
+            document.getElementById('game-over-screen').classList.remove('hidden');
+            document.getElementById('screens').classList.remove('hidden');
+            updateHUD();
+        }
+
+        function resetToMenu() {
+            document.getElementById('game-over-screen').classList.add('hidden');
+            document.getElementById('start-screen').classList.remove('hidden');
+            updateDogVisuals();
+        }
+
+        function changeDog(dir) {
+            currentDogIndex = (currentDogIndex + dir + dogTypes.length) % dogTypes.length;
+            updateDogVisuals();
+        }
+
+        function updateDogVisuals() {
+            const d = dogTypes[currentDogIndex];
+            materials.dogBody.color.setHex(d.bodyColor);
+            materials.dogSnout.color.setHex(d.snoutColor);
+            document.getElementById('dog-name').innerText = d.name;
+            document.getElementById('info-name').innerText = d.name;
+            document.getElementById('info-pro').innerText = d.pro;
+            document.getElementById('info-con').innerText = d.con;
+            document.getElementById('info-ability').innerText = d.abilityDesc;
+            document.getElementById('ability-icon').innerText = d.emoji;
+            document.getElementById('cover-dog-emoji').innerText = d.emoji;
+            document.getElementById('info-dedication').innerText = d.dedication || "";
+            
+            const isLocked = highScore < d.unlockRequirement;
+            document.getElementById('locked-overlay').style.display = isLocked ? 'flex' : 'none';
+            document.getElementById('lock-message').innerText = `Reach ${d.unlockRequirement}m to unlock!`;
+            document.getElementById('start-dash-btn').disabled = isLocked;
+            
+            const stars = "⭐".repeat(d.evoLevel) + "☆".repeat(5 - d.evoLevel);
+            document.getElementById('evo-stars').innerText = stars;
+            
+            const cost = (d.evoLevel + 1) * 50;
+            const evoBtn = document.getElementById('evo-btn');
+            if (d.evoLevel >= 5) {
+                evoBtn.innerText = "MAX EVOLUTION";
+                evoBtn.disabled = true;
+            } else {
+                evoBtn.innerText = `EVOLVE: ${cost} 🎾`;
+                evoBtn.disabled = totalBalls < cost;
+            }
+
+            const speedBonus = d.evoLevel * 5;
+            const durBonus = d.evoLevel * 25;
+            document.getElementById('evo-stats').innerText = `Speed +${speedBonus}% | Ability Duration +${durBonus}%`;
+        }
+
+        function evolveDog() {
+            const d = dogTypes[currentDogIndex];
+            const cost = (d.evoLevel + 1) * 50;
+            if (totalBalls >= cost && d.evoLevel < 5) {
+                totalBalls -= cost; d.evoLevel++; 
+                updateDogVisuals(); updateHUD(); renderShop();
+            }
+        }
+
+        function buyUpgrade(type) {
+            const item = shopItems.find(i => i.id === type);
+            if (totalBalls >= item.price && !upgrades[type]) {
+                totalBalls -= item.price; upgrades[type] = true; updateHUD(); renderShop(); updateDogVisuals();
+            }
+        }
+
+        function updateHUD() {
+            const currentTotal = totalBalls + sessionBalls;
+            document.getElementById('score-display').innerText = Math.floor(score);
+            document.getElementById('ball-display').innerText = currentTotal;
+            document.getElementById('shop-ball-count').innerText = totalBalls;
+        }
+
+        function updateAbilityUI() {
+            const ring = document.getElementById('cooldown-ring');
+            const status = document.getElementById('ability-status-text');
+            const ind = document.getElementById('ability-indicator');
+            const p = Math.floor(abilityCooldown * 100);
+            const currentDog = dogTypes[currentDogIndex];
+            
+            if (abilityActive) {
+                ind.classList.add('active'); ind.classList.remove('ready');
+                status.innerText = "ACTIVE";
+                ring.style.background = `conic-gradient(#FFC107 100%, #333 0%)`;
+            } else {
+                ind.classList.remove('active');
+                if (abilityCooldown >= 1.0) {
+                    ind.classList.add('ready');
+                    status.innerText = currentDog.abilityName;
+                    ring.style.background = `conic-gradient(#4CAF50 100%, #333 0%)`;
+                } else {
+                    ind.classList.remove('ready');
+                    status.innerText = "WAIT";
+                    ring.style.background = `conic-gradient(#2196F3 ${p}%, #333 ${p}%)`;
+                }
+            }
+        }
+
+        function setupInput() {
+            document.addEventListener('keydown', e => {
+                if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Space"].includes(e.code)) {
+                    e.preventDefault();
+                }
+                if (e.code === 'ArrowLeft') move(-1);
+                if (e.code === 'ArrowRight') move(1);
+                if (e.code === 'ArrowUp' || e.code === 'Space') jump();
+                if (e.code === 'ArrowDown') activateAbility();
+            });
+            let sX, sY;
+            document.addEventListener('touchstart', e => { sX = e.touches[0].clientX; sY = e.touches[0].clientY; });
+            document.addEventListener('touchend', e => {
+                const dX = e.changedTouches[0].clientX - sX;
+                const dY = e.changedTouches[0].clientY - sY;
+                if (Math.abs(dX) > Math.abs(dY)) { if (Math.abs(dX) > 30) move(dX > 0 ? 1 : -1); }
+                else { if (dY < -30) jump(); else if (dY > 30) activateAbility(); }
+            });
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        init();
+    </script>
+</body>
+</html>
