@@ -1,0 +1,1133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>McWorker - McDonald's Simulator</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Nunito:wght@400;600;700;800&display=swap');
+
+  :root {
+    --gold: #FFC72C;
+    --red: #DA291C;
+    --dark: #1a0a00;
+    --panel: #1e1108;
+    --card: #2a1a0a;
+    --green: #4caf50;
+    --orange: #ff9800;
+    --blue: #2196f3;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--dark);
+    color: #f5e6c8;
+    font-family: 'Nunito', sans-serif;
+    overflow: hidden;
+    height: 100vh;
+    width: 100vw;
+  }
+
+  #game-container {
+    display: grid;
+    grid-template-rows: 60px 1fr 160px;
+    height: 100vh;
+    width: 100vw;
+  }
+
+  /* HEADER */
+  #header {
+    background: var(--red);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 20px;
+    border-bottom: 4px solid var(--gold);
+    z-index: 10;
+  }
+
+  #header h1 {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 2rem;
+    color: var(--gold);
+    letter-spacing: 3px;
+    text-shadow: 2px 2px 0 #7a0000;
+  }
+
+  .stat-bar {
+    display: flex;
+    gap: 24px;
+    align-items: center;
+  }
+
+  .stat {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 800;
+    font-size: 1rem;
+  }
+
+  .stat .icon { font-size: 1.3rem; }
+  .stat.money { color: var(--gold); }
+  .stat.score { color: #fff; }
+  .stat.rep { color: #ff9999; }
+
+  /* MAIN AREA */
+  #main {
+    display: grid;
+    grid-template-columns: 280px 1fr 240px;
+    overflow: hidden;
+  }
+
+  /* LEFT - Orders Queue */
+  #orders-panel {
+    background: var(--panel);
+    border-right: 2px solid #3a2010;
+    padding: 10px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .panel-title {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 1.3rem;
+    color: var(--gold);
+    letter-spacing: 2px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid #3a2010;
+    margin-bottom: 4px;
+  }
+
+  .order-card {
+    background: var(--card);
+    border: 2px solid #3a2010;
+    border-radius: 8px;
+    padding: 10px;
+    cursor: pointer;
+    transition: border-color 0.2s, transform 0.1s;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .order-card:hover { border-color: var(--gold); transform: translateX(2px); }
+  .order-card.selected { border-color: var(--gold); background: #3a2a10; }
+  .order-card.urgent { border-color: var(--red); }
+
+  .order-customer {
+    font-weight: 800;
+    font-size: 0.85rem;
+    color: var(--gold);
+    margin-bottom: 4px;
+  }
+
+  .order-items {
+    font-size: 0.78rem;
+    color: #c8a870;
+    margin-bottom: 6px;
+  }
+
+  .order-timer {
+    height: 4px;
+    background: #3a2010;
+    border-radius: 2px;
+    overflow: hidden;
+  }
+
+  .order-timer-bar {
+    height: 100%;
+    border-radius: 2px;
+    transition: width 0.5s linear, background 0.5s;
+  }
+
+  .order-reward {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    font-size: 0.75rem;
+    font-weight: 800;
+    color: var(--gold);
+  }
+
+  /* CENTER - Kitchen */
+  #kitchen {
+    background: #120800;
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  #kitchen-bg {
+    position: absolute;
+    inset: 0;
+    background:
+      repeating-linear-gradient(0deg, transparent, transparent 39px, #1a0e04 39px, #1a0e04 40px),
+      repeating-linear-gradient(90deg, transparent, transparent 39px, #1a0e04 39px, #1a0e04 40px);
+    opacity: 0.4;
+  }
+
+  #stations {
+    display: flex;
+    gap: 16px;
+    padding: 16px;
+    position: relative;
+    z-index: 2;
+    flex-wrap: wrap;
+    flex: 1;
+    align-content: flex-start;
+  }
+
+  .station {
+    background: var(--card);
+    border: 2px solid #3a2010;
+    border-radius: 10px;
+    width: 130px;
+    min-height: 110px;
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    position: relative;
+  }
+
+  .station:hover { border-color: var(--gold); box-shadow: 0 0 16px #ffc72c44; }
+  .station.active { border-color: var(--orange); box-shadow: 0 0 16px #ff980044; }
+  .station.done { border-color: var(--green); box-shadow: 0 0 16px #4caf5044; }
+
+  .station-icon { font-size: 2.2rem; }
+  .station-label { font-size: 0.7rem; font-weight: 700; color: #c8a870; text-align: center; }
+
+  .station-progress {
+    width: 100%;
+    height: 6px;
+    background: #1a0e04;
+    border-radius: 3px;
+    overflow: hidden;
+  }
+
+  .station-progress-bar {
+    height: 100%;
+    border-radius: 3px;
+    background: var(--orange);
+    transition: width 0.3s linear;
+  }
+
+  .station-item {
+    font-size: 0.72rem;
+    color: #f5e6c8;
+    font-weight: 600;
+    text-align: center;
+  }
+
+  /* Workers display */
+  #workers-area {
+    position: relative;
+    z-index: 2;
+    padding: 8px 16px;
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    min-height: 70px;
+    border-top: 2px dashed #2a1a0a;
+  }
+
+  .worker-sprite {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    animation: idle 1.5s ease-in-out infinite;
+  }
+
+  .worker-sprite.busy { animation: work 0.4s ease-in-out infinite; }
+
+  @keyframes idle {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-3px); }
+  }
+  @keyframes work {
+    0%, 100% { transform: scaleX(1); }
+    50% { transform: scaleX(-1); }
+  }
+
+  .worker-body { font-size: 1.8rem; }
+  .worker-name { font-size: 0.6rem; color: #c8a870; font-weight: 700; }
+
+  /* RIGHT - Shop */
+  #shop-panel {
+    background: var(--panel);
+    border-left: 2px solid #3a2010;
+    padding: 10px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .shop-item {
+    background: var(--card);
+    border: 2px solid #3a2010;
+    border-radius: 8px;
+    padding: 10px;
+    cursor: pointer;
+    transition: border-color 0.2s;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .shop-item:hover { border-color: var(--gold); }
+  .shop-item.affordable { border-color: #3a5a10; }
+  .shop-item.cant-afford { opacity: 0.5; cursor: not-allowed; }
+
+  .shop-item-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .shop-item-name { font-weight: 800; font-size: 0.85rem; color: #f5e6c8; }
+  .shop-item-cost { font-weight: 800; font-size: 0.85rem; color: var(--gold); }
+  .shop-item-desc { font-size: 0.72rem; color: #c8a870; }
+  .shop-item-count { font-size: 0.7rem; color: #888; }
+
+  /* BOTTOM - Action Bar */
+  #action-bar {
+    background: var(--panel);
+    border-top: 3px solid var(--gold);
+    padding: 10px 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    overflow-x: auto;
+  }
+
+  .action-label {
+    font-family: 'Bebas Neue', sans-serif;
+    color: var(--gold);
+    font-size: 1rem;
+    letter-spacing: 1px;
+    white-space: nowrap;
+  }
+
+  .food-btn {
+    background: var(--card);
+    border: 2px solid #3a2010;
+    border-radius: 8px;
+    padding: 8px 14px;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    transition: border-color 0.2s, background 0.2s;
+    min-width: 70px;
+    white-space: nowrap;
+  }
+
+  .food-btn:hover { border-color: var(--gold); background: #3a2a10; }
+  .food-btn:active { transform: scale(0.96); }
+  .food-btn .emoji { font-size: 1.6rem; }
+  .food-btn .label { font-size: 0.65rem; font-weight: 700; color: #c8a870; }
+  .food-btn .time { font-size: 0.6rem; color: #888; }
+
+  /* Tabs for shop/orders */
+  .tab-btn {
+    background: none;
+    border: none;
+    color: #888;
+    font-family: 'Nunito', sans-serif;
+    font-weight: 800;
+    font-size: 0.8rem;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 4px;
+    transition: color 0.2s, background 0.2s;
+  }
+  .tab-btn.active { color: var(--gold); background: #3a2010; }
+
+  /* Notifications */
+  #notifs {
+    position: fixed;
+    top: 70px;
+    right: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    z-index: 100;
+    pointer-events: none;
+  }
+
+  .notif {
+    background: #1e1108ee;
+    border: 2px solid var(--gold);
+    border-radius: 8px;
+    padding: 8px 14px;
+    font-weight: 700;
+    font-size: 0.85rem;
+    animation: slideIn 0.3s ease, fadeOut 0.4s ease 2s forwards;
+  }
+
+  @keyframes slideIn { from { transform: translateX(60px); opacity: 0; } }
+  @keyframes fadeOut { to { opacity: 0; transform: translateX(20px); } }
+
+  .notif.good { color: var(--green); border-color: var(--green); }
+  .notif.bad { color: #ff6666; border-color: #ff6666; }
+  .notif.info { color: var(--gold); }
+
+  /* Floating score */
+  .float-score {
+    position: fixed;
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 1.5rem;
+    color: var(--gold);
+    pointer-events: none;
+    z-index: 200;
+    animation: floatUp 1s ease forwards;
+  }
+  @keyframes floatUp {
+    from { opacity: 1; transform: translateY(0); }
+    to { opacity: 0; transform: translateY(-60px); }
+  }
+
+  /* Tray (selected order items) */
+  #tray {
+    background: #0a0500;
+    border: 2px solid #3a2010;
+    border-radius: 8px;
+    padding: 8px 12px;
+    min-width: 180px;
+    max-width: 220px;
+  }
+  #tray-title { font-size: 0.7rem; color: var(--gold); font-weight: 800; margin-bottom: 4px; }
+  #tray-items { font-size: 0.75rem; color: #c8a870; }
+
+  .serve-btn {
+    background: var(--red);
+    border: 2px solid var(--gold);
+    border-radius: 8px;
+    padding: 8px 18px;
+    color: var(--gold);
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 1.1rem;
+    letter-spacing: 2px;
+    cursor: pointer;
+    transition: background 0.2s, transform 0.1s;
+  }
+  .serve-btn:hover { background: #ff3322; transform: scale(1.04); }
+  .serve-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: #1a0e04; }
+  ::-webkit-scrollbar-thumb { background: #3a2010; border-radius: 3px; }
+</style>
+</head>
+<body>
+<div id="game-container">
+  <!-- HEADER -->
+  <div id="header">
+    <h1>🍔 McWorker</h1>
+    <div class="stat-bar">
+      <div class="stat money"><span class="icon">💵</span><span id="money-display">$0.00</span></div>
+      <div class="stat score"><span class="icon">⭐</span><span id="score-display">0</span></div>
+      <div class="stat rep"><span class="icon">❤️</span><span id="rep-display">100%</span></div>
+      <div class="stat"><span class="icon">📦</span><span id="day-display">Day 1</span></div>
+    </div>
+  </div>
+
+  <!-- MAIN -->
+  <div id="main">
+    <!-- Orders -->
+    <div id="orders-panel">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div class="panel-title">📋 ORDERS</div>
+        <span id="order-count" style="font-size:0.75rem;color:#888"></span>
+      </div>
+      <div id="orders-list"></div>
+    </div>
+
+    <!-- Kitchen -->
+    <div id="kitchen">
+      <div id="kitchen-bg"></div>
+      <div id="stations"></div>
+      <div id="workers-area">
+        <div style="font-size:0.7rem;color:#c8a870;font-weight:700;align-self:center">STAFF: </div>
+        <div id="workers-display"></div>
+      </div>
+    </div>
+
+    <!-- Shop -->
+    <div id="shop-panel">
+      <div class="panel-title">🛒 SHOP</div>
+      <div id="shop-list"></div>
+    </div>
+  </div>
+
+  <!-- ACTION BAR -->
+  <div id="action-bar">
+    <div id="tray">
+      <div id="tray-title">🪣 TRAY (Select an order first)</div>
+      <div id="tray-items">—</div>
+    </div>
+    <div class="action-label">COOK:</div>
+    <div id="food-buttons"></div>
+    <button class="serve-btn" id="serve-btn" disabled>SERVE ORDER</button>
+  </div>
+</div>
+
+<div id="notifs"></div>
+
+<script>
+// ==================== GAME STATE ====================
+const G = {
+  money: 30,
+  score: 0,
+  rep: 100,
+  day: 1,
+  dayTimer: 0,
+  dayLength: 180, // seconds per day
+  orders: [],
+  cooking: [],
+  cooked: [],
+  tray: [],
+  selectedOrderId: null,
+  workers: { waiters: 0, chefs: 0, cashiers: 0 },
+  stations: [],
+  nextOrderId: 1,
+  orderSpawnTimer: 0,
+  orderSpawnInterval: 18, // start slow, ramps up each day
+  autoWaiterTimer: 0,
+  autoChefTimer: 0,
+  running: true,
+  lastTime: 0,
+};
+
+const FOODS = [
+  { id: 'burger',    emoji: '🍔', label: 'Burger',    time: 5,  price: 4.5 },
+  { id: 'fries',     emoji: '🍟', label: 'Fries',     time: 3,  price: 2.5 },
+  { id: 'mcchicken', emoji: '🐔', label: 'McChicken', time: 6,  price: 4.0 },
+  { id: 'nuggets',   emoji: '🍗', label: 'Nuggets',   time: 4,  price: 3.5 },
+  { id: 'drink',     emoji: '🥤', label: 'Drink',     time: 1,  price: 1.5 },
+  { id: 'icecream',  emoji: '🍦', label: 'McFlurry',  time: 2,  price: 2.0 },
+  { id: 'wrap',      emoji: '🌯', label: 'Wrap',      time: 5,  price: 3.8 },
+  { id: 'pie',       emoji: '🥧', label: 'Apple Pie', time: 4,  price: 1.8 },
+];
+
+const FOOD_MAP = {};
+FOODS.forEach(f => FOOD_MAP[f.id] = f);
+
+const CUSTOMERS = ['Alice', 'Bob', 'Carlos', 'Destiny', 'Ethan', 'Fatima', 'George', 'Hana', 'Ivan', 'Julia', 'Kevin', 'Lisa'];
+const CUSTOMER_EMOJIS = ['👨', '👩', '🧔', '👱', '🧕', '👴', '👵', '🧑'];
+
+const STATION_TYPES = [
+  { id: 'grill',   emoji: '🔥', label: 'Grill',   items: ['burger', 'mcchicken', 'wrap'] },
+  { id: 'fryer',   emoji: '🫙', label: 'Fryer',   items: ['fries', 'nuggets', 'pie'] },
+  { id: 'drinks',  emoji: '🥤', label: 'Drinks',  items: ['drink', 'icecream'] },
+];
+
+const SHOP_ITEMS = [
+  { id: 'waiter',    emoji: '🧑‍💼', name: 'Waiter',       desc: 'Auto-assigns orders to you', cost: 20,  max: 3 },
+  { id: 'chef',      emoji: '👨‍🍳', name: 'Chef',         desc: 'Auto-cooks one item at a time', cost: 35, max: 4 },
+  { id: 'grill2',    emoji: '🔥', name: 'Extra Grill',  desc: 'Second grill station', cost: 25,  max: 1 },
+  { id: 'fryer2',    emoji: '🫙', name: 'Extra Fryer',  desc: 'Second fryer station', cost: 25,  max: 1 },
+  { id: 'drinks2',   emoji: '🥤', name: 'Extra Bar',    desc: 'Second drinks station', cost: 20,  max: 1 },
+  { id: 'upgrade1',  emoji: '⚡', name: 'Speed Boost',  desc: 'Cook 25% faster', cost: 50,    max: 3 },
+  { id: 'upgrade2',  emoji: '💰', name: 'Better Tips',  desc: '+20% order value', cost: 40,    max: 2 },
+];
+
+const shopOwned = {};
+SHOP_ITEMS.forEach(s => shopOwned[s.id] = 0);
+
+// ==================== INIT ====================
+function initStations() {
+  G.stations = [
+    { id: 0, type: 'grill',  emoji: '🔥', label: 'Grill',  busy: false, item: null, progress: 0, total: 0 },
+    { id: 1, type: 'fryer',  emoji: '🫙', label: 'Fryer',  busy: false, item: null, progress: 0, total: 0 },
+    { id: 2, type: 'drinks', emoji: '🥤', label: 'Drinks', busy: false, item: null, progress: 0, total: 0 },
+  ];
+}
+
+function init() {
+  initStations();
+  renderStations();
+  renderShop();
+  renderFoodButtons();
+  spawnOrder();
+  requestAnimationFrame(loop);
+}
+
+// ==================== ORDER GENERATION ====================
+function randomOrder() {
+  const items = [];
+  // Start with just 1 item on day 1, scale up gradually
+  const maxItems = Math.min(1 + Math.floor(G.day / 2), 3);
+  const count = Math.floor(Math.random() * maxItems) + 1;
+  const pool = FOODS.map(f => f.id);
+  for (let i = 0; i < count; i++) {
+    items.push(pool[Math.floor(Math.random() * pool.length)]);
+  }
+  const customer = CUSTOMERS[Math.floor(Math.random() * CUSTOMERS.length)];
+  const emoji = CUSTOMER_EMOJIS[Math.floor(Math.random() * CUSTOMER_EMOJIS.length)];
+  // Very generous timers early on
+  const baseTime = Math.max(20, 45 - G.day * 2);
+  const timeLimit = baseTime + items.length * 10;
+  const reward = items.reduce((s, id) => s + FOOD_MAP[id].price, 0) * (1 + shopOwned['upgrade2'] * 0.2);
+  return {
+    id: G.nextOrderId++,
+    customer, emoji,
+    items: [...items],
+    remaining: [...items],
+    timeLeft: timeLimit,
+    totalTime: timeLimit,
+    reward: parseFloat(reward.toFixed(2)),
+    urgent: false,
+  };
+}
+
+function spawnOrder() {
+  if (G.orders.length >= 6) return;
+  G.orders.push(randomOrder());
+  renderOrders();
+}
+
+// ==================== MAIN LOOP ====================
+function loop(ts) {
+  if (!G.lastTime) G.lastTime = ts;
+  const dt = Math.min((ts - G.lastTime) / 1000, 0.1);
+  G.lastTime = ts;
+
+  if (G.running) {
+    update(dt);
+    render();
+  }
+
+  requestAnimationFrame(loop);
+}
+
+function update(dt) {
+  const speedMult = 1 + shopOwned['upgrade1'] * 0.25;
+
+  // Order timers
+  for (let i = G.orders.length - 1; i >= 0; i--) {
+    const o = G.orders[i];
+    o.timeLeft -= dt;
+    o.urgent = o.timeLeft < o.totalTime * 0.3;
+    if (o.timeLeft <= 0) {
+      notify(`${o.emoji} ${o.customer} left! -Rep`, 'bad');
+      G.rep = Math.max(0, G.rep - 10);
+      if (G.selectedOrderId === o.id) {
+        G.selectedOrderId = null;
+        G.tray = [];
+      }
+      G.orders.splice(i, 1);
+    }
+  }
+
+  // Station cooking
+  for (const s of G.stations) {
+    if (s.busy) {
+      s.progress += dt * speedMult;
+      if (s.progress >= s.total) {
+        const doneItem = s.item;
+        const doneOrderId = s.orderId;
+        s.busy = false; s.item = null; s.progress = 0; s.total = 0; s.orderId = null;
+        G.cooked.push({ item: doneItem, orderId: doneOrderId });
+        notify(FOOD_MAP[doneItem].emoji + ' ' + FOOD_MAP[doneItem].label + ' is ready! Click SERVE or pick it up.', 'good');
+        // Auto-add to selected order's tray if it's needed there
+        if (G.selectedOrderId) {
+          const order = G.orders.find(o => o.id === G.selectedOrderId);
+          if (order) {
+            const inTray = [...G.tray];
+            const stillNeeded = order.items.filter(id => {
+              const i = inTray.indexOf(id);
+              if (i !== -1) { inTray.splice(i, 1); return false; }
+              return true;
+            });
+            if (stillNeeded.includes(doneItem)) {
+              const ci = G.cooked.findIndex(c => c.item === doneItem);
+              if (ci !== -1) {
+                G.tray.push(doneItem);
+                G.cooked.splice(ci, 1);
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // Auto-chefs
+  if (G.workers.chefs > 0) {
+    G.autoChefTimer += dt;
+    const interval = 2 / G.workers.chefs;
+    if (G.autoChefTimer >= interval) {
+      G.autoChefTimer = 0;
+      autoChefWork();
+    }
+  }
+
+  // Auto-waiters
+  if (G.workers.waiters > 0) {
+    G.autoWaiterTimer += dt;
+    if (G.autoWaiterTimer >= 4 / G.workers.waiters) {
+      G.autoWaiterTimer = 0;
+      autoServe();
+    }
+  }
+
+  // Spawn orders
+  G.orderSpawnTimer += dt;
+  const spawnRate = Math.max(6, G.orderSpawnInterval - (G.day - 1) * 1.5);
+  if (G.orderSpawnTimer >= spawnRate) {
+    G.orderSpawnTimer = 0;
+    spawnOrder();
+  }
+
+  // Day timer
+  G.dayTimer += dt;
+  if (G.dayTimer >= G.dayLength) {
+    G.dayTimer = 0;
+    G.day++;
+    notify(`🌅 Day ${G.day} begins! Getting busier...`, 'info');
+  }
+}
+
+function autoChefWork() {
+  // Find an order and a free station to cook something
+  for (const order of G.orders) {
+    for (const needed of order.remaining) {
+      const food = FOOD_MAP[needed];
+      const station = G.stations.find(s => !s.busy && stationHandles(s, needed));
+      if (station) {
+        startCooking(station, needed, order.id, true);
+        return;
+      }
+    }
+  }
+}
+
+function autoServe() {
+  // Try to serve any complete order
+  for (let oi = 0; oi < G.orders.length; oi++) {
+    const order = G.orders[oi];
+    const canServe = tryAssembleTray(order);
+    if (canServe) {
+      completeOrder(order, oi);
+      notify(`🧑‍💼 Waiter served ${order.customer}! +$${order.reward}`, 'good');
+      return;
+    }
+  }
+}
+
+function tryAssembleTray(order) {
+  const available = [...G.cooked];
+  const needed = [...order.remaining];
+  if (needed.length === 0 && order.items.length > 0) return false;
+  for (const item of [...order.items]) {
+    const idx = available.findIndex(c => c.item === item);
+    if (idx === -1) return false;
+    available.splice(idx, 1);
+  }
+  // Remove from cooked
+  const usedIdxs = [];
+  for (const item of order.items) {
+    const idx = G.cooked.findIndex((c, i) => c.item === item && !usedIdxs.includes(i));
+    if (idx !== -1) usedIdxs.push(idx);
+  }
+  for (let i = usedIdxs.length - 1; i >= 0; i--) G.cooked.splice(usedIdxs[i], 1);
+  return true;
+}
+
+function stationHandles(station, itemId) {
+  const typeMap = {
+    grill: ['burger', 'mcchicken', 'wrap'],
+    fryer: ['fries', 'nuggets', 'pie'],
+    drinks: ['drink', 'icecream'],
+  };
+  return typeMap[station.type]?.includes(itemId);
+}
+
+// ==================== PLAYER ACTIONS ====================
+function selectOrder(id) {
+  G.selectedOrderId = id;
+  G.tray = [];
+  // Pull any already-cooked items for this order into the tray
+  for (let i = G.cooked.length - 1; i >= 0; i--) {
+    if (G.cooked[i].orderId === id) {
+      G.tray.push(G.cooked[i].item);
+      G.cooked.splice(i, 1);
+    }
+  }
+  updateTray();
+  renderOrders();
+}
+
+function cookItem(itemId) {
+  // Find the station for this item
+  const station = G.stations.find(s => !s.busy && stationHandles(s, itemId));
+  if (!station) { notify('Station is busy!', 'bad'); return; }
+  startCooking(station, itemId, G.selectedOrderId, false);
+}
+
+function startCooking(station, itemId, orderId, isAuto) {
+  const food = FOOD_MAP[itemId];
+  const speedMult = 1 + shopOwned['upgrade1'] * 0.25;
+  station.busy = true;
+  station.item = itemId;
+  station.orderId = orderId;
+  station.progress = 0;
+  station.total = food.time / speedMult;
+  if (!isAuto) notify(`🍳 Cooking ${food.emoji} ${food.label}...`, 'info');
+}
+
+function serveOrder() {
+  const oi = G.orders.findIndex(o => o.id === G.selectedOrderId);
+  if (oi === -1) { notify('Select an order first!', 'bad'); return; }
+  const order = G.orders[oi];
+
+  // Pull any matching items from cooked pile into tray first
+  const stillNeeded = [...order.items];
+  const inTray = [...G.tray];
+  for (const id of inTray) {
+    const i = stillNeeded.indexOf(id);
+    if (i !== -1) stillNeeded.splice(i, 1);
+  }
+  for (const id of [...stillNeeded]) {
+    const ci = G.cooked.findIndex(c => c.item === id);
+    if (ci !== -1) {
+      G.tray.push(id);
+      G.cooked.splice(ci, 1);
+      const i = stillNeeded.indexOf(id);
+      if (i !== -1) stillNeeded.splice(i, 1);
+    }
+  }
+
+  // Check everything is now in tray
+  const have = [...G.tray];
+  for (const item of order.items) {
+    const idx = have.indexOf(item);
+    if (idx === -1) {
+      const missing = FOOD_MAP[item];
+      notify('Still need to cook: ' + missing.emoji + ' ' + missing.label, 'bad');
+      return;
+    }
+    have.splice(idx, 1);
+  }
+
+  const reward = order.reward;
+  completeOrder(order, oi);
+  notify('✅ Served ' + order.customer + '! +$' + reward.toFixed(2), 'good');
+  floatScore('+$' + reward.toFixed(2));
+}
+
+function completeOrder(order, oi) {
+  G.money += order.reward;
+  G.score += Math.ceil(order.reward * 10);
+  G.rep = Math.min(100, G.rep + 3);
+  G.orders.splice(oi, 1);
+  if (G.selectedOrderId === order.id) {
+    G.selectedOrderId = null;
+    G.tray = [];
+  }
+  spawnOrder();
+}
+
+function addToTray(itemId) {
+  // Check if cooked
+  const idx = G.cooked.findIndex(c => c.item === itemId);
+  if (idx === -1) { notify('Item not cooked yet!', 'bad'); return; }
+  G.cooked.splice(idx, 1);
+  G.tray.push(itemId);
+  updateTray();
+  notify(`${FOOD_MAP[itemId].emoji} Added to tray`, 'good');
+}
+
+function buyShopItem(itemId) {
+  const item = SHOP_ITEMS.find(s => s.id === itemId);
+  if (!item) return;
+  if (shopOwned[itemId] >= item.max) { notify('Max owned!', 'bad'); return; }
+  if (G.money < item.cost) { notify('Not enough money!', 'bad'); return; }
+  G.money -= item.cost;
+  shopOwned[itemId]++;
+
+  if (itemId === 'waiter') G.workers.waiters++;
+  if (itemId === 'chef') G.workers.chefs++;
+
+  if (itemId === 'grill2') G.stations.push({ id: G.stations.length, type: 'grill', emoji: '🔥', label: 'Grill 2', busy: false, item: null, progress: 0, total: 0 });
+  if (itemId === 'fryer2') G.stations.push({ id: G.stations.length, type: 'fryer', emoji: '🫙', label: 'Fryer 2', busy: false, item: null, progress: 0, total: 0 });
+  if (itemId === 'drinks2') G.stations.push({ id: G.stations.length, type: 'drinks', emoji: '🥤', label: 'Bar 2', busy: false, item: null, progress: 0, total: 0 });
+
+  notify(`✅ Bought ${item.name}!`, 'good');
+  renderShop();
+  renderStations();
+  renderWorkers();
+}
+
+// ==================== RENDER ====================
+function render() {
+  // Update money, score, rep
+  document.getElementById('money-display').textContent = '$' + G.money.toFixed(2);
+  document.getElementById('score-display').textContent = G.score;
+  document.getElementById('rep-display').textContent = G.rep + '%';
+  document.getElementById('day-display').textContent = 'Day ' + G.day;
+  document.getElementById('order-count').textContent = G.orders.length + '/6';
+
+  renderOrders();  // safe - updates in place
+  updateStationDisplay();
+  updateTray();
+
+  // Serve button
+  const serveBtn = document.getElementById('serve-btn');
+  const canServe = G.selectedOrderId && checkTrayComplete();
+  serveBtn.disabled = !canServe;
+}
+
+function checkTrayComplete() {
+  const order = G.orders.find(o => o.id === G.selectedOrderId);
+  if (!order) return false;
+  const have = [...G.tray];
+  for (const item of order.items) {
+    const idx = have.indexOf(item);
+    if (idx === -1) return false;
+    have.splice(idx, 1);
+  }
+  return have.length >= 0; // true if all items present
+}
+
+function renderOrders() {
+  const list = document.getElementById('orders-list');
+
+  if (G.orders.length === 0) {
+    list.innerHTML = '<div style="color:#888;font-size:0.8rem;text-align:center;padding:20px">Waiting for customers...</div>';
+    return;
+  }
+
+  // Add/update cards without destroying existing ones (preserves click handlers)
+  const existingIds = new Set([...list.querySelectorAll('.order-card')].map(el => parseInt(el.dataset.orderId)));
+  const currentIds = new Set(G.orders.map(o => o.id));
+
+  // Remove cards for orders that are gone
+  list.querySelectorAll('.order-card').forEach(el => {
+    if (!currentIds.has(parseInt(el.dataset.orderId))) el.remove();
+  });
+
+  G.orders.forEach((order, i) => {
+    const pct = (order.timeLeft / order.totalTime) * 100;
+    const barColor = pct > 60 ? 'var(--green)' : pct > 30 ? 'var(--orange)' : 'var(--red)';
+
+    let div = list.querySelector('[data-order-id="' + order.id + '"]');
+    if (!div) {
+      // Create new card
+      div = document.createElement('div');
+      div.dataset.orderId = order.id;
+      div.innerHTML = `
+        <div class="order-customer">${order.emoji} ${order.customer}</div>
+        <div class="order-reward">$${order.reward.toFixed(2)}</div>
+        <div class="order-items">${order.items.map(id => FOOD_MAP[id].emoji + ' ' + FOOD_MAP[id].label).join('<br>')}</div>
+        <div class="order-timer"><div class="order-timer-bar"></div></div>
+      `;
+      div.addEventListener('click', () => selectOrder(order.id));
+      list.appendChild(div);
+    }
+
+    // Update dynamic parts only
+    div.className = 'order-card' + (order.id === G.selectedOrderId ? ' selected' : '') + (order.urgent ? ' urgent' : '');
+    const bar = div.querySelector('.order-timer-bar');
+    if (bar) { bar.style.width = pct + '%'; bar.style.background = barColor; }
+  });
+}
+
+function renderStations() {
+  const cont = document.getElementById('stations');
+  cont.innerHTML = '';
+  G.stations.forEach(s => {
+    const div = document.createElement('div');
+    div.className = 'station' + (s.busy ? ' active' : '') + (!s.busy && false ? ' done' : '');
+    div.id = 'station-' + s.id;
+    div.innerHTML = `
+      <div class="station-icon">${s.emoji}</div>
+      <div class="station-label">${s.label}</div>
+      <div class="station-item" id="station-item-${s.id}">${s.busy ? FOOD_MAP[s.item].emoji + ' cooking...' : 'idle'}</div>
+      <div class="station-progress"><div class="station-progress-bar" id="station-bar-${s.id}" style="width:0%"></div></div>
+    `;
+    cont.appendChild(div);
+  });
+}
+
+function updateStationDisplay() {
+  G.stations.forEach(s => {
+    const el = document.getElementById('station-' + s.id);
+    if (!el) { renderStations(); return; }
+    el.className = 'station' + (s.busy ? ' active' : '');
+    const itemEl = document.getElementById('station-item-' + s.id);
+    const barEl = document.getElementById('station-bar-' + s.id);
+    if (itemEl) itemEl.textContent = s.busy ? FOOD_MAP[s.item].emoji + ' cooking...' : 'idle';
+    if (barEl) barEl.style.width = s.busy ? (s.progress / s.total * 100) + '%' : '0%';
+  });
+}
+
+function renderWorkers() {
+  const cont = document.getElementById('workers-display');
+  cont.innerHTML = '';
+  cont.style.display = 'flex';
+  cont.style.gap = '8px';
+  for (let i = 0; i < G.workers.waiters; i++) {
+    const d = document.createElement('div');
+    d.className = 'worker-sprite';
+    d.innerHTML = `<div class="worker-body">🧑‍💼</div><div class="worker-name">Waiter</div>`;
+    cont.appendChild(d);
+  }
+  for (let i = 0; i < G.workers.chefs; i++) {
+    const d = document.createElement('div');
+    d.className = 'worker-sprite';
+    d.innerHTML = `<div class="worker-body">👨‍🍳</div><div class="worker-name">Chef</div>`;
+    cont.appendChild(d);
+  }
+  if (G.workers.waiters === 0 && G.workers.chefs === 0) {
+    cont.innerHTML = '<div style="font-size:0.7rem;color:#555">No staff hired yet</div>';
+  }
+}
+
+function renderShop() {
+  const list = document.getElementById('shop-list');
+  list.innerHTML = '';
+  SHOP_ITEMS.forEach(item => {
+    const owned = shopOwned[item.id];
+    const maxed = owned >= item.max;
+    const canAfford = G.money >= item.cost;
+    const div = document.createElement('div');
+    div.className = 'shop-item' + (canAfford && !maxed ? ' affordable' : !canAfford ? ' cant-afford' : '');
+    div.innerHTML = `
+      <div class="shop-item-header">
+        <span class="shop-item-name">${item.emoji} ${item.name}</span>
+        <span class="shop-item-cost">${maxed ? 'MAXED' : '$' + item.cost}</span>
+      </div>
+      <div class="shop-item-desc">${item.desc}</div>
+      <div class="shop-item-count">Owned: ${owned}/${item.max}</div>
+    `;
+    if (!maxed) {
+      div.onclick = () => buyShopItem(item.id);
+    }
+    list.appendChild(div);
+  });
+}
+
+function renderFoodButtons() {
+  const cont = document.getElementById('food-buttons');
+  cont.style.display = 'flex';
+  cont.style.gap = '8px';
+  cont.style.flexWrap = 'nowrap';
+  FOODS.forEach(f => {
+    const btn = document.createElement('button');
+    btn.className = 'food-btn';
+    btn.innerHTML = `<span class="emoji">${f.emoji}</span><span class="label">${f.label}</span><span class="time">${f.time}s</span>`;
+    btn.onclick = () => {
+      // Find station for this item
+      const station = G.stations.find(s => !s.busy && stationHandles(s, f.id));
+      if (!station) { notify('No free station for ' + f.label + '!', 'bad'); return; }
+      cookItem(f.id);
+    };
+    cont.appendChild(btn);
+  });
+
+
+}
+
+function showCookedPicker() {
+  if (G.cooked.length === 0) { notify('Nothing cooked yet!', 'bad'); return; }
+  if (!G.selectedOrderId) { notify('Select an order first!', 'bad'); return; }
+
+  // Find what the order needs
+  const order = G.orders.find(o => o.id === G.selectedOrderId);
+  if (!order) return;
+
+  // Find cooked items that are needed
+  const needed = order.items.filter(item => !G.tray.includes(item) || order.items.filter(i => i === item).length > G.tray.filter(i => i === item).length);
+
+  // Auto-add if possible
+  let added = false;
+  for (const item of needed) {
+    const idx = G.cooked.findIndex(c => c.item === item);
+    if (idx !== -1) {
+      addToTray(item);
+      added = true;
+      break;
+    }
+  }
+  if (!added && G.cooked.length > 0) {
+    addToTray(G.cooked[0].item);
+  }
+}
+
+function updateTray() {
+  const titleEl = document.getElementById('tray-title');
+  const itemsEl = document.getElementById('tray-items');
+
+  const order = G.orders.find(o => o.id === G.selectedOrderId);
+  if (!order) {
+    titleEl.textContent = '🪣 TRAY (Select an order first)';
+    itemsEl.textContent = '—';
+    return;
+  }
+
+  const done = order.items.filter((id, i) => {
+    const have2 = [...G.tray];
+    const idx2 = have2.indexOf(id);
+    if (idx2 !== -1) { have2.splice(idx2, 1); return true; }
+    return false;
+  }).length;
+  titleEl.textContent = '🪣 ' + order.customer + ' (' + done + '/' + order.items.length + ')';
+  const trayHave = [...G.tray];
+  const cookedWaiting = [...G.cooked.map(c => c.item)];
+  itemsEl.innerHTML = order.items.map(id => {
+    // Check tray first
+    const ti = trayHave.indexOf(id);
+    if (ti !== -1) { trayHave.splice(ti, 1); return '<span style="color:var(--green)">✅ ' + FOOD_MAP[id].emoji + ' ' + FOOD_MAP[id].label + '</span>'; }
+    // Check cooked pile (ready to serve)
+    const ci = cookedWaiting.indexOf(id);
+    if (ci !== -1) { cookedWaiting.splice(ci, 1); return '<span style="color:#aaffaa">🍽️ ' + FOOD_MAP[id].emoji + ' ' + FOOD_MAP[id].label + ' (ready!)</span>'; }
+    // Check if currently cooking
+    const cooking = G.stations.some(s => s.busy && s.item === id);
+    if (cooking) return '<span style="color:var(--orange)">⏳ ' + FOOD_MAP[id].emoji + ' ' + FOOD_MAP[id].label + ' (cooking...)</span>';
+    return '<span style="color:#888">○ ' + FOOD_MAP[id].emoji + ' ' + FOOD_MAP[id].label + '</span>';
+  }).join('<br>');
+}
+
+// ==================== UTILS ====================
+function notify(msg, type = 'info') {
+  const cont = document.getElementById('notifs');
+  const el = document.createElement('div');
+  el.className = 'notif ' + type;
+  el.textContent = msg;
+  cont.appendChild(el);
+  setTimeout(() => el.remove(), 2600);
+}
+
+function floatScore(text) {
+  const el = document.createElement('div');
+  el.className = 'float-score';
+  el.textContent = text;
+  el.style.left = (window.innerWidth / 2 + Math.random() * 100 - 50) + 'px';
+  el.style.top = (window.innerHeight / 2) + 'px';
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 1100);
+}
+
+document.getElementById('serve-btn').onclick = serveOrder;
+
+// Initial render
+renderWorkers();
+setInterval(() => { renderShop(); renderWorkers(); }, 1000);
+
+init();
+notify('👋 Select an order, cook items (they auto-go to tray!), then hit SERVE!', 'info');
+</script>
+</body>
+</html>
