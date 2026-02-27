@@ -1,0 +1,1359 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KART BLITZ 🏎️</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Russo+One&family=Orbitron:wght@400;700;900&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #0a0a0f;
+    font-family: 'Orbitron', monospace;
+    overflow: hidden;
+    color: #fff;
+  }
+
+  #gameContainer {
+    position: relative;
+    width: 100vw;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+
+  canvas {
+    display: block;
+    image-rendering: pixelated;
+  }
+
+  #hud {
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    padding: 16px 24px;
+    pointer-events: none;
+    z-index: 10;
+  }
+
+  .hud-panel {
+    background: rgba(0,0,0,0.7);
+    border: 2px solid #f7c948;
+    border-radius: 8px;
+    padding: 8px 16px;
+    min-width: 120px;
+  }
+
+  .hud-label {
+    font-size: 10px;
+    color: #f7c948;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+  }
+
+  .hud-value {
+    font-family: 'Russo One', sans-serif;
+    font-size: 26px;
+    color: #fff;
+    line-height: 1.1;
+  }
+
+  #lapPanel { text-align: center; }
+
+  /* ---- TITLE OVERLAY ---- */
+  #titleOverlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(0,0,0,0.85);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 20;
+  }
+
+  #titleOverlay h1 {
+    font-family: 'Russo One', sans-serif;
+    font-size: clamp(40px, 8vw, 80px);
+    color: #f7c948;
+    text-shadow: 4px 4px 0 #c0392b, 8px 8px 0 #7f0000;
+    letter-spacing: 4px;
+    margin-bottom: 8px;
+    animation: titleBounce 1s ease infinite alternate;
+  }
+
+  #titleOverlay p {
+    color: #aaa;
+    font-size: 13px;
+    letter-spacing: 2px;
+    margin-bottom: 40px;
+  }
+
+  /* ---- KART SELECT ---- */
+  #kartSelectOverlay {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(160deg, #0d0d1a 0%, #1a0a0a 100%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 20;
+  }
+
+  #ks-title {
+    font-family: 'Russo One', sans-serif;
+    font-size: clamp(22px, 4vw, 40px);
+    color: #f7c948;
+    letter-spacing: 4px;
+    text-shadow: 3px 3px 0 #c0392b;
+    margin-bottom: 32px;
+  }
+
+  #ks-body {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+  }
+
+  #ks-center {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 260px;
+  }
+
+  #kartPreview {
+    border: 3px solid #f7c948;
+    border-radius: 12px;
+    background: #111;
+    box-shadow: 0 0 30px rgba(247,201,72,0.2);
+    margin-bottom: 14px;
+  }
+
+  #ks-kartname {
+    font-family: 'Russo One', sans-serif;
+    font-size: 22px;
+    color: #fff;
+    letter-spacing: 3px;
+    margin-bottom: 16px;
+    text-shadow: 2px 2px 0 #000;
+  }
+
+  #ks-stats {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 14px;
+  }
+
+  .stat-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .stat-label {
+    font-size: 10px;
+    color: #f7c948;
+    letter-spacing: 1px;
+    width: 70px;
+    text-align: right;
+  }
+
+  .stat-bar-bg {
+    flex: 1;
+    height: 10px;
+    background: #222;
+    border-radius: 5px;
+    overflow: hidden;
+    border: 1px solid #333;
+  }
+
+  .stat-bar {
+    height: 100%;
+    border-radius: 5px;
+    transition: width 0.4s cubic-bezier(.4,0,.2,1), background 0.4s;
+  }
+
+  #ks-tagline {
+    font-size: 11px;
+    color: #777;
+    letter-spacing: 1px;
+    font-style: italic;
+    text-align: center;
+    min-height: 16px;
+  }
+
+  .ks-arrow {
+    background: rgba(247,201,72,0.1);
+    border: 2px solid #f7c948;
+    color: #f7c948;
+    font-size: 28px;
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    cursor: pointer;
+    transition: background 0.15s, transform 0.1s;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .ks-arrow:hover { background: rgba(247,201,72,0.25); transform: scale(1.1); }
+  .ks-arrow:active { transform: scale(0.95); }
+
+  #ks-dots {
+    display: flex;
+    gap: 8px;
+    margin-top: 20px;
+  }
+
+  .ks-dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    background: #444;
+    cursor: pointer;
+    transition: background 0.2s, transform 0.2s;
+  }
+  .ks-dot.active { background: #f7c948; transform: scale(1.3); }
+
+  .btn-back {
+    background: transparent;
+    border: 1px solid #555;
+    color: #777;
+    padding: 8px 24px;
+    font-family: 'Orbitron', monospace;
+    font-size: 12px;
+    letter-spacing: 2px;
+    cursor: pointer;
+    border-radius: 4px;
+    margin-top: 12px;
+    transition: color 0.15s, border-color 0.15s;
+  }
+  .btn-back:hover { color: #aaa; border-color: #aaa; }
+
+  @keyframes titleBounce {
+    from { transform: translateY(0); }
+    to { transform: translateY(-8px); }
+  }
+
+  .btn {
+    background: #f7c948;
+    color: #000;
+    border: none;
+    padding: 16px 48px;
+    font-family: 'Russo One', sans-serif;
+    font-size: 20px;
+    letter-spacing: 3px;
+    cursor: pointer;
+    border-radius: 4px;
+    box-shadow: 4px 4px 0 #c0392b;
+    transition: transform 0.1s, box-shadow 0.1s;
+    text-transform: uppercase;
+  }
+
+  .btn:hover { transform: translate(-2px, -2px); box-shadow: 6px 6px 0 #c0392b; }
+  .btn:active { transform: translate(2px, 2px); box-shadow: 2px 2px 0 #c0392b; }
+
+  #controls {
+    position: absolute;
+    bottom: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 8px;
+    pointer-events: none;
+    opacity: 0.5;
+    font-size: 11px;
+    letter-spacing: 1px;
+    color: #888;
+  }
+
+  .key {
+    background: #222;
+    border: 1px solid #444;
+    border-radius: 4px;
+    padding: 3px 8px;
+    color: #ccc;
+  }
+
+  #finishOverlay {
+    display: none;
+    position: absolute;
+    inset: 0;
+    background: rgba(0,0,0,0.88);
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 20;
+  }
+
+  #finishOverlay h2 {
+    font-family: 'Russo One', sans-serif;
+    font-size: clamp(32px, 6vw, 64px);
+    color: #f7c948;
+    text-shadow: 3px 3px 0 #c0392b;
+    margin-bottom: 16px;
+  }
+
+  #finishTime {
+    font-size: 28px;
+    color: #fff;
+    margin-bottom: 32px;
+  }
+
+  #abilityHud {
+    position: absolute;
+    bottom: 52px;
+    left: 24px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: rgba(0,0,0,0.7);
+    border: 2px solid #f7c948;
+    border-radius: 10px;
+    padding: 10px 16px;
+    pointer-events: none;
+    z-index: 10;
+    min-width: 180px;
+  }
+
+  #abilityIcon {
+    font-size: 28px;
+    line-height: 1;
+  }
+
+  #abilityInfo {
+    flex: 1;
+  }
+
+  #abilityName {
+    font-size: 10px;
+    letter-spacing: 2px;
+    color: #f7c948;
+    margin-bottom: 4px;
+  }
+
+  #abilityCooldownBar {
+    width: 100%;
+    height: 6px;
+    background: #222;
+    border-radius: 3px;
+    overflow: hidden;
+    margin-bottom: 3px;
+  }
+
+  #abilityCooldownFill {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 0.1s linear, background 0.3s;
+  }
+
+  #abilityStatus {
+    font-size: 9px;
+    letter-spacing: 1px;
+    color: #888;
+  }
+
+  #minimap {
+    width: 120px;
+    height: 120px;
+    border: 2px solid #f7c948;
+    border-radius: 4px;
+    background: rgba(0,0,0,0.6);
+    z-index: 10;
+  }
+</style>
+</head>
+<body>
+<div id="gameContainer">
+  <canvas id="gameCanvas"></canvas>
+  <canvas id="minimap"></canvas>
+
+  <div id="hud">
+    <div class="hud-panel">
+      <div class="hud-label">Speed</div>
+      <div class="hud-value" id="speedDisplay">0</div>
+    </div>
+    <div class="hud-panel" id="lapPanel">
+      <div class="hud-label">Lap</div>
+      <div class="hud-value" id="lapDisplay">1 / 3</div>
+      <div class="hud-label" style="margin-top:4px">Time</div>
+      <div class="hud-value" id="timeDisplay" style="font-size:18px">0:00.00</div>
+    </div>
+    <div class="hud-panel" style="text-align:right">
+      <div class="hud-label">Position</div>
+      <div class="hud-value" id="posDisplay">1st</div>
+    </div>
+  </div>
+
+  <!-- Ability HUD -->
+  <div id="abilityHud">
+    <div id="abilityIcon"></div>
+    <div id="abilityInfo">
+      <div id="abilityName"></div>
+      <div id="abilityCooldownBar"><div id="abilityCooldownFill"></div></div>
+      <div id="abilityStatus"></div>
+    </div>
+  </div>
+
+  <!-- TITLE SCREEN -->
+  <div id="titleOverlay">
+    <h1>KART BLITZ</h1>
+    <p>3-LAP RACE · BEAT THE AI KARTS</p>
+    <button class="btn" onclick="showKartSelect()">SELECT KART</button>
+  </div>
+
+  <!-- KART SELECT SCREEN -->
+  <div id="kartSelectOverlay" style="display:none">
+    <div id="ks-title">CHOOSE YOUR KART</div>
+    <div id="ks-body">
+      <button class="ks-arrow" id="ks-left" onclick="changeKart(-1)">&#9664;</button>
+      <div id="ks-center">
+        <canvas id="kartPreview" width="220" height="180"></canvas>
+        <div id="ks-kartname"></div>
+        <div id="ks-stats">
+          <div class="stat-row"><span class="stat-label">SPEED</span><div class="stat-bar-bg"><div class="stat-bar" id="stat-speed"></div></div></div>
+          <div class="stat-row"><span class="stat-label">ACCEL</span><div class="stat-bar-bg"><div class="stat-bar" id="stat-accel"></div></div></div>
+          <div class="stat-row"><span class="stat-label">HANDLING</span><div class="stat-bar-bg"><div class="stat-bar" id="stat-handling"></div></div></div>
+          <div class="stat-row"><span class="stat-label">WEIGHT</span><div class="stat-bar-bg"><div class="stat-bar" id="stat-weight"></div></div></div>
+        </div>
+        <div id="ks-tagline"></div>
+      </div>
+      <button class="ks-arrow" id="ks-right" onclick="changeKart(1)">&#9654;</button>
+    </div>
+    <div id="ks-dots"></div>
+    <button class="btn" style="margin-top:28px" onclick="startGame()">RACE!</button>
+    <button class="btn-back" onclick="showTitle()">&#8592; BACK</button>
+  </div>
+
+  <div id="finishOverlay">
+    <h2 id="finishTitle">RACE COMPLETE!</h2>
+    <div id="finishTime"></div>
+    <button class="btn" onclick="restartGame()">RACE AGAIN</button>
+    <button class="btn-back" style="margin-top:12px" onclick="showKartSelect()">&#8592; CHANGE KART</button>
+  </div>
+
+  <div id="controls">
+    <span class="key">↑ W</span> Accelerate &nbsp;
+    <span class="key">↓ S</span> Brake &nbsp;
+    <span class="key">← →</span> Steer &nbsp;
+    <span class="key">SPACE</span> Drift &nbsp;
+    <span class="key">E / SHIFT</span> Ability
+  </div>
+</div>
+
+<script>
+// ===================== KART ROSTER =====================
+const KART_ROSTER = [
+  {
+    name: 'BLAZE',
+    color: '#e74c3c', bodyColor: '#e74c3c', accentColor: '#ff8c00',
+    speed: 95, accel: 55, handling: 60, weight: 65,
+    tagline: '"Pure speed, no apologies"',
+    maxSpeed: 16, accelRate: 0.32, turnRate: 0.040, friction: 0.945,
+    ability: { name: 'AFTERBURNER', icon: '🔥', desc: 'Massive speed burst for 3s', cooldown: 8000 },
+  },
+  {
+    name: 'TURBO',
+    color: '#3498db', bodyColor: '#3498db', accentColor: '#00eaff',
+    speed: 70, accel: 90, handling: 70, weight: 50,
+    tagline: '"Zero to hero in 0.2 seconds"',
+    maxSpeed: 14, accelRate: 0.48, turnRate: 0.044, friction: 0.93,
+    ability: { name: 'ROCKET START', icon: '🚀', desc: 'Instant full speed lunge', cooldown: 6000 },
+  },
+  {
+    name: 'VIPER',
+    color: '#2ecc71', bodyColor: '#2ecc71', accentColor: '#fff',
+    speed: 75, accel: 70, handling: 95, weight: 45,
+    tagline: '"Corners like it\'s on rails"',
+    maxSpeed: 14.5, accelRate: 0.38, turnRate: 0.056, friction: 0.935,
+    ability: { name: 'PHASE SHIFT', icon: '👻', desc: 'Pass through walls for 2s', cooldown: 10000 },
+  },
+  {
+    name: 'CRUSHER',
+    color: '#e67e22', bodyColor: '#e67e22', accentColor: '#ffd700',
+    speed: 65, accel: 60, handling: 50, weight: 95,
+    tagline: '"Built like a tank, drives like one too"',
+    maxSpeed: 13, accelRate: 0.34, turnRate: 0.034, friction: 0.955,
+    ability: { name: 'ARMOUR SHELL', icon: '🛡️', desc: 'No speed loss from walls for 4s', cooldown: 7000 },
+  },
+  {
+    name: 'PHANTOM',
+    color: '#9b59b6', bodyColor: '#9b59b6', accentColor: '#e056fd',
+    speed: 80, accel: 75, handling: 80, weight: 55,
+    tagline: '"The all-rounder with style"',
+    maxSpeed: 15, accelRate: 0.40, turnRate: 0.048, friction: 0.938,
+    ability: { name: 'GHOST DASH', icon: '⚡', desc: 'Teleport forward on the track', cooldown: 9000 },
+  },
+];
+
+let selectedKartIdx = 0;
+let previewAngle = 0;
+
+function showTitle() {
+  document.getElementById('titleOverlay').style.display = 'flex';
+  document.getElementById('kartSelectOverlay').style.display = 'none';
+}
+
+function showKartSelect() {
+  document.getElementById('titleOverlay').style.display = 'none';
+  document.getElementById('kartSelectOverlay').style.display = 'flex';
+  document.getElementById('finishOverlay').style.display = 'none';
+  renderKartSelect();
+  requestAnimationFrame(animatePreview);
+}
+
+function changeKart(dir) {
+  selectedKartIdx = (selectedKartIdx + dir + KART_ROSTER.length) % KART_ROSTER.length;
+  renderKartSelect();
+}
+
+function renderKartSelect() {
+  const k = KART_ROSTER[selectedKartIdx];
+  document.getElementById('ks-kartname').textContent = k.name;
+  document.getElementById('ks-tagline').textContent = k.tagline;
+  // Show ability
+  let abilEl = document.getElementById('ks-ability');
+  if (!abilEl) {
+    abilEl = document.createElement('div');
+    abilEl.id = 'ks-ability';
+    abilEl.style.cssText = 'margin-top:10px;padding:8px 14px;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.15);border-radius:6px;text-align:center;font-size:11px;letter-spacing:1px;color:#ddd;line-height:1.6';
+    document.getElementById('ks-center').appendChild(abilEl);
+  }
+  abilEl.innerHTML = `<span style="font-size:18px">${k.ability.icon}</span> <span style="color:${k.accentColor};font-weight:bold;letter-spacing:2px">${k.ability.name}</span><br><span style="color:#888">${k.ability.desc}</span>`;
+
+  const stats = { speed: k.speed, accel: k.accel, handling: k.handling, weight: k.weight };
+  const colors = { speed: '#e74c3c', accel: '#f7c948', handling: '#2ecc71', weight: '#3498db' };
+  for (const [key, val] of Object.entries(stats)) {
+    const bar = document.getElementById('stat-' + key);
+    bar.style.width = val + '%';
+    bar.style.background = colors[key];
+    bar.style.boxShadow = `0 0 8px ${colors[key]}88`;
+  }
+
+  // Dots
+  const dotsEl = document.getElementById('ks-dots');
+  dotsEl.innerHTML = '';
+  KART_ROSTER.forEach((_, i) => {
+    const d = document.createElement('div');
+    d.className = 'ks-dot' + (i === selectedKartIdx ? ' active' : '');
+    d.onclick = () => { selectedKartIdx = i; renderKartSelect(); };
+    dotsEl.appendChild(d);
+  });
+
+  drawKartPreview();
+}
+
+function drawKartPreview() {
+  const pc = document.getElementById('kartPreview');
+  const pctx = pc.getContext('2d');
+  const k = KART_ROSTER[selectedKartIdx];
+  pctx.clearRect(0, 0, 220, 180);
+
+  // Background grid
+  pctx.fillStyle = '#0d0d1a';
+  pctx.fillRect(0, 0, 220, 180);
+  pctx.strokeStyle = 'rgba(247,201,72,0.07)';
+  pctx.lineWidth = 1;
+  for (let x = 0; x < 220; x += 22) { pctx.beginPath(); pctx.moveTo(x,0); pctx.lineTo(x,180); pctx.stroke(); }
+  for (let y = 0; y < 180; y += 22) { pctx.beginPath(); pctx.moveTo(0,y); pctx.lineTo(220,y); pctx.stroke(); }
+
+  // Glow circle behind kart
+  const grd = pctx.createRadialGradient(110, 90, 10, 110, 90, 70);
+  grd.addColorStop(0, k.color + '44');
+  grd.addColorStop(1, 'transparent');
+  pctx.fillStyle = grd;
+  pctx.fillRect(0, 0, 220, 180);
+
+  // Draw the kart large, centered, with previewAngle
+  pctx.save();
+  pctx.translate(110, 90);
+  pctx.rotate(previewAngle + Math.PI / 2);
+  const scale = 2.6;
+  pctx.scale(scale, scale);
+
+  // Shadow
+  pctx.fillStyle = 'rgba(0,0,0,0.4)';
+  pctx.beginPath(); pctx.ellipse(3, 4, 18, 10, 0, 0, Math.PI*2); pctx.fill();
+
+  // Body
+  pctx.fillStyle = k.bodyColor;
+  pctx.beginPath(); pctx.roundRect(-14, -20, 28, 36, 5); pctx.fill();
+
+  // Accent stripe
+  pctx.fillStyle = k.accentColor;
+  pctx.fillRect(-6, -20, 12, 6);
+  pctx.fillRect(-6, 8, 12, 6);
+
+  // Cockpit
+  pctx.fillStyle = k.accentColor;
+  pctx.beginPath(); pctx.ellipse(0, -4, 8, 10, 0, 0, Math.PI*2); pctx.fill();
+
+  // Cockpit glass
+  pctx.fillStyle = 'rgba(255,255,255,0.3)';
+  pctx.beginPath(); pctx.ellipse(0, -6, 5, 7, 0, 0, Math.PI*2); pctx.fill();
+
+  // Wheels
+  pctx.fillStyle = '#111';
+  [[-14,-14],[14,-14],[-14,12],[14,12]].forEach(([wx,wy]) => {
+    pctx.beginPath(); pctx.roundRect(wx-5, wy-6, 10, 12, 2); pctx.fill();
+    // Hubcap
+    pctx.fillStyle = '#444';
+    pctx.beginPath(); pctx.arc(wx, wy, 3, 0, Math.PI*2); pctx.fill();
+    pctx.fillStyle = '#111';
+  });
+
+  pctx.restore();
+
+  // Kart name label at bottom
+  pctx.fillStyle = k.accentColor;
+  pctx.font = 'bold 13px Orbitron, monospace';
+  pctx.textAlign = 'center';
+  pctx.fillText(k.name, 110, 168);
+}
+
+function animatePreview(ts) {
+  previewAngle = ts * 0.001;
+  drawKartPreview();
+  if (document.getElementById('kartSelectOverlay').style.display !== 'none') {
+    requestAnimationFrame(animatePreview);
+  }
+}
+</script>
+
+<script>
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const minimapCanvas = document.getElementById('minimap');
+const mctx = minimapCanvas.getContext('2d');
+
+let W, H;
+function resize() {
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+}
+resize();
+window.addEventListener('resize', resize);
+
+// ===================== TRACK =====================
+// Track defined as centerline waypoints + width
+const TRACK_WIDTH = 320;
+const trackPoints = [];
+function buildTrack() {
+  trackPoints.length = 0;
+  // A rough oval with curves
+  const cx = 0, cy = 0;
+  const pts = [
+    [800, 0], [900, -200], [900, -500], [700, -700],
+    [400, -800], [0, -820], [-400, -800], [-700, -700],
+    [-900, -500], [-900, -200], [-800, 0], [-700, 200],
+    [-600, 450], [-300, 600], [0, 620], [300, 600],
+    [600, 450], [700, 200]
+  ];
+  for (let i = 0; i < pts.length; i++) {
+    trackPoints.push({ x: pts[i][0], y: pts[i][1] });
+  }
+}
+buildTrack();
+
+function getTrackSegment(idx) {
+  const a = trackPoints[idx % trackPoints.length];
+  const b = trackPoints[(idx + 1) % trackPoints.length];
+  return { a, b };
+}
+
+function closestPointOnSegment(px, py, ax, ay, bx, by) {
+  const dx = bx - ax, dy = by - ay;
+  const len2 = dx * dx + dy * dy;
+  if (len2 === 0) return { x: ax, y: ay, t: 0 };
+  let t = ((px - ax) * dx + (py - ay) * dy) / len2;
+  t = Math.max(0, Math.min(1, t));
+  return { x: ax + t * dx, y: ay + t * dy, t };
+}
+
+function getClosestTrack(px, py) {
+  let minDist = Infinity, bestSeg = 0, bestT = 0, bestX = 0, bestY = 0;
+  for (let i = 0; i < trackPoints.length; i++) {
+    const { a, b } = getTrackSegment(i);
+    const cp = closestPointOnSegment(px, py, a.x, a.y, b.x, b.y);
+    const d = Math.hypot(px - cp.x, py - cp.y);
+    if (d < minDist) { minDist = d; bestSeg = i; bestT = cp.t; bestX = cp.x; bestY = cp.y; }
+  }
+  return { dist: minDist, seg: bestSeg, t: bestT, cx: bestX, cy: bestY };
+}
+
+function trackProgress(seg, t) {
+  return (seg + t) / trackPoints.length;
+}
+
+// ===================== WALL COLLISION =====================
+const WALL_MARGIN = TRACK_WIDTH / 2 - 12; // kart radius buffer
+
+function applyWallCollision(k) {
+  const { dist, cx, cy } = getClosestTrack(k.x, k.y);
+  if (dist > WALL_MARGIN) {
+    // Push kart back inside the track
+    const overlap = dist - WALL_MARGIN;
+    const nx = (k.x - cx) / dist;
+    const ny = (k.y - cy) / dist;
+    k.x -= nx * overlap;
+    k.y -= ny * overlap;
+
+    // Reflect the kart's travel direction off the wall normal
+    // Current velocity vector based on angle + speed
+    let vx = Math.cos(k.angle) * k.speed;
+    let vy = Math.sin(k.angle) * k.speed;
+
+    // dot product of velocity with wall normal
+    const dot = vx * nx + vy * ny;
+
+    // Only reflect if moving into the wall
+    if (dot > 0) {
+      // Reflect: v = v - 2*(v·n)*n, then dampen
+      const dampen = (k.abilityActive && k.abilityName === 'ARMOUR SHELL') ? 0.98 : 0.78;
+      vx = (vx - 2 * dot * nx) * dampen;
+      vy = (vy - 2 * dot * ny) * dampen;
+
+      k.speed = Math.hypot(vx, vy);
+      k.angle = Math.atan2(vy, vx);
+    }
+  }
+}
+
+// ===================== KART =====================
+const KART_COLORS = ['#e74c3c', '#3498db', '#2ecc71', '#e67e22', '#9b59b6'];
+const KART_NAMES = ['YOU', 'CPU1', 'CPU2', 'CPU3', 'CPU4'];
+
+function createKart(idx, isPlayer) {
+  const sp = trackPoints[1];
+  const offset = (idx - 2) * 60;
+  const rosterKart = isPlayer ? KART_ROSTER[selectedKartIdx] : KART_ROSTER[idx % KART_ROSTER.length];
+  return {
+    x: sp.x + offset, y: sp.y + 80 * idx,
+    angle: Math.atan2(trackPoints[2].y - trackPoints[1].y, trackPoints[2].x - trackPoints[1].x),
+    speed: 0, vx: 0, vy: 0,
+    color: rosterKart.color,
+    accentColor: rosterKart.accentColor,
+    name: isPlayer ? 'YOU' : KART_NAMES[idx],
+    isPlayer,
+    lap: 1, lastSeg: 0, lastProgress: 0,
+    drifting: false, driftAngle: 0,
+    finished: false, finishTime: 0,
+    cpSeg: 1, cpT: 0,
+    // stats
+    maxSpeed: isPlayer ? rosterKart.maxSpeed : 13 + Math.random() * 2,
+    accelRate: isPlayer ? rosterKart.accelRate : 0.30 + Math.random() * 0.08,
+    turnRate: isPlayer ? rosterKart.turnRate : 0.038 + Math.random() * 0.01,
+    friction: isPlayer ? rosterKart.friction : 0.935 + Math.random() * 0.01,
+    // ability
+    abilityName: rosterKart.ability.name,
+    abilityCooldown: rosterKart.ability.cooldown,
+    abilityLastUsed: -99999,
+    abilityActive: false,
+    abilityTimer: 0,
+  };
+}
+
+// ===================== GAME STATE =====================
+let karts = [];
+let player;
+let keys = {};
+let raceStarted = false;
+let raceTime = 0;
+let countdown = 0;
+let countdownTimer = 0;
+let animId;
+
+const TOTAL_LAPS = 3;
+const MAX_SPEED = 14;
+const ACCEL = 0.35;
+const BRAKE = 0.5;
+const FRICTION = 0.94;
+const TURN_SPEED = 0.045;
+const OFF_TRACK_FACTOR = 0.55;
+
+function startGame() {
+  document.getElementById('titleOverlay').style.display = 'none';
+  document.getElementById('kartSelectOverlay').style.display = 'none';
+  document.getElementById('finishOverlay').style.display = 'none';
+  karts = [];
+  for (let i = 0; i < 5; i++) karts.push(createKart(i, i === 0));
+  player = karts[0];
+  raceStarted = false;
+  raceTime = 0;
+  countdown = 3;
+  countdownTimer = 0;
+  if (animId) cancelAnimationFrame(animId);
+  loop();
+}
+
+function restartGame() { startGame(); }
+
+// ===================== INPUT =====================
+document.addEventListener('keydown', e => { keys[e.code] = true; e.preventDefault(); });
+document.addEventListener('keyup', e => { keys[e.code] = false; });
+
+// ===================== CPU AI =====================
+function updateCPU(k, dt) {
+  if (k.finished) return;
+  const { seg, t, cx, cy } = getClosestTrack(k.x, k.y);
+  // Target a point ahead on track
+  const targetIdx = (seg + 3) % trackPoints.length;
+  const tp = trackPoints[targetIdx];
+  const targetAngle = Math.atan2(tp.y - k.y, tp.x - k.x);
+  let da = targetAngle - k.angle;
+  while (da > Math.PI) da -= Math.PI * 2;
+  while (da < -Math.PI) da += Math.PI * 2;
+  k.angle += Math.sign(da) * Math.min(Math.abs(da), TURN_SPEED * 1.2);
+
+  const distFromCenter = Math.hypot(k.x - cx, k.y - cy);
+  const onTrack = distFromCenter < TRACK_WIDTH / 2;
+  const speedFactor = onTrack ? 1 : OFF_TRACK_FACTOR;
+  const topSpeed = (k.maxSpeed - 2) * speedFactor;
+
+  if (k.speed < topSpeed) k.speed += k.accelRate * 0.8;
+  k.speed *= k.friction;
+
+  k.x += Math.cos(k.angle) * k.speed;
+  k.y += Math.sin(k.angle) * k.speed;
+  applyWallCollision(k);
+}
+
+// ===================== ABILITY SYSTEM =====================
+function activateAbility(k) {
+  const now = raceTime;
+  if (k.abilityActive) return;
+  if (now - k.abilityLastUsed < k.abilityCooldown) return;
+
+  k.abilityLastUsed = now;
+  k.abilityActive = true;
+
+  switch (k.abilityName) {
+    case 'AFTERBURNER':
+      k.abilityTimer = 3000;
+      break;
+    case 'ROCKET START':
+      // Instant lunge forward
+      k.speed = k.maxSpeed * 1.5;
+      k.abilityActive = false; // instant
+      k.abilityTimer = 0;
+      spawnParticles(k.x, k.y, k.accentColor, 20);
+      break;
+    case 'PHASE SHIFT':
+      k.abilityTimer = 2000;
+      break;
+    case 'ARMOUR SHELL':
+      k.abilityTimer = 4000;
+      break;
+    case 'GHOST DASH': {
+      // Teleport forward ~600 units on the track centerline
+      const { seg } = getClosestTrack(k.x, k.y);
+      const fwdSeg = (seg + 5) % trackPoints.length;
+      spawnParticles(k.x, k.y, k.accentColor, 16);
+      k.x = trackPoints[fwdSeg].x;
+      k.y = trackPoints[fwdSeg].y;
+      spawnParticles(k.x, k.y, k.accentColor, 16);
+      k.abilityActive = false;
+      k.abilityTimer = 0;
+      break;
+    }
+  }
+}
+
+function updateAbility(k, dtMs) {
+  if (!k.abilityActive) return;
+  k.abilityTimer -= dtMs;
+  if (k.abilityTimer <= 0) {
+    k.abilityActive = false;
+    k.abilityTimer = 0;
+  }
+}
+
+// ===================== PARTICLES =====================
+const particles = [];
+function spawnParticles(x, y, color, count = 10) {
+  for (let i = 0; i < count; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const speed = 2 + Math.random() * 6;
+    particles.push({ x, y, vx: Math.cos(angle)*speed, vy: Math.sin(angle)*speed, life: 1, color, size: 3 + Math.random()*5 });
+  }
+}
+
+function updateParticles(dtMs) {
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    p.x += p.vx; p.y += p.vy;
+    p.vx *= 0.92; p.vy *= 0.92;
+    p.life -= dtMs / 600;
+    if (p.life <= 0) particles.splice(i, 1);
+  }
+}
+
+function drawParticles() {
+  for (const p of particles) {
+    ctx.save();
+    ctx.globalAlpha = p.life * 0.9;
+    ctx.fillStyle = p.color;
+    ctx.shadowColor = p.color;
+    ctx.shadowBlur = 8;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.size * p.life, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+}
+
+// ===================== PLAYER =====================
+function updatePlayer(dt) {
+  if (player.finished) return;
+  const dtMs = dt * 16.67;
+  updateAbility(player, dtMs);
+
+  const { seg, t, cx, cy } = getClosestTrack(player.x, player.y);
+  const distFromCenter = Math.hypot(player.x - cx, player.y - cy);
+  const onTrack = distFromCenter < TRACK_WIDTH / 2;
+  const speedFactor = onTrack ? 1 : OFF_TRACK_FACTOR;
+
+  const accel = keys['ArrowUp'] || keys['KeyW'];
+  const braking = keys['ArrowDown'] || keys['KeyS'];
+  const left = keys['ArrowLeft'] || keys['KeyA'];
+  const right = keys['ArrowRight'] || keys['KeyD'];
+  player.drifting = keys['Space'];
+
+  if ((keys['KeyE'] || keys['ShiftLeft']) && !player._abilityKeyHeld) {
+    player._abilityKeyHeld = true;
+    activateAbility(player);
+  }
+  if (!keys['KeyE'] && !keys['ShiftLeft']) player._abilityKeyHeld = false;
+
+  // Apply ability speed modifiers
+  let topSpeed = player.maxSpeed * speedFactor;
+  let accelRate = player.accelRate;
+  if (player.abilityActive && player.abilityName === 'AFTERBURNER') {
+    topSpeed *= 1.6;
+    accelRate *= 2;
+    if (Math.random() < 0.4) spawnParticles(
+      player.x - Math.cos(player.angle) * 20,
+      player.y - Math.sin(player.angle) * 20,
+      '#ff6600', 2);
+  }
+
+  if (accel) player.speed = Math.min(player.speed + accelRate, topSpeed);
+  if (braking) player.speed = Math.max(player.speed - BRAKE, -4);
+  if (!accel && !braking) player.speed *= player.friction;
+
+  const turnMult = player.drifting ? 1.6 : 1;
+  if (left) player.angle -= player.turnRate * turnMult;
+  if (right) player.angle += player.turnRate * turnMult;
+
+  player.x += Math.cos(player.angle) * player.speed;
+  player.y += Math.sin(player.angle) * player.speed;
+
+  // Phase Shift: skip wall collision
+  if (!(player.abilityActive && player.abilityName === 'PHASE SHIFT')) {
+    applyWallCollision(player);
+  }
+}
+
+// ===================== LAP TRACKING =====================
+// Start/finish is near trackPoints[0]
+function updateLaps(k) {
+  if (k.finished) return;
+  const { seg, t } = getClosestTrack(k.x, k.y);
+  const prog = trackProgress(seg, t);
+
+  // Crossed finish line: progress goes from ~0.95+ to ~0.05
+  const lastProg = k.lastProgress;
+  if (lastProg > 0.9 && prog < 0.15) {
+    k.lap++;
+    if (k.lap > TOTAL_LAPS) {
+      k.finished = true;
+      k.finishTime = raceTime;
+      if (k.isPlayer) showFinish();
+    }
+  }
+  k.lastProgress = prog;
+  k.cpSeg = seg; k.cpT = t;
+}
+
+function getRacePosition() {
+  const sorted = [...karts].sort((a, b) => {
+    if (a.lap !== b.lap) return b.lap - a.lap;
+    return trackProgress(b.cpSeg, b.cpT) - trackProgress(a.cpSeg, a.cpT);
+  });
+  return sorted.findIndex(k => k.isPlayer) + 1;
+}
+
+const ordinals = ['1st', '2nd', '3rd', '4th', '5th'];
+
+function showFinish() {
+  const overlay = document.getElementById('finishOverlay');
+  const pos = getRacePosition();
+  document.getElementById('finishTitle').textContent =
+    pos === 1 ? '🏆 RACE WIN! 🏆' : `FINISHED ${ordinals[pos - 1]}`;
+  document.getElementById('finishTime').textContent = formatTime(player.finishTime);
+  overlay.style.display = 'flex';
+}
+
+// ===================== RENDER =====================
+function formatTime(ms) {
+  const m = Math.floor(ms / 60000);
+  const s = Math.floor((ms % 60000) / 1000);
+  const cs = Math.floor((ms % 1000) / 10);
+  return `${m}:${s.toString().padStart(2,'0')}.${cs.toString().padStart(2,'0')}`;
+}
+
+// Camera follows player
+let camX = 0, camY = 0, camAngle = 0;
+
+function drawTrack() {
+  // Draw track filled road
+  ctx.save();
+  // Draw outer grass first
+  ctx.fillStyle = '#2d5a1b';
+  ctx.fillRect(-W * 3, -H * 3, W * 6, H * 6);
+
+  // Build track path for fill
+  const outer = [], inner = [];
+  for (let i = 0; i < trackPoints.length; i++) {
+    const a = trackPoints[i];
+    const b = trackPoints[(i + 1) % trackPoints.length];
+    const nx = -(b.y - a.y), ny = (b.x - a.x);
+    const len = Math.hypot(nx, ny);
+    const ux = nx / len, uy = ny / len;
+    outer.push({ x: a.x + ux * TRACK_WIDTH / 2, y: a.y + uy * TRACK_WIDTH / 2 });
+    inner.push({ x: a.x - ux * TRACK_WIDTH / 2, y: a.y - uy * TRACK_WIDTH / 2 });
+  }
+
+  // Draw road
+  ctx.beginPath();
+  ctx.moveTo(outer[0].x, outer[0].y);
+  outer.forEach(p => ctx.lineTo(p.x, p.y));
+  ctx.closePath();
+  ctx.moveTo(inner[0].x, inner[0].y);
+  inner.forEach(p => ctx.lineTo(p.x, p.y));
+  ctx.closePath();
+  ctx.fillStyle = '#555';
+  ctx.fill('evenodd');
+
+  // Draw wall barriers (concrete blocks on track edges)
+  const WALL_THICKNESS = 8;
+  ctx.lineWidth = WALL_THICKNESS;
+  for (let i = 0; i < trackPoints.length; i++) {
+    const po = outer[i], qo = outer[(i + 1) % outer.length];
+    const pi2 = inner[i], qi2 = inner[(i + 1) % inner.length];
+
+    // Outer wall - grey concrete
+    ctx.beginPath();
+    ctx.moveTo(po.x, po.y);
+    ctx.lineTo(qo.x, qo.y);
+    ctx.strokeStyle = '#888';
+    ctx.lineWidth = WALL_THICKNESS + 4;
+    ctx.stroke();
+    ctx.strokeStyle = '#bbb';
+    ctx.lineWidth = WALL_THICKNESS;
+    ctx.stroke();
+
+    // Inner wall
+    ctx.beginPath();
+    ctx.moveTo(pi2.x, pi2.y);
+    ctx.lineTo(qi2.x, qi2.y);
+    ctx.strokeStyle = '#888';
+    ctx.lineWidth = WALL_THICKNESS + 4;
+    ctx.stroke();
+    ctx.strokeStyle = '#bbb';
+    ctx.lineWidth = WALL_THICKNESS;
+    ctx.stroke();
+  }
+
+  // Draw curbs (red/white stripes on edges)
+  for (let i = 0; i < trackPoints.length; i++) {
+    const p = outer[i];
+    const q = outer[(i + 1) % outer.length];
+    ctx.beginPath();
+    ctx.moveTo(p.x, p.y);
+    ctx.lineTo(q.x, q.y);
+    ctx.strokeStyle = i % 2 === 0 ? '#e74c3c' : '#fff';
+    ctx.lineWidth = 10;
+    ctx.stroke();
+
+    const pi = inner[i], qi = inner[(i + 1) % inner.length];
+    ctx.beginPath();
+    ctx.moveTo(pi.x, pi.y);
+    ctx.lineTo(qi.x, qi.y);
+    ctx.strokeStyle = i % 2 === 0 ? '#fff' : '#e74c3c';
+    ctx.lineWidth = 10;
+    ctx.stroke();
+  }
+
+  // Center dashed line
+  ctx.setLineDash([40, 30]);
+  ctx.strokeStyle = 'rgba(255,255,255,0.25)';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  trackPoints.forEach((p, i) => i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y));
+  ctx.closePath();
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Start/finish line
+  const sf = trackPoints[0];
+  const sfNext = trackPoints[1];
+  const sfAngle = Math.atan2(sfNext.y - sf.y, sfNext.x - sf.x) + Math.PI / 2;
+  ctx.save();
+  ctx.translate(sf.x, sf.y);
+  ctx.rotate(sfAngle);
+  for (let i = -4; i < 4; i++) {
+    for (let j = -1; j < 1; j++) {
+      ctx.fillStyle = (i + j) % 2 === 0 ? '#fff' : '#000';
+      ctx.fillRect(i * 12 - 6, j * 12, 12, 12);
+    }
+  }
+  ctx.restore();
+
+  ctx.restore();
+}
+
+function drawKart(k, isMain) {
+  ctx.save();
+  ctx.translate(k.x, k.y);
+  ctx.rotate(k.angle + Math.PI / 2);
+
+  // Ability visuals
+  if (k.abilityActive) {
+    if (k.abilityName === 'PHASE SHIFT') {
+      ctx.globalAlpha = 0.4 + Math.sin(Date.now() * 0.02) * 0.2;
+      ctx.shadowColor = k.accentColor;
+      ctx.shadowBlur = 20;
+    } else if (k.abilityName === 'AFTERBURNER') {
+      ctx.shadowColor = '#ff6600';
+      ctx.shadowBlur = 25;
+    } else if (k.abilityName === 'ARMOUR SHELL') {
+      ctx.shadowColor = '#ffd700';
+      ctx.shadowBlur = 18;
+    }
+  }
+
+  // Shadow
+  ctx.fillStyle = 'rgba(0,0,0,0.3)';
+  ctx.beginPath();
+  ctx.ellipse(4, 4, 18, 12, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Body
+  ctx.fillStyle = k.color;
+  ctx.beginPath();
+  ctx.roundRect(-14, -20, 28, 36, 5);
+  ctx.fill();
+
+  // Cockpit
+  ctx.fillStyle = k.accentColor || (isMain ? '#f7c948' : 'rgba(255,255,255,0.7)');
+  ctx.beginPath();
+  ctx.ellipse(0, -4, 8, 10, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Wheels
+  ctx.fillStyle = '#111';
+  [[-14, -14], [14, -14], [-14, 12], [14, 12]].forEach(([wx, wy]) => {
+    ctx.beginPath();
+    ctx.roundRect(wx - 5, wy - 6, 10, 12, 2);
+    ctx.fill();
+  });
+
+  // Drift smoke
+  if (k.drifting && Math.abs(k.speed) > 4) {
+    ctx.globalAlpha = 0.4;
+    ctx.fillStyle = '#ccc';
+    for (let i = 0; i < 3; i++) {
+      ctx.beginPath();
+      ctx.arc(-10 + i * 10, 16 + i * 8, 6 + i * 3, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  ctx.restore();
+
+  // Name tag
+  if (!isMain) {
+    ctx.save();
+    ctx.translate(k.x, k.y - 36);
+    ctx.fillStyle = k.color;
+    ctx.font = 'bold 12px Orbitron, monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(k.name, 0, 0);
+    ctx.restore();
+  }
+}
+
+function drawMinimap() {
+  mctx.clearRect(0, 0, 120, 120);
+  // Scale track to minimap
+  const scale = 0.065;
+  const offX = 60, offY = 60;
+
+  // Road
+  mctx.strokeStyle = '#888';
+  mctx.lineWidth = 6;
+  mctx.beginPath();
+  trackPoints.forEach((p, i) => {
+    const mx = p.x * scale + offX, my = p.y * scale + offY;
+    i === 0 ? mctx.moveTo(mx, my) : mctx.lineTo(mx, my);
+  });
+  mctx.closePath();
+  mctx.stroke();
+
+  // Karts
+  karts.forEach(k => {
+    const mx = k.x * scale + offX, my = k.y * scale + offY;
+    mctx.beginPath();
+    mctx.arc(mx, my, k.isPlayer ? 5 : 3, 0, Math.PI * 2);
+    mctx.fillStyle = k.color;
+    mctx.fill();
+  });
+}
+
+// ===================== COUNTDOWN =====================
+function drawCountdown(now) {
+  const num = Math.ceil(countdown);
+  if (num <= 0) return;
+  const alpha = 1 - (countdownTimer % 1);
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.font = `bold ${Math.floor(200 + (1 - alpha) * 100)}px 'Russo One', sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = countdown <= 1 ? '#2ecc71' : '#f7c948';
+  ctx.strokeStyle = '#000';
+  ctx.lineWidth = 10;
+  const label = countdown <= 0.5 ? 'GO!' : String(num);
+  ctx.strokeText(label, W / 2, H / 2);
+  ctx.fillText(label, W / 2, H / 2);
+  ctx.restore();
+}
+
+// ===================== MAIN LOOP =====================
+let lastTime = 0;
+function loop(ts = 0) {
+  animId = requestAnimationFrame(loop);
+  const dt = Math.min((ts - lastTime) / 16.67, 3);
+  lastTime = ts;
+
+  // Countdown
+  if (countdown > 0) {
+    countdownTimer += dt * 0.04;
+    countdown = Math.max(0, 3 - countdownTimer);
+    if (countdown <= 0) raceStarted = true;
+  }
+
+  if (raceStarted) raceTime += dt * 16.67;
+
+  if (raceStarted) {
+    const dtMs = dt * 16.67;
+    updatePlayer(dt);
+    karts.filter(k => !k.isPlayer).forEach(k => updateCPU(k, dt));
+    karts.forEach(updateLaps);
+    updateParticles(dtMs);
+  }
+
+  // Camera: smoothly follow player
+  camX += (player.x - camX) * 0.1;
+  camY += (player.y - camY) * 0.1;
+  camAngle += (player.angle - camAngle) * 0.12;
+
+  ctx.clearRect(0, 0, W, H);
+
+  // Apply camera transform (pseudo-3D tilt)
+  ctx.save();
+  ctx.translate(W / 2, H / 2 + 60);
+  ctx.rotate(-camAngle - Math.PI / 2);
+  ctx.translate(-camX, -camY);
+
+  drawTrack();
+  karts.forEach(k => drawKart(k, k.isPlayer));
+  drawParticles();
+
+  ctx.restore();
+
+  // Vignette overlay
+  const vign = ctx.createRadialGradient(W/2, H/2, H*0.3, W/2, H/2, H*0.8);
+  vign.addColorStop(0, 'rgba(0,0,0,0)');
+  vign.addColorStop(1, 'rgba(0,0,0,0.55)');
+  ctx.fillStyle = vign;
+  ctx.fillRect(0, 0, W, H);
+
+  drawCountdown(ts);
+  drawMinimap();
+
+  // HUD updates
+  document.getElementById('speedDisplay').textContent = Math.abs(Math.round(player.speed * 12)) + ' km/h';
+  document.getElementById('lapDisplay').textContent = `${Math.min(player.lap, TOTAL_LAPS)} / ${TOTAL_LAPS}`;
+  document.getElementById('timeDisplay').textContent = formatTime(raceTime);
+  document.getElementById('posDisplay').textContent = ordinals[getRacePosition() - 1];
+
+  // Ability HUD
+  const rosterK = KART_ROSTER[selectedKartIdx];
+  document.getElementById('abilityIcon').textContent = rosterK.ability.icon;
+  document.getElementById('abilityName').textContent = rosterK.ability.name;
+  const elapsed = raceTime - player.abilityLastUsed;
+  const cdFrac = Math.min(elapsed / player.abilityCooldown, 1);
+  const fill = document.getElementById('abilityCooldownFill');
+  fill.style.width = (cdFrac * 100) + '%';
+  const statusEl = document.getElementById('abilityStatus');
+  if (player.abilityActive) {
+    fill.style.background = rosterK.accentColor;
+    statusEl.textContent = 'ACTIVE!';
+    statusEl.style.color = rosterK.accentColor;
+  } else if (cdFrac >= 1) {
+    fill.style.background = '#2ecc71';
+    statusEl.textContent = 'READY — Press E';
+    statusEl.style.color = '#2ecc71';
+  } else {
+    fill.style.background = '#888';
+    statusEl.textContent = `${((1 - cdFrac) * rosterK.ability.cooldown / 1000).toFixed(1)}s`;
+    statusEl.style.color = '#888';
+  }
+}
+
+// Init: show track in background
+buildTrack();
+// Just render static frame behind overlay
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
+
+// Touch controls for mobile
+const touchState = { steer: 0, accel: false, brake: false };
+let touchStartX = 0;
+
+canvas.addEventListener('touchstart', e => {
+  e.preventDefault();
+  const t = e.touches[0];
+  touchStartX = t.clientX;
+  if (t.clientY > window.innerHeight * 0.6) {
+    keys['ArrowUp'] = true;
+  }
+}, { passive: false });
+
+canvas.addEventListener('touchmove', e => {
+  e.preventDefault();
+  const t = e.touches[0];
+  const dx = t.clientX - touchStartX;
+  keys['ArrowLeft'] = dx < -20;
+  keys['ArrowRight'] = dx > 20;
+}, { passive: false });
+
+canvas.addEventListener('touchend', e => {
+  e.preventDefault();
+  keys['ArrowUp'] = false;
+  keys['ArrowLeft'] = false;
+  keys['ArrowRight'] = false;
+}, { passive: false });
+</script>
+</body>
+</html>
