@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Wyatt's Expedition</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: linear-gradient(to bottom, #1e3c72, #2a5298);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            touch-action: none;
+        }
+        canvas { display: block; }
+        
+        #ui {
+            position: absolute; top: 20px; left: 20px;
+            color: white; font-size: 24px; font-weight: bold;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+            pointer-events: none; display: none;
+        }
+        
+        .overlay {
+            position: absolute; top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            color: white; background: rgba(15, 25, 45, 0.85);
+            padding: 30px 40px; border-radius: 15px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.7);
+            max-width: 650px; width: 85%; max-height: 90vh; overflow-y: auto;
+        }
+
+        #gameOver { text-align: center; display: none; }
+        #startScreen { display: block; }
+
+        h1 { margin: 0 0 10px 0; font-size: 42px; text-align: center; color: #fff; text-shadow: 0 2px 5px rgba(0,0,0,0.5); }
+        .subtitle { text-align: center; font-size: 18px; color: #a8c0ff; margin-bottom: 25px; }
+        #deathReason { font-size: 22px; color: #ff5722; margin-bottom: 15px; font-weight: bold; }
+        
+        .features p { font-size: 15px; line-height: 1.5; margin-bottom: 12px; color: #ddd; }
+        .features strong { color: #ff9800; }
+
+        .btn-container { text-align: center; margin-top: 25px; }
+        
+        button {
+            background: #ff5722; color: white; border: none;
+            padding: 15px 30px; font-size: 20px; border-radius: 8px;
+            cursor: pointer; font-weight: bold;
+            transition: background 0.2s, transform 0.1s;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        }
+        button:hover { background: #e64a19; transform: scale(1.05); }
+        button:active { transform: scale(0.95); }
+    </style>
+</head>
+<body>
+
+    <div id="ui">Score: <span id="scoreDisplay">0</span></div>
+
+    <!-- Start Menu -->
+    <div id="startScreen" class="overlay">
+        <h1>Wyatt's Expedition</h1>
+        <div class="subtitle">Click or Spacebar to Jump. Hold to Backflip!</div>
+        <div class="features">
+            <p><strong>Upgraded Physics:</strong> You jump much higher now! Plus, there is a realistic delay before you start a backflip.</p>
+            <p><strong>Speed Boosts:</strong> Land backflips perfectly to gain a massive burst of speed!</p>
+            <p><strong>The Chasms:</strong> Watch out for giant cliffs! Time your jumps perfectly to clear the bottomless gaps.</p>
+            <p><strong>Wild Deer:</strong> You will encounter deer on the mountain. Spook them and watch them run alongside you.</p>
+            <p><strong>The Elders:</strong> Travel far enough and the Mountain Elders will chase you on horseback. They are faster than you—the <em>only</em> way to outrun them is by chaining trick boosts!</p>
+        </div>
+        <div class="btn-container">
+            <button onclick="startGame()">Start Expedition</button>
+        </div>
+    </div>
+
+    <!-- Game Over Menu -->
+    <div id="gameOver" class="overlay">
+        <h1>Wipeout!</h1>
+        <div id="deathReason">You crashed!</div>
+        <p style="font-size: 24px; margin-bottom: 30px;">Final Score: <strong id="finalScore" style="color:#ff9800;">0</strong></p>
+        <div class="btn-container">
+            <button onclick="resetGame()">Play Again</button>
+        </div>
+    </div>
+
+    <canvas id="gameCanvas"></canvas>
+
+    <script>
+        const canvas = document.getElementById("gameCanvas");
+        const ctx = canvas.getContext("2d");
+        
+        function resize() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            if(!gameRunning) draw(); 
+        }
+        window.addEventListener("resize", resize);
+
+        // Core Game Variables
+        let score = 0;
+        let speed = 7;
+        let speedBoost = 0; 
+        let distance = 0;
+        let isGameOver = false;
+        let isPressing = false;
+        let gameRunning = false;
+        let animationFrameId;
+        
+        // World Tracking
+        let terrainOffset = 0;
+        let chasms =[];
+        let rocks = [];
+        let particles = [];
+        let deers =[];
+        
+        // Terrain Math
+        function getTerrainY(x) {
+            let realX = x + terrainOffset;
+            
+            // Check if inside a chasm
+            for (let c of chasms) {
+                if (realX > c.start && realX < c.end) {
+                    return canvas.height + 500; // Bottomless drop
+                }
+            }
+
+            // Rolling Hills Math
+            let y = canvas.height * 0.6; 
+            y += Math.sin(realX * 0.002) * 150;
+            y += Math.sin(realX * 0.005) * 50;
+            y += Math.sin(realX * 0.01) * 20;
+            return y;
+        }
+
+        // Wyatt (The Player)
+        const player = {
+            x: 0, // Set dynamically in resize()
+            y: 0,
+            vy: 0,
+            gravity: 0.65, // Smoother gravity
+            jumpForce: -15, // Higher jump
+            rotation: 0,
+            grounded: false,
+            width: 20,
+            height: 40,
+            flipStartRotation: 0,
+            flipDelay: 0, // Delay before spinning
+            scarf:[]
+        };
+
+        // The Chasing Elder
+        const elder = {
+            active: false,
+            x: -200,
+            y: 0
+        };
+
+        // Input Listeners
+        function handleInputStart(e) {
+            if(e.type === 'touchstart') e.preventDefault();
+            if (!gameRunning || isGameOver) return;
+            isPressing = true;
+            if (player.grounded) {
+                player.vy = player.jumpForce;
+                player.grounded = false;
+                player.flipStartRotation = player.rotation;
+                createParticles(player.x, player.y, "#fff"); // Jump dust
+            }
+        }
+
+        function handleInputEnd(e) {
+            if(e.type === 'touchend') e.preventDefault();
+            isPressing = false;
+        }
+
+        window.addEventListener("mousedown", handleInputStart);
+        window.addEventListener("touchstart", handleInputStart, {passive: false});
+        window.addEventListener("mouseup", handleInputEnd);
+        window.addEventListener("touchend", handleInputEnd);
+        window.addEventListener("keydown", (e) => { if(e.code === "Space") handleInputStart(e); });
+        window.addEventListener("keyup", (e) => { if(e.code === "Space") handleInputEnd(e); });
+
+        // Obstacles & Entities
+        function spawnEntities() {
+            let worldX = terrainOffset + canvas.width + 100;
+
+            // Spawn Chasm
+            if (distance > 1500 && Math.random() < 0.003) {
+                let lastChasm = chasms[chasms.length - 1];
+                if (!lastChasm || worldX - lastChasm.end > 1200) {
+                    chasms.push({ start: worldX + 200, end: worldX + 500 + Math.random() * 200 });
+                }
+            }
+
+            // Spawn Rock
+            if (Math.random() < 0.015) {
+                let inChasm = chasms.some(c => worldX > c.start - 200 && worldX < c.end + 200);
+                if (!inChasm && (rocks.length === 0 || canvas.width + 100 - rocks[rocks.length-1].x > 500)) {
+                    rocks.push({ x: canvas.width + 100, size: 20 + Math.random() * 20 });
+                }
+            }
+
+            // Spawn Deer
+            if (Math.random() < 0.008) {
+                let inChasm = chasms.some(c => worldX > c.start - 100 && worldX < c.end + 100);
+                if (!inChasm) deers.push({ x: canvas.width + 100 + Math.random()*200, running: false, speed: 0 });
+            }
+
+            // Clean up old chasms memory
+            if (chasms.length > 0 && chasms[0].end < terrainOffset - 500) chasms.shift();
+        }
+
+        function createParticles(x, y, color) {
+            for(let i=0; i<15; i++) {
+                particles.push({
+                    x: x, y: y,
+                    vx: (Math.random() - 0.5) * 6, vy: (Math.random() - 1) * 6,
+                    life: 1, color: color
+                });
+            }
+        }
+
+        function triggerGameOver(reason) {
+            isGameOver = true;
+            gameRunning = false;
+            createParticles(player.x, player.y, "#ff0000"); 
+            document.getElementById("finalScore").innerText = score;
+            document.getElementById("deathReason").innerText = reason || "Wipeout!";
+            
+            setTimeout(() => { document.getElementById("gameOver").style.display = "block"; }, 600);
+        }
+
+        function startGame() {
+            document.getElementById("startScreen").style.display = "none";
+            document.getElementById("ui").style.display = "block";
+            resetGame();
+        }
+
+        function resetGame() {
+            cancelAnimationFrame(animationFrameId);
+            resize();
+            score = 0; speed = 7; speedBoost = 0; distance = 0; terrainOffset = 0;
+            player.x = canvas.width * 0.2; player.y = canvas.height / 2;
+            player.vy = 0; player.rotation = 0; player.scarf =[]; player.flipDelay = 0;
+            rocks = []; particles = []; chasms = []; deers =[];
+            elder.active = false; elder.x = -200;
+            isGameOver = false; gameRunning = true;
+            document.getElementById("gameOver").style.display = "none";
+            gameLoop();
+        }
+
+        function update() {
+            if (isGameOver) return;
+
+            speed += 0.001; // Base acceleration
+            if (speedBoost > 0) speedBoost -= 0.02; // Boost decay
+            let currentSpeed = speed + speedBoost;
+
+            terrainOffset += currentSpeed;
+            distance += currentSpeed;
+            score = Math.floor(distance / 10);
+
+            // Physics
+            player.vy += player.gravity;
+            if (player.vy > 18) player.vy = 18; // Terminal velocity
+            player.y += player.vy;
+
+            let groundY = getTerrainY(player.x);
+            let frontGroundY = getTerrainY(player.x + 20); // Skis tip
+            let nextGroundY = getTerrainY(player.x + 10);
+            let prevGroundY = getTerrainY(player.x - 10);
+            let slopeAngle = Math.atan2(nextGroundY - prevGroundY, 20);
+
+            // Chasm Death (Fell down)
+            if (player.y > canvas.height + 50) {
+                triggerGameOver("Fell into a chasm!");
+                return;
+            }
+
+            if (groundY < canvas.height) { 
+                // Over solid ground
+                if (player.y >= groundY - player.height / 2) {
+                    player.y = groundY - player.height / 2;
+                    player.vy = 0;
+
+                    // Landing Logic
+                    if (!player.grounded) {
+                        let relativeRot = (player.rotation - slopeAngle) % (Math.PI * 2);
+                        if (relativeRot < 0) relativeRot += Math.PI * 2;
+                        
+                        if (relativeRot > 1.3 && relativeRot < 5.0) { // Wider safety angle
+                            triggerGameOver("Landed on your head!");
+                            return;
+                        } else {
+                            let totalRotation = player.rotation - player.flipStartRotation;
+                            let flips = Math.floor(Math.abs(totalRotation) / (Math.PI * 1.4)); 
+                            if (flips > 0) {
+                                score += flips * 50;
+                                speedBoost = Math.min(speedBoost + (flips * 5), 10); // Massive boost!
+                                createParticles(player.x, player.y, "#ffd700");
+                            }
+                        }
+                    }
+
+                    player.grounded = true;
+                    player.rotation = slopeAngle;
+                    if (Math.random() < 0.3) createParticles(player.x, groundY + 10, "rgba(255,255,255,0.6)");
+                } else {
+                    player.grounded = false;
+                }
+            } else {
+                // Over Chasm
+                player.grounded = false;
+                // Smashed into the cliff face?
+                if (frontGroundY < canvas.height && player.y > frontGroundY - player.height/2 + 15) {
+                    triggerGameOver("Slammed into a cliff face!");
+                    return;
+                }
+            }
+
+            // Delayed Backflip Mechanics
+            if (!player.grounded && isPressing) {
+                player.flipDelay++;
+                if (player.flipDelay > 8) { // Wait ~130ms before flipping
+                    player.rotation += 0.15; // Spin fast!
+                }
+            } else {
+                player.flipDelay = 0;
+            }
+
+            // Boost Trail
+            if (speedBoost > 1 && Math.random() < 0.5) createParticles(player.x, player.y, "rgba(255, 215, 0, 0.4)");
+
+            player.scarf.unshift({x: player.x, y: player.y - 10});
+            if (player.scarf.length > 20) player.scarf.pop();
+
+            spawnEntities();
+
+            // Rocks
+            for (let i = rocks.length - 1; i >= 0; i--) {
+                rocks[i].x -= currentSpeed;
+                let rockY = getTerrainY(rocks[i].x);
+                if (rockY < canvas.height) { // Only collide if not falling down chasm
+                    let dist = Math.hypot(player.x - rocks[i].x, player.y - (rockY - rocks[i].size/2));
+                    if (dist < rocks[i].size/2 + 15) triggerGameOver("Tripped on a rock!");
+                }
+                if (rocks[i].x < -50) rocks.splice(i, 1);
+            }
+
+            // Deer
+            for (let i = deers.length - 1; i >= 0; i--) {
+                let d = deers[i];
+                if (d.running) {
+                    d.speed = speed * 0.85; // Slower than you, but running
+                } else {
+                    d.speed = 0; 
+                    if (d.x - player.x < 350) { // Spook distance
+                        d.running = true;
+                        createParticles(d.x, getTerrainY(d.x)-10, "#ccc");
+                    }
+                }
+                d.x -= (currentSpeed - d.speed);
+                if (d.x < -100 || getTerrainY(d.x) > canvas.height) deers.splice(i, 1);
+            }
+
+            // Elder Mechanics
+            if (!elder.active && score > 300 && Math.random() < 0.001) {
+                elder.active = true;
+                elder.x = -150; 
+            }
+
+            if (elder.active) {
+                // Elder base speed is slightly faster than player base speed
+                let elderRelativeSpeed = (speed + 0.6) - currentSpeed; 
+                elder.x += elderRelativeSpeed;
+                elder.y = getTerrainY(elder.x);
+
+                if (elder.x > player.x - 25 && player.grounded) {
+                    triggerGameOver("Caught by the Mountain Elder!");
+                    return;
+                }
+                if (elder.x < -600) { // Escaped!
+                    elder.active = false;
+                    score += 200; 
+                }
+            }
+
+            // Particles Update
+            for (let i = particles.length - 1; i >= 0; i--) {
+                let p = particles[i];
+                p.x += p.vx - (currentSpeed * 0.5);
+                p.y += p.vy;
+                p.life -= 0.03;
+                if (p.life <= 0) particles.splice(i, 1);
+            }
+
+            document.getElementById("scoreDisplay").innerText = score;
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Background Mountains
+            ctx.fillStyle = "#3b5998";
+            ctx.beginPath();
+            ctx.moveTo(0, canvas.height);
+            for (let x = 0; x <= canvas.width; x += 50) {
+                let y = canvas.height * 0.4 + Math.sin((x + terrainOffset * 0.2) * 0.005) * 200;
+                ctx.lineTo(x, y);
+            }
+            ctx.lineTo(canvas.width, canvas.height);
+            ctx.fill();
+
+            // Main Snow Terrain
+            ctx.fillStyle = "#ffffff";
+            ctx.beginPath();
+            ctx.moveTo(0, canvas.height);
+            for (let x = 0; x <= canvas.width + 20; x += 5) { // High fidelity for steep cliffs
+                ctx.lineTo(x, getTerrainY(x));
+            }
+            ctx.lineTo(canvas.width, canvas.height);
+            ctx.fill();
+            
+            ctx.strokeStyle = "#e0e0e0";
+            ctx.lineWidth = 5;
+            ctx.stroke();
+
+            // Draw Rocks
+            ctx.fillStyle = "#444";
+            rocks.forEach(rock => {
+                let rockY = getTerrainY(rock.x);
+                if(rockY < canvas.height) {
+                    ctx.beginPath();
+                    ctx.arc(rock.x, rockY - rock.size/3, rock.size, 0, Math.PI, true);
+                    ctx.fill();
+                }
+            });
+
+            // Draw Deer
+            deers.forEach(d => {
+                let deerY = getTerrainY(d.x);
+                if (deerY < canvas.height) {
+                    ctx.save();
+                    ctx.translate(d.x, deerY - 5);
+                    let angle = Math.atan2(getTerrainY(d.x+5) - getTerrainY(d.x-5), 10);
+                    ctx.rotate(angle);
+                    
+                    ctx.fillStyle = "#c88b5e";
+                    ctx.beginPath(); ctx.ellipse(0, -12, 12, 8, 0, 0, Math.PI*2); ctx.fill(); // body
+                    ctx.beginPath(); ctx.ellipse(12, -22, 6, 4, -Math.PI/4, 0, Math.PI*2); ctx.fill(); // head
+                    
+                    // animated legs
+                    let swing = d.running ? Math.sin(performance.now() * 0.015) * 6 : 0;
+                    ctx.lineWidth = 3; ctx.strokeStyle = "#a06040";
+                    ctx.beginPath(); ctx.moveTo(-6, -12); ctx.lineTo(-6 - swing, 0); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(6, -12); ctx.lineTo(6 + swing, 0); ctx.stroke();
+                    ctx.restore();
+                }
+            });
+
+            // Draw Elder
+            if (elder.active && elder.y < canvas.height) {
+                ctx.save();
+                ctx.translate(elder.x, elder.y - 5);
+                let eAngle = Math.atan2(getTerrainY(elder.x+5) - getTerrainY(elder.x-5), 10);
+                ctx.rotate(eAngle);
+                
+                let trot = Math.sin(performance.now() * 0.02) * 3;
+                
+                // Horse
+                ctx.fillStyle = "#111"; 
+                ctx.beginPath(); ctx.ellipse(0, -20 + trot, 20, 10, 0, 0, Math.PI*2); ctx.fill(); 
+                ctx.beginPath(); ctx.ellipse(20, -30 + trot, 8, 5, -Math.PI/4, 0, Math.PI*2); ctx.fill();
+                let eSwing = Math.sin(performance.now() * 0.025) * 8;
+                ctx.lineWidth = 4; ctx.strokeStyle = "#111";
+                ctx.beginPath(); ctx.moveTo(-10, -20); ctx.lineTo(-10 - eSwing, 0); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(10, -20); ctx.lineTo(10 + eSwing, 0); ctx.stroke();
+                
+                // Rider
+                ctx.fillStyle = "#600"; // Dark cloak
+                ctx.beginPath(); ctx.moveTo(-5, -20 + trot); ctx.lineTo(-15, -45 + trot); ctx.lineTo(5, -45 + trot); ctx.fill();
+                ctx.fillStyle = "#ffccaa"; // Face
+                ctx.beginPath(); ctx.arc(-5, -48 + trot, 5, 0, Math.PI*2); ctx.fill();
+                
+                ctx.restore();
+            }
+
+            // Draw Particles
+            particles.forEach(p => {
+                ctx.fillStyle = p.color;
+                ctx.globalAlpha = Math.max(0, p.life);
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, 4, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.globalAlpha = 1.0;
+            });
+
+            // Draw Wyatt (Player)
+            if (!isGameOver || (isGameOver && particles.length > 0)) { 
+                ctx.save();
+                ctx.translate(player.x, player.y);
+                ctx.rotate(isGameOver ? Math.PI : player.rotation);
+
+                // Skis
+                ctx.strokeStyle = "#8b4513"; 
+                ctx.lineWidth = 4;
+                ctx.lineCap = "round";
+                ctx.beginPath(); ctx.moveTo(-25, 15); ctx.lineTo(25, 15); ctx.stroke();
+
+                // Body
+                ctx.fillStyle = speedBoost > 1 ? "#00e5ff" : "#1e90ff"; // Glowing jacket during boost
+                ctx.fillRect(-8, -20, 16, 30);
+                
+                // Head & Hat
+                ctx.fillStyle = "#ffccaa"; 
+                ctx.beginPath(); ctx.arc(0, -25, 8, 0, Math.PI * 2); ctx.fill();
+                ctx.fillStyle = "#333"; 
+                ctx.beginPath(); ctx.arc(0, -28, 8, Math.PI, Math.PI * 2); ctx.fill();
+                ctx.restore();
+
+                // Dynamic Scarf
+                if (player.scarf.length > 1 && !isGameOver) {
+                    ctx.strokeStyle = speedBoost > 1 ? "#ffd700" : "#ff3333"; // Gold scarf on boost
+                    ctx.lineWidth = 6;
+                    ctx.lineCap = "round";
+                    ctx.lineJoin = "round";
+                    ctx.beginPath();
+                    ctx.moveTo(player.scarf[0].x, player.scarf[0].y);
+                    for (let i = 1; i < player.scarf.length; i++) {
+                        let wave = Math.sin(i * 0.5 + performance.now() * 0.01) * 6;
+                        ctx.lineTo(player.scarf[i].x - i * 2, player.scarf[i].y + wave);
+                    }
+                    ctx.stroke();
+                }
+            }
+        }
+
+        function gameLoop() {
+            if (gameRunning) update();
+            draw();
+            animationFrameId = requestAnimationFrame(gameLoop);
+        }
+
+        resize();
+    </script>
+</body>
+</html>
