@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Fortnite 2D: Legacy Edition</title>
+    <style>
+        body { margin: 0; background: #020617; display: flex; align-items: center; justify-content: center; height: 100vh; font-family: 'Arial Black', sans-serif; overflow: hidden; }
+        canvas { background: #1e3a1d; border: 4px solid #334155; border-radius: 12px; cursor: crosshair; box-shadow: 0 0 60px rgba(0,0,0,0.8); }
+        #menu { position: absolute; background: rgba(15, 23, 42, 0.95); padding: 30px; border-radius: 20px; text-align: center; color: white; border: 2px solid #3b82f6; width: 300px; z-index: 10; }
+        .btn { background: #3b82f6; color: white; border: none; padding: 12px 25px; margin: 10px; cursor: pointer; border-radius: 8px; font-weight: bold; width: 80%; transition: 0.2s; }
+        .btn:hover { background: #2563eb; transform: scale(1.05); }
+        #ui { position: absolute; top: 20px; left: 20px; color: white; pointer-events: none; display: none; }
+        #achieve-box { position: absolute; top: -100px; left: 50%; transform: translateX(-50%); background: #fbbf24; color: #000; padding: 10px 30px; border-radius: 40px; font-size: 14px; transition: 0.5s cubic-bezier(0.18, 0.89, 0.32, 1.28); border: 4px solid #fff; box-shadow: 0 10px 20px rgba(0,0,0,0.5); z-index: 100; }
+        .rarity { color: #fbbf24; text-shadow: 0 0 10px #fbbf24; }
+    </style>
+</head>
+<body>
+    <div id="achieve-box"><b>LEGACY UNLOCKED:</b> <span id="achieve-text">NONE</span></div>
+    
+    <div id="menu">
+        <h1 style="margin:0 0 20px 0; color:#3b82f6;">LOCKER</h1>
+        <div style="height:80px; display:flex; align-items:center; justify-content:center;">
+             <canvas id="p-canvas" width="60" height="60"></canvas>
+        </div>
+        <h3 id="skin-name">COMMANDO</h3>
+        <button class="btn" onclick="changeSkin(1)">NEXT SKIN</button>
+        <button class="btn" style="background:#10b981" onclick="startGame()">DROP IN</button>
+    </div>
+
+    <div id="ui">
+        HP: <span id="hp" style="color:#10b981">100</span> | KILLS: <span id="k">0</span><br>
+        <span class="rarity" id="wn">SEARCHING...</span>
+    </div>
+    <canvas id="g" width="900" height="600"></canvas>
+
+<script>
+const canvas = document.getElementById('g'), ctx = canvas.getContext('2d');
+const pCanvas = document.getElementById('p-canvas'), pCtx = pCanvas.getContext('2d');
+
+const SKINS = [
+    { name: "COMMANDO", body: "#1e40af", head: "#ffe0bd", detail: "#1e3a8a" },
+    { name: "SLURP KNIGHT", body: "#06b6d4", head: "#22d3ee", detail: "#0891b2" },
+    { name: "SHADOW OPS", body: "#111827", head: "#374151", detail: "#f43f5e" },
+    { name: "GILDED ELITE", body: "#fbbf24", head: "#ffe0bd", detail: "#b45309" }
+];
+
+const GUNS = {
+    AR: { name: "MYTHIC SCAR", rate: 120, speed: 18, color: "#fbbf24", len: 35, shake: 4 },
+    SG: { name: "PUMP SHOTTY", rate: 900, speed: 12, color: "#a855f7", len: 25, shake: 12, pellets: 6 },
+    SR: { name: "HEAVY BOLT", rate: 1800, speed: 40, color: "#3b82f6", len: 50, shake: 25 }
+};
+
+let p = { x: 450, y: 300, hp: 100, weapon: null, angle: 0, kills: 0, lastFired: 0, recoil: 0, shake: 0, skinIdx: 0 };
+let ents = [], keys = {}, gameActive = false;
+let unlocked = new Set();
+
+function unlock(title) {
+    if(unlocked.has(title)) return;
+    unlocked.add(title);
+    const box = document.getElementById('achieve-box');
+    document.getElementById('achieve-text').innerText = title;
+    box.style.top = "20px";
+    setTimeout(() => { box.style.top = "-100px"; }, 3000);
+}
+
+function changeSkin(dir) {
+    p.skinIdx = (p.skinIdx + dir + SKINS.length) % SKINS.length;
+    document.getElementById('skin-name').innerText = SKINS[p.skinIdx].name;
+    drawPreview();
+}
+
+function drawPreview() {
+    pCtx.clearRect(0,0,60,60);
+    drawChar(pCtx, 30, 30, 0, SKINS[p.skinIdx], null, 0);
+}
+
+function startGame() {
+    document.getElementById('menu').style.display = 'none';
+    document.getElementById('ui').style.display = 'block';
+    gameActive = true;
+    unlock("FIRST DROP");
+    loop();
+}
+
+function drawChar(c, x, y, ang, skin, gun, rec) {
+    c.save(); c.translate(x, y); c.rotate(ang); c.translate(-rec, 0);
+    c.fillStyle = skin.body; c.beginPath(); c.roundRect(-12, -15, 24, 30, 5); c.fill();
+    c.fillStyle = skin.detail; c.fillRect(-12, -2, 24, 4);
+    if(gun) {
+        c.shadowBlur = 15; c.shadowColor = gun.color;
+        c.fillStyle = "#0f172a"; c.fillRect(12, -3, gun.len, 6);
+        c.fillStyle = gun.color; c.fillRect(15, -2, gun.len/2, 4);
+        c.shadowBlur = 0;
+    }
+    c.fillStyle = skin.head; c.beginPath(); c.arc(0, 0, 10, 0, 7); c.fill();
+    c.restore();
+}
+
+function loop() {
+    if(!gameActive) return;
+    ctx.save();
+    if(p.shake > 0) { ctx.translate(Math.random()*p.shake, Math.random()*p.shake); p.shake *= 0.8; }
+    
+    let g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, 600);
+    g.addColorStop(0, "#2d4c24"); g.addColorStop(1, "#162a11");
+    ctx.fillStyle = g; ctx.fillRect(0,0,900,600);
+
+    if(keys['w']) p.y -= 4.5; if(keys['s']) p.y += 4.5;
+    if(keys['a']) p.x -= 4.5; if(keys['d']) p.x += 4.5;
+    p.recoil *= 0.85;
+
+    drawChar(ctx, p.x, p.y, p.angle, SKINS[p.skinIdx], p.weapon, p.recoil);
+
+    for(let i=ents.length-1; i>=0; i--) {
+        let e = ents[i];
+        if(e.type === 'b') {
+            e.x += e.vx; e.y += e.vy;
+            ctx.shadowBlur = 10; ctx.shadowColor = e.c;
+            ctx.strokeStyle = e.c; ctx.lineWidth = 4;
+            ctx.beginPath(); ctx.moveTo(e.x, e.y); ctx.lineTo(e.x-e.vx*0.4, e.y-e.vy*0.4); ctx.stroke();
+            ctx.shadowBlur = 0;
+            if(!e.isE) ents.forEach((en, j) => {
+                if(en.type==='e' && Math.hypot(e.x-en.x, e.y-en.y) < 25) { 
+                    ents.splice(j, 1); ents.splice(i, 1); p.kills++; 
+                    document.getElementById('k').innerText = p.kills;
+                    unlock("ELIMINATOR");
+                    if(p.kills >= 5) unlock("SLAYER");
+                }
+            });
+            if(e.isE && Math.hypot(e.x-p.x, e.y-p.y) < 20) { p.hp -= 10; document.getElementById('hp').innerText = p.hp; ents.splice(i,1); }
+        }
+        if(e.type === 'e') {
+            let ang = Math.atan2(p.y-e.y, p.x-e.x);
+            drawChar(ctx, e.x, e.y, ang, SKINS[0], GUNS.AR, 0);
+            let d = Math.hypot(p.x-e.x, p.y-e.y);
+            if(d > 200) { e.x += Math.cos(ang)*2.5; e.y += Math.sin(ang)*2.5; }
+            else { e.t++; if(e.t > 50) { ents.push({x:e.x, y:e.y, vx:Math.cos(ang)*9, vy:Math.sin(ang)*9, type:'b', isE:true, c:'#f87171'}); e.t=0; } }
+        }
+        if(e.type === 'l') {
+            ctx.shadowBlur = 20; ctx.shadowColor = e.gun.color;
+            ctx.fillStyle = e.gun.color; ctx.beginPath(); ctx.arc(e.x, e.y, 8, 0, 7); ctx.fill();
+            ctx.shadowBlur = 0;
+            if(Math.hypot(p.x-e.x, p.y-e.y) < 30) { 
+                p.weapon = e.gun; 
+                document.getElementById('wn').innerText = e.gun.name; 
+                ents.splice(i,1); 
+                unlock("ARSENAL");
+            }
+        }
+    }
+    if(p.hp <= 0) location.reload();
+    ctx.restore(); requestAnimationFrame(loop);
+}
+
+window.onkeydown = e => keys[e.key.toLowerCase()] = true;
+window.onkeyup = e => keys[e.key.toLowerCase()] = false;
+canvas.onmousemove = e => { const r = canvas.getBoundingClientRect(); p.angle = Math.atan2(e.clientY-r.top-p.y, e.clientX-r.left-p.x); };
+canvas.onmousedown = () => {
+    if(!p.weapon || Date.now() < p.lastFired) return;
+    p.recoil = 12; p.shake = p.weapon.shake;
+    for(let i=0; i<(p.weapon.pellets || 1); i++) {
+        let a = p.angle + (Math.random()-0.5)*(p.weapon.pellets ? 0.3 : 0.05);
+        ents.push({ x: p.x, y: p.y, vx: Math.cos(a)*p.weapon.speed, vy: Math.sin(a)*p.weapon.speed, type:'b', c: p.weapon.color });
+    }
+    p.lastFired = Date.now() + p.weapon.rate;
+};
+
+setInterval(() => { if(gameActive && ents.filter(e=>e.type==='e').length < 6) ents.push({x: Math.random()*900, y: -50, type:'e', t:0}); }, 3000);
+setInterval(() => { if(gameActive) { const g = GUNS[Object.keys(GUNS)[Math.floor(Math.random()*3)]]; ents.push({x:Math.random()*800+50, y:Math.random()*500+50, type:'l', gun: g}); }}, 8000);
+
+drawPreview();
+</script>
+</body>
+</html>
