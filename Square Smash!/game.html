@@ -47,6 +47,7 @@
             max-width: 450px;
             padding: 15px;
             animation: fadeIn 0.8s ease-out;
+            transition: opacity 0.5s ease, transform 0.8s cubic-bezier(0.4, 0, 0.2, 1);
         }
 
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
@@ -76,18 +77,24 @@
             backdrop-filter: blur(5px);
             border: 1px solid rgba(255, 255, 255, 0.1);
             position: relative;
+            transition: filter 1s ease;
         }
 
         .cell {
             background-color: var(--cell-empty);
             border-radius: 4px;
             position: relative;
-            transition: background-color 0.15s;
+            transition: background-color 0.15s, filter 1s ease, transform 0.5s ease;
         }
 
         .cell.filled {
             box-shadow: inset 0 2px 5px rgba(255,255,255,0.4), 0 3px 6px rgba(0,0,0,0.3);
             border: 1px solid rgba(0,0,0,0.1);
+        }
+
+        .cell.grayed {
+            filter: grayscale(1) brightness(0.5);
+            opacity: 0.5;
         }
 
         .cell.preview {
@@ -118,6 +125,7 @@
             background: rgba(0, 0, 0, 0.2);
             border-radius: 16px;
             border: 1px solid rgba(255, 255, 255, 0.05);
+            transition: opacity 0.5s ease;
         }
 
         .piece-slot {
@@ -170,7 +178,7 @@
             position: fixed;
             inset: 0;
             background: rgba(13, 42, 94, 0.98);
-            display: flex; 
+            display: none; 
             flex-direction: column;
             align-items: center;
             justify-content: center;
@@ -178,6 +186,12 @@
             backdrop-filter: blur(10px);
             text-align: center;
             padding: 20px;
+            animation: overlayFadeIn 0.8s ease forwards;
+        }
+
+        @keyframes overlayFadeIn {
+            from { opacity: 0; background: rgba(13, 42, 94, 0); }
+            to { opacity: 1; background: rgba(13, 42, 94, 0.98); }
         }
 
         #game-logo {
@@ -236,6 +250,17 @@
             75% { transform: translate(-4px, -4px); }
             100% { transform: translate(0,0); }
         }
+
+        /* Game Over State */
+        .game-over-active #game-container {
+            transform: scale(0.8);
+            opacity: 0.5;
+            pointer-events: none;
+        }
+
+        .game-over-active #piece-dock {
+            opacity: 0;
+        }
     </style>
 </head>
 <body>
@@ -261,10 +286,10 @@
         </div>
     </div>
 
-    <div id="overlay">
+    <div id="overlay" style="display: flex;">
         <img id="game-logo" src="https://assets.whale64.net/squaresmash.png" alt="Square Smash Logo" onerror="this.style.display='none'; document.getElementById('overlay-title').style.display='block';">
         <h1 id="overlay-title" style="display:none; font-size: 4rem; color: #ffd700; margin: 0; text-shadow: 0 5px 15px rgba(0,0,0,0.5);">SQUARE SMASH</h1>
-        <p id="final-score" style="font-size: 2rem; font-weight: 700; color: white; margin-bottom: 20px;"></p>
+        <p id="final-score" style="font-size: 2.5rem; font-weight: 900; color: white; margin: 10px 0 20px;"></p>
         <button id="start-btn" class="btn">Play Now</button>
     </div>
 
@@ -284,6 +309,8 @@
         let grid = [];
         let activePiece = null;
         let currentPieces = [null, null, null];
+        let isGameOver = false;
+        let isAnimating = false; // Flag to prevent game over checks during line clears
         
         const PIECES = [
             [[1]], 
@@ -299,9 +326,12 @@
         ];
 
         function initGame() {
+            isGameOver = false;
+            isAnimating = false;
+            document.body.classList.remove('game-over-active');
             bestScoreElement.textContent = bestScore;
             createGrid();
-            spawnNewPieces();
+            spawnNewPieces(true); // silent spawn initially
             overlay.style.display = 'none';
             score = 0;
             updateScoreDisplay();
@@ -321,7 +351,7 @@
             }
         }
 
-        function spawnNewPieces() {
+        function spawnNewPieces(silent = false) {
             const slots = document.querySelectorAll('.piece-slot');
             slots.forEach((slot, i) => {
                 const randomPiece = PIECES[Math.floor(Math.random() * PIECES.length)];
@@ -329,7 +359,7 @@
                 currentPieces[i] = { shape: randomPiece, color: colorIndex };
                 renderPiece(slot, randomPiece, colorIndex, i);
             });
-            checkGameOver();
+            if (!silent) checkGameOver();
         }
 
         function renderPiece(container, shape, color, index) {
@@ -354,6 +384,7 @@
         }
 
         function startDrag(e, el, shape, color, index) {
+            if (isGameOver || isAnimating) return;
             e.preventDefault();
             const pos = getEventPos(e);
             activePiece = { el, shape, color, index };
@@ -383,7 +414,6 @@
         function updateDragPosition(x, y) {
             if (!activePiece) return;
             const rect = activePiece.el.getBoundingClientRect();
-            // Center the piece horizontally and lift it vertically
             activePiece.el.style.left = `${x - rect.width / 2}px`;
             activePiece.el.style.top = `${y - rect.height / 2 - LIFT_Y_OFFSET}px`;
         }
@@ -403,8 +433,14 @@
                 placePiece(target.row, target.col, activePiece.shape, activePiece.color);
                 activePiece.el.remove();
                 currentPieces[activePiece.index] = null;
-                if (currentPieces.every(p => p === null)) spawnNewPieces();
-                else checkGameOver();
+                
+                // Logic flow: If dock empty, spawn. If not empty, check if game over.
+                // Note: checkGameOver is also called at end of clearAnimation.
+                if (currentPieces.every(p => p === null)) {
+                    spawnNewPieces();
+                } else if (!isAnimating) {
+                    checkGameOver();
+                }
             } else {
                 const slot = document.querySelector(`.piece-slot[data-index="${activePiece.index}"]`);
                 activePiece.el.classList.remove('dragging');
@@ -427,7 +463,6 @@
             const gridRect = gridElement.getBoundingClientRect();
             const cellSize = gridRect.width / GRID_SIZE;
             
-            // Apply the lift offset logic to find where the piece is actually centered
             const logicX = x;
             const logicY = y - LIFT_Y_OFFSET;
 
@@ -439,7 +474,6 @@
             const centerX = Math.floor(relativeX / cellSize);
             const centerY = Math.floor(relativeY / cellSize);
 
-            // Calculate starting row/col so piece is centered on the cursor
             const row = centerY - Math.floor(activePiece.shape.length / 2);
             const col = centerX - Math.floor(activePiece.shape[0].length / 2);
             
@@ -504,7 +538,10 @@
                 if (grid[i].every(c => c !== 0)) rows.push(i);
                 if (grid.every(r => r[i] !== 0)) cols.push(i);
             }
-            if (rows.length || cols.length) clearAnimation(rows, cols);
+            if (rows.length || cols.length) {
+                isAnimating = true;
+                clearAnimation(rows, cols);
+            }
         }
 
         function clearAnimation(rows, cols) {
@@ -532,7 +569,8 @@
                 cols.forEach(c => grid.forEach(r => r[c] = 0));
                 updateGridUI();
                 addScore(points, true);
-                checkGameOver();
+                isAnimating = false;
+                checkGameOver(); // Re-check game over now that space is cleared
             }, 500);
         }
 
@@ -569,22 +607,46 @@
         }
 
         function checkGameOver() {
+            if (isAnimating || isGameOver) return;
+            
             const active = currentPieces.filter(p => p !== null);
             if (active.length === 0) return;
+            
             let possible = false;
             for (const p of active) {
                 for (let r = -3; r < GRID_SIZE; r++) {
                     for (let c = -3; c < GRID_SIZE; c++) {
-                        if (canPlace(r, c, p.shape)) { possible = true; break; }
+                        if (canPlace(r, c, p.shape)) { 
+                            possible = true; 
+                            break; 
+                        }
                     }
                     if (possible) break;
                 }
                 if (possible) break;
             }
+            
             if (!possible) {
-                overlay.style.display = 'flex';
-                finalScoreLabel.textContent = `FINAL SCORE: ${score}`;
+                triggerGameOver();
             }
+        }
+
+        function triggerGameOver() {
+            isGameOver = true;
+            document.body.classList.add('game-over-active');
+            
+            const cells = document.querySelectorAll('.cell');
+            cells.forEach((cell, i) => {
+                setTimeout(() => {
+                    cell.classList.add('grayed');
+                }, i * 5); // Speed up wave slightly
+            });
+
+            setTimeout(() => {
+                overlay.style.display = 'flex';
+                finalScoreLabel.textContent = `SCORE: ${score}`;
+                startBtn.textContent = 'Try Again';
+            }, 1000);
         }
 
         startBtn.addEventListener('click', initGame);
