@@ -13,6 +13,9 @@
             background-color: #1a1a1a;
             color: white;
             margin: 0;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
             overflow-x: hidden;
         }
 
@@ -80,6 +83,10 @@
             text-transform: uppercase;
             letter-spacing: 0.05em;
         }
+
+        main {
+            flex: 1;
+        }
     </style>
 </head>
 <body>
@@ -101,7 +108,7 @@
     </nav>
 
     <!-- Main Content -->
-    <main class="max-w-7xl mx-auto p-8">
+    <main class="max-w-7xl mx-auto p-8 w-full">
         <h1 class="text-3xl font-extrabold mb-8">Games:</h1>
         
         <div id="status-container"></div>
@@ -119,6 +126,12 @@
             </div>
         </div>
     </main>
+
+    <!-- Footer -->
+    <footer class="w-full py-10 px-8 border-t border-white/5 bg-[#1a1a1a] text-center text-gray-500 text-sm space-y-2">
+        <p>Made by <a href="https://whale64.net" target="_blank" class="text-white hover:text-blue-400 transition-colors font-semibold">Whale64</a></p>
+        <p>Roadblocks is <a href="https://github.com/Whale64/Roadblocks" target="_blank" class="text-blue-400 hover:text-blue-300 transition-colors font-medium">Open Source</a></p>
+    </footer>
 
     <!-- Fullscreen Iframe Overlay -->
     <div id="game-overlay">
@@ -165,7 +178,6 @@
                 if (!rawText || rawText.trim() === "") return true;
 
                 // Clean up the text: lowercase it, remove whitespace, and split by comma
-                // This handles "pc", "pc, mobile", and "mobile" correctly
                 const supportedPlatforms = rawText
                     .toLowerCase()
                     .split(',')
