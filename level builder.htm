@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gerometry Jump - Level Builder</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #0b0c10;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: white;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+            user-select: none;
+        }
+
+        /* Top Toolbar */
+        #toolbar {
+            background-color: #1f2833;
+            padding: 15px 25px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+            z-index: 10;
+        }
+
+        h1 {
+            margin: 0;
+            font-size: 24px;
+            color: #66fcf1;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin-right: 20px;
+        }
+
+        input[type="text"] {
+            background: #0b0c10;
+            border: 1px solid #45a29e;
+            color: #fff;
+            padding: 8px 12px;
+            border-radius: 4px;
+            font-size: 16px;
+            width: 200px;
+            outline: none;
+        }
+
+        input[type="text"]:focus {
+            box-shadow: 0 0 8px rgba(102, 252, 241, 0.5);
+        }
+
+        .btn {
+            background: transparent;
+            border: 2px solid #45a29e;
+            color: #c5c6c7;
+            padding: 8px 15px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: bold;
+            border-radius: 4px;
+            transition: all 0.2s;
+            text-transform: uppercase;
+        }
+
+        .btn:hover {
+            background: #45a29e;
+            color: #0b0c10;
+        }
+
+        .btn.active {
+            background: #66fcf1;
+            border-color: #66fcf1;
+            color: #0b0c10;
+            box-shadow: 0 0 10px rgba(102, 252, 241, 0.5);
+        }
+
+        .btn-action {
+            background: #45a29e;
+            color: #0b0c10;
+        }
+
+        .btn-action:hover {
+            background: #66fcf1;
+            box-shadow: 0 0 10px rgba(102, 252, 241, 0.5);
+        }
+
+        .divider {
+            width: 2px;
+            height: 30px;
+            background-color: #45a29e;
+            opacity: 0.5;
+            margin: 0 10px;
+        }
+
+        /* Editor Area */
+        #editor-wrapper {
+            flex: 1;
+            position: relative;
+            background: linear-gradient(180deg, #1f2833 0%, #0b0c10 100%);
+            overflow-x: auto;
+            overflow-y: hidden;
+            display: flex;
+            align-items: flex-end; /* Align canvas to bottom */
+            padding-bottom: 60px; /* Space for the ground */
+        }
+
+        /* Custom Scrollbar for the horizontal scrolling */
+        #editor-wrapper::-webkit-scrollbar {
+            height: 12px;
+        }
+        #editor-wrapper::-webkit-scrollbar-track {
+            background: #0b0c10;
+        }
+        #editor-wrapper::-webkit-scrollbar-thumb {
+            background: #45a29e;
+            border-radius: 6px;
+        }
+        #editor-wrapper::-webkit-scrollbar-thumb:hover {
+            background: #66fcf1;
+        }
+
+        #editorCanvas {
+            cursor: crosshair;
+            display: block;
+        }
+
+        /* The Ground (matches game) */
+        #ground {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            height: 60px;
+            width: 100%;
+            background-color: #0b0c10;
+            border-top: 3px solid #66fcf1;
+            pointer-events: none;
+            z-index: 5;
+        }
+        
+        #ground-text {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            color: #45a29e;
+            font-weight: bold;
+            letter-spacing: 2px;
+        }
+
+        /* Tooltip hint */
+        #hint {
+            position: absolute;
+            bottom: 70px;
+            left: 20px;
+            color: #c5c6c7;
+            font-size: 14px;
+            pointer-events: none;
+            background: rgba(11, 12, 16, 0.8);
+            padding: 5px 10px;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="toolbar">
+        <h1>Level Builder</h1>
+        <input type="text" id="levelName" placeholder="Level Name" value="My Epic Level">
+        
+        <div class="divider"></div>
+        
+        <button class="btn tool active" data-tool="b">Block (1)</button>
+        <button class="btn tool" data-tool="s">Spike (2)</button>
+        <button class="btn tool" data-tool=" ">Eraser (3)</button>
+        
+        <div class="divider"></div>
+        
+        <button class="btn" id="btnAddLength">+ Add Length</button>
+        
+        <div class="divider"></div>
+        
+        <button class="btn btn-action" id="btnExport">Export .gjl</button>
+        <label for="importFile" class="btn" style="cursor: pointer;">Import .gjl</label>
+        <input type="file" id="importFile" accept=".gjl" style="display: none;">
+    </div>
+
+    <div id="editor-wrapper">
+        <canvas id="editorCanvas"></canvas>
+        <div id="hint">Left Click to Place | Right Click to Erase | Scroll Horizontally</div>
+        <div id="ground">
+            <div id="ground-text">GROUND LEVEL</div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('editorCanvas');
+        const ctx = canvas.getContext('2d');
+        const wrapper = document.getElementById('editor-wrapper');
+
+        // Constants
+        const UNIT = 40;   // Size of a grid block
+        const ROWS = 10;   // Max height of the playable level (10 blocks high = 400px)
+        
+        // Editor State
+        let cols = 100;    // Starting width (100 blocks)
+        let mapData =[];
+        let currentTool = 'b'; // 'b' = block, 's' = spike, ' ' = empty
+        let isDrawing = false;
+        let isRightClicking = false;
+
+        // Initialize empty map
+        function initMap(width) {
+            cols = width;
+            mapData = Array.from({ length: ROWS }, () => Array(cols).fill(' '));
+            resizeCanvas();
+        }
+
+        // Resize Canvas to fit the columns
+        function resizeCanvas() {
+            canvas.width = cols * UNIT;
+            canvas.height = ROWS * UNIT;
+            draw();
+        }
+
+        // --- DRAWING LOGIC ---
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Draw Grid Lines
+            ctx.strokeStyle = 'rgba(102, 252, 241, 0.1)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            
+            for (let x = 0; x <= canvas.width; x += UNIT) {
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, canvas.height);
+            }
+            for (let y = 0; y <= canvas.height; y += UNIT) {
+                ctx.moveTo(0, y);
+                ctx.lineTo(canvas.width, y);
+            }
+            ctx.stroke();
+
+            // Draw Level Data
+            for (let row = 0; row < ROWS; row++) {
+                for (let col = 0; col < cols; col++) {
+                    const tile = mapData[row][col];
+                    const x = col * UNIT;
+                    const y = row * UNIT;
+
+                    if (tile === 'b') {
+                        // Draw Block
+                        ctx.fillStyle = '#1f2833';
+                        ctx.strokeStyle = '#45a29e';
+                        ctx.lineWidth = 2;
+                        ctx.fillRect(x, y, UNIT, UNIT);
+                        ctx.strokeRect(x, y, UNIT, UNIT);
+                        
+                        ctx.fillStyle = '#45a29e';
+                        ctx.fillRect(x + 8, y + 8, UNIT - 16, UNIT - 16);
+                    } else if (tile === 's') {
+                        // Draw Spike
+                        ctx.fillStyle = '#c5c6c7';
+                        ctx.beginPath();
+                        ctx.moveTo(x, y + UNIT); // Bottom Left
+                        ctx.lineTo(x + UNIT / 2, y); // Top Center
+                        ctx.lineTo(x + UNIT, y + UNIT); // Bottom Right
+                        ctx.closePath();
+                        ctx.fill();
+
+                        ctx.strokeStyle = '#fff';
+                        ctx.lineWidth = 1;
+                        ctx.stroke();
+                    }
+                }
+            }
+        }
+
+        // --- MOUSE INTERACTION LOGIC ---
+        function handleMouse(e) {
+            if (!isDrawing && !isRightClicking) return;
+
+            const rect = canvas.getBoundingClientRect();
+            // Account for scrolling within the wrapper
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+
+            const col = Math.floor(mouseX / UNIT);
+            const row = Math.floor(mouseY / UNIT);
+
+            if (row >= 0 && row < ROWS && col >= 0 && col < cols) {
+                const toolToUse = isRightClicking ? ' ' : currentTool;
+                
+                // Only redraw if the tile actually changed (optimizes performance)
+                if (mapData[row][col] !== toolToUse) {
+                    mapData[row][col] = toolToUse;
+                    draw();
+                }
+            }
+        }
+
+        // Mouse Events on Canvas
+        canvas.addEventListener('mousedown', (e) => {
+            if (e.button === 0) isDrawing = true;       // Left click
+            if (e.button === 2) isRightClicking = true; // Right click (forces eraser)
+            handleMouse(e);
+        });
+
+        window.addEventListener('mouseup', (e) => {
+            if (e.button === 0) isDrawing = false;
+            if (e.button === 2) isRightClicking = false;
+        });
+
+        canvas.addEventListener('mousemove', handleMouse);
+        
+        // Prevent context menu on right click
+        canvas.addEventListener('contextmenu', e => e.preventDefault());
+
+        // --- TOOLBAR LOGIC ---
+        const toolBtns = document.querySelectorAll('.tool');
+        toolBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                // Update active state styling
+                toolBtns.forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                // Set tool
+                currentTool = btn.getAttribute('data-tool');
+            });
+        });
+
+        // Keyboard shortcuts for tools
+        window.addEventListener('keydown', (e) => {
+            if (e.target.tagName === 'INPUT') return; // Don't trigger if typing level name
+            
+            let btn;
+            if (e.key === '1') btn = document.querySelector('[data-tool="b"]');
+            if (e.key === '2') btn = document.querySelector('[data-tool="s"]');
+            if (e.key === '3') btn = document.querySelector('[data-tool=" "]');
+            
+            if (btn) btn.click();
+        });
+
+        // Add Length Button
+        document.getElementById('btnAddLength').addEventListener('click', () => {
+            cols += 50; // Add 50 columns
+            // Push 50 empty spaces to the end of every row
+            for (let row = 0; row < ROWS; row++) {
+                for (let i = 0; i < 50; i++) {
+                    mapData[row].push(' ');
+                }
+            }
+            resizeCanvas();
+            // Scroll to the newly added area
+            wrapper.scrollLeft = wrapper.scrollWidth;
+        });
+
+        // --- EXPORT .GJL FILE ---
+        document.getElementById('btnExport').addEventListener('click', () => {
+            let levelName = document.getElementById('levelName').value.trim();
+            if (!levelName) levelName = "Custom Level";
+
+            // Trim completely empty columns from the far right to save file size
+            let maxColUsed = 0;
+            for (let r = 0; r < ROWS; r++) {
+                for (let c = cols - 1; c >= 0; c--) {
+                    if (mapData[r][c] !== ' ') {
+                        if (c > maxColUsed) maxColUsed = c;
+                        break;
+                    }
+                }
+            }
+            
+            // Allow at least 20 columns for padding
+            let exportCols = Math.max(20, maxColUsed + 10); 
+
+            // Convert mapData 2D array into array of strings
+            const mapStrings = mapData.map(rowArray => {
+                return rowArray.slice(0, exportCols).join('');
+            });
+
+            const gjlObject = {
+                name: levelName,
+                map: mapStrings
+            };
+
+            const jsonStr = JSON.stringify(gjlObject, null, 4);
+            const blob = new Blob([jsonStr], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = levelName.replace(/[^a-zA-Z0-9_-]/g, '_').toLowerCase() + '.gjl';
+            a.click();
+            
+            URL.revokeObjectURL(url);
+        });
+
+        // --- IMPORT .GJL FILE ---
+        document.getElementById('importFile').addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                try {
+                    const data = JSON.parse(event.target.result);
+                    if (!data.map || !Array.isArray(data.map)) {
+                        alert("Invalid .gjl format: missing 'map' array.");
+                        return;
+                    }
+
+                    document.getElementById('levelName').value = data.name || "Imported Level";
+
+                    // Determine required size
+                    const fileRows = data.map.length;
+                    let fileCols = 0;
+                    data.map.forEach(str => {
+                        if (str.length > fileCols) fileCols = str.length;
+                    });
+
+                    // Ensure minimum constraints
+                    let newCols = Math.max(100, fileCols + 20); // Add some padding buffer
+
+                    initMap(newCols); // Resets everything
+
+                    // Map the loaded string array back into our 2D array
+                    // Note: If the file has fewer rows than the editor (ROWS), we align it to the bottom
+                    const rowOffset = ROWS - fileRows;
+
+                    for (let r = 0; r < fileRows; r++) {
+                        let targetRow = r + (rowOffset > 0 ? rowOffset : 0);
+                        if (targetRow >= ROWS) break; // Ignore rows that exceed our max height
+                        
+                        let rowString = data.map[r];
+                        for (let c = 0; c < rowString.length; c++) {
+                            const char = rowString[c];
+                            if ((char === 'b' || char === 's') && c < cols) {
+                                mapData[targetRow][c] = char;
+                            }
+                        }
+                    }
+
+                    draw();
+                    
+                } catch (err) {
+                    alert("Error parsing .gjl file. Ensure it is a valid JSON map.");
+                    console.error(err);
+                }
+            };
+            reader.readAsText(file);
+            e.target.value = ''; // Reset file input
+        });
+
+        // Initialize App
+        initMap(100);
+    </script>
+</body>
+</html>
