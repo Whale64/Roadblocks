@@ -98,6 +98,11 @@
         main {
             flex: 1;
         }
+
+        #load-more-trigger {
+            height: 20px;
+            margin-top: 2rem;
+        }
     </style>
 </head>
 <body>
@@ -126,16 +131,11 @@
 
         <!-- Experiences Grid -->
         <div id="experience-grid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6">
-            <!-- Loading Skeletons -->
-            <div class="animate-pulse">
-                <div class="aspect-square bg-white/5 rounded-xl mb-2"></div>
-                <div class="h-4 bg-white/5 w-3/4 rounded"></div>
-            </div>
-            <div class="animate-pulse">
-                <div class="aspect-square bg-white/5 rounded-xl mb-2"></div>
-                <div class="h-4 bg-white/5 w-3/4 rounded"></div>
-            </div>
+            <!-- Initial Loading Skeletons handled by JS -->
         </div>
+
+        <!-- Intersection Observer Target -->
+        <div id="load-more-trigger"></div>
     </main>
 
     <!-- Footer -->
@@ -164,16 +164,19 @@
         const overlay = document.getElementById('game-overlay');
         const frame = document.getElementById('game-frame');
         const deviceIndicator = document.getElementById('device-indicator');
+        const loadMoreTrigger = document.getElementById('load-more-trigger');
+
+        // Pagination/State
+        let allFilteredFolders = [];
+        let currentIndex = 0;
+        const ITEMS_PER_PAGE = 20;
+        let isLoading = false;
 
         // Determine current platform
         function getDeviceType() {
             const ua = navigator.userAgent;
-            if (/(tablet|ipad|playbook|silk)|(android(?!.*mobi))/i.test(ua)) {
-                return "mobile";
-            }
-            if (/Mobile|Android|iP(hone|od)|IEMobile|BlackBerry|Kindle|Silk-Accelerated|(hpw|web)OS|Opera M(obi|ini)/.test(ua)) {
-                return "mobile";
-            }
+            if (/(tablet|ipad|playbook|silk)|(android(?!.*mobi))/i.test(ua)) return "mobile";
+            if (/Mobile|Android|iP(hone|od)|IEMobile|BlackBerry|Kindle|Silk-Accelerated|(hpw|web)OS|Opera M(obi|ini)/.test(ua)) return "mobile";
             return "pc";
         }
 
@@ -184,88 +187,104 @@
             try {
                 const response = await fetch(`${RAW_URL}/${folderName}/device.txt`);
                 if (!response.ok) return true; 
-                
                 const rawText = await response.text();
                 if (!rawText || rawText.trim() === "") return true;
-
-                const supportedPlatforms = rawText
-                    .toLowerCase()
-                    .split(',')
-                    .map(item => item.trim())
-                    .filter(item => item !== "");
-                
+                const supportedPlatforms = rawText.toLowerCase().split(',').map(item => item.trim()).filter(item => item !== "");
                 return supportedPlatforms.includes(currentPlatform);
-            } catch (e) {
-                return true; 
-            }
+            } catch (e) { return true; }
         }
 
         async function isFeatured(folderName) {
             try {
                 const response = await fetch(`${RAW_URL}/${folderName}/featured.txt`);
-                return response.ok; // If file exists (200 OK), it is featured
-            } catch (e) {
-                return false;
-            }
+                return response.ok;
+            } catch (e) { return false; }
+        }
+
+        // Show loading skeletons
+        function showSkeletons() {
+            const skeletons = Array(5).fill(0).map(() => `
+                <div class="animate-pulse skeleton-item">
+                    <div class="aspect-square bg-white/5 rounded-xl mb-2"></div>
+                    <div class="h-4 bg-white/5 w-3/4 rounded"></div>
+                </div>
+            `).join('');
+            grid.insertAdjacentHTML('beforeend', skeletons);
+        }
+
+        function removeSkeletons() {
+            const skeletons = document.querySelectorAll('.skeleton-item');
+            skeletons.forEach(s => s.remove());
         }
 
         async function fetchExperiences() {
+            if (isLoading) return;
+            isLoading = true;
+            showSkeletons();
+
             try {
+                // Initial fetch of directory structure (fast metadata)
                 const response = await fetch(API_URL);
                 if (!response.ok) throw new Error('Failed to fetch repository contents');
                 
                 const contents = await response.json();
-                
                 const folders = contents.filter(item => 
                     item.type === 'dir' && 
                     !item.name.startsWith('#') && 
                     !item.name.startsWith('?')
                 );
                 
-                if (folders.length === 0) {
-                    statusContainer.innerHTML = `<div class="text-gray-400">No public experiences found in the repository.</div>`;
-                    grid.innerHTML = '';
-                    return;
-                }
-
-                // Processing loop for compatibility AND featured status
+                // Process metadata for all folders to allow sorting
+                // Note: With many folders, you might eventually want to move this logic 
+                // to a single manifest file, but for now we process compatibility.
                 const experienceData = [];
-                for (const folder of folders) {
+                const metadataPromises = folders.map(async (folder) => {
                     const isSupported = await checkDeviceSupport(folder.name);
                     if (isSupported) {
                         const featured = await isFeatured(folder.name);
-                        experienceData.push({ ...folder, featured });
+                        return { ...folder, featured };
                     }
-                }
+                    return null;
+                });
+
+                const results = await Promise.all(metadataPromises);
+                allFilteredFolders = results.filter(f => f !== null);
 
                 // Sort: Featured first, then alphabetical
-                experienceData.sort((a, b) => {
+                allFilteredFolders.sort((a, b) => {
                     if (a.featured && !b.featured) return -1;
                     if (!a.featured && b.featured) return 1;
                     return a.name.localeCompare(b.name);
                 });
 
-                if (experienceData.length === 0) {
+                removeSkeletons();
+                isLoading = false;
+
+                if (allFilteredFolders.length === 0) {
                     statusContainer.innerHTML = `<div class="text-gray-400">No experiences available for ${currentPlatform}.</div>`;
-                    grid.innerHTML = '';
                     return;
                 }
 
-                renderExperiences(experienceData);
+                // Initial Load
+                loadNextBatch();
+
             } catch (error) {
                 console.error(error);
-                statusContainer.innerHTML = `
-                    <div class="error-msg">
-                        <strong>Error:</strong> Could not connect to the Roadblocks API. 
-                    </div>
-                `;
-                grid.innerHTML = '';
+                removeSkeletons();
+                isLoading = false;
+                statusContainer.innerHTML = `<div class="error-msg"><strong>Error:</strong> Could not connect to the Roadblocks API.</div>`;
             }
         }
 
+        function loadNextBatch() {
+            if (currentIndex >= allFilteredFolders.length) return;
+
+            const nextBatch = allFilteredFolders.slice(currentIndex, currentIndex + ITEMS_PER_PAGE);
+            renderExperiences(nextBatch);
+            currentIndex += ITEMS_PER_PAGE;
+        }
+
         function renderExperiences(folders) {
-            grid.innerHTML = '';
-            
             folders.forEach(folder => {
                 const card = document.createElement('div');
                 card.className = 'game-card cursor-pointer group';
@@ -279,9 +298,9 @@
                         <img src="${iconUrl}" 
                              alt="${displayName}" 
                              class="w-full h-full object-cover"
+                             loading="lazy"
                              onerror="this.src='https://placehold.co/400x400/222/white?text=${folder.name}'">
                         
-                        <!-- Tags Overlay -->
                         <div class="absolute inset-x-0 top-0 p-2 flex justify-between items-start">
                             ${folder.featured ? '<span class="featured-tag">Featured</span>' : '<span></span>'}
                         </div>
@@ -290,9 +309,7 @@
                              <span class="platform-badge opacity-0 group-hover:opacity-100 transition-opacity">${currentPlatform}</span>
                         </div>
                     </div>
-                    <p class="font-bold text-sm truncate px-1 flex items-center gap-2">
-                        ${displayName}
-                    </p>
+                    <p class="font-bold text-sm truncate px-1">${displayName}</p>
                     <p class="text-xs text-gray-400 px-1">Active Now</p>
                 `;
 
@@ -300,6 +317,15 @@
                 grid.appendChild(card);
             });
         }
+
+        // Infinite Scroll Observer
+        const observer = new IntersectionObserver((entries) => {
+            if (entries[0].isIntersecting && !isLoading && currentIndex < allFilteredFolders.length) {
+                loadNextBatch();
+            }
+        }, { threshold: 0.1 });
+
+        observer.observe(loadMoreTrigger);
 
         function launchGame(url) {
             frame.src = url;
