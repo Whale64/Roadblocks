@@ -1,0 +1,1008 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Flight Simulator</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap');
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:#000;color:#fff;font-family:'Share Tech Mono',monospace;overflow:hidden;width:100vw;height:100vh;}
+#three-canvas{position:fixed;inset:0;z-index:1;}
+.screen{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:200;background:radial-gradient(ellipse at 50% 30%,#0a1628 0%,#000508 60%,#000 100%);transition:opacity .4s;}
+.screen.hidden{opacity:0;pointer-events:none;}
+.screen::before{content:'';position:absolute;inset:0;background-image:radial-gradient(1px 1px at 20% 30%,rgba(255,255,255,.6) 0%,transparent 100%),radial-gradient(1px 1px at 80% 10%,rgba(255,255,255,.4) 0%,transparent 100%),radial-gradient(1px 1px at 50% 60%,rgba(255,255,255,.5) 0%,transparent 100%),radial-gradient(1px 1px at 10% 80%,rgba(255,255,255,.3) 0%,transparent 100%),radial-gradient(1px 1px at 90% 70%,rgba(255,255,255,.4) 0%,transparent 100%);pointer-events:none;}
+h1.title{font-family:'Orbitron',sans-serif;font-weight:900;font-size:clamp(2rem,7vw,5rem);letter-spacing:.15em;background:linear-gradient(180deg,#fff 0%,#64c8ff 40%,#0080ff 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;filter:drop-shadow(0 0 30px rgba(0,128,255,.7));margin-bottom:.2em;animation:titlePulse 3s ease-in-out infinite;}
+@keyframes titlePulse{0%,100%{filter:drop-shadow(0 0 30px rgba(0,128,255,.7));}50%{filter:drop-shadow(0 0 60px rgba(0,200,255,1));}}
+.subtitle{font-family:'Orbitron',sans-serif;font-size:.8rem;letter-spacing:.4em;color:#4488aa;margin-bottom:2rem;}
+.section-title{font-family:'Orbitron',sans-serif;font-size:.7rem;letter-spacing:.3em;color:#336688;text-transform:uppercase;margin-bottom:.8rem;}
+.planes-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:.8rem;margin:1rem 0;max-width:820px;width:92vw;}
+.plane-card{background:rgba(0,30,60,.7);border:1px solid rgba(0,128,255,.3);border-radius:8px;padding:.9rem .7rem;cursor:pointer;transition:all .25s;text-align:center;}
+.plane-card:hover,.plane-card.selected{border-color:rgba(0,200,255,.8);box-shadow:0 0 20px rgba(0,150,255,.4);transform:translateY(-3px);}
+.plane-card.selected{border-color:#00eeff;box-shadow:0 0 25px rgba(0,238,255,.5);}
+.plane-icon{font-size:2rem;display:block;margin-bottom:.4rem;}
+.plane-name{font-family:'Orbitron',sans-serif;font-size:.6rem;letter-spacing:.1em;color:#88ccff;margin-bottom:.3rem;}
+.stat-bar{height:3px;background:rgba(0,100,200,.3);border-radius:2px;margin:2px 0;overflow:hidden;}
+.stat-fill{height:100%;background:linear-gradient(90deg,#0088ff,#00eeff);border-radius:2px;}
+.levels-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:.8rem;max-width:680px;width:92vw;margin:1rem 0;}
+.level-card{background:rgba(0,20,40,.7);border:1px solid rgba(0,100,200,.3);border-radius:8px;padding:1rem;cursor:pointer;transition:all .25s;text-align:center;}
+.level-card:hover,.level-card.selected{border-color:rgba(0,200,100,.7);box-shadow:0 0 20px rgba(0,200,100,.3);transform:translateY(-3px);}
+.level-card.selected{border-color:#00ff88;}
+.level-num{font-family:'Orbitron',sans-serif;font-size:1.6rem;font-weight:900;color:#00ff88;text-shadow:0 0 15px rgba(0,255,136,.5);}
+.level-name{font-size:.65rem;color:#88cc88;margin:.3rem 0;letter-spacing:.1em;}
+.level-desc{font-size:.55rem;color:#446644;}
+.btn{font-family:'Orbitron',sans-serif;font-size:.85rem;letter-spacing:.2em;padding:.8rem 2.2rem;border:none;border-radius:4px;cursor:pointer;transition:all .2s;text-transform:uppercase;margin:.4rem;}
+.btn-primary{background:linear-gradient(135deg,#0066cc,#0099ff);color:#fff;box-shadow:0 0 20px rgba(0,150,255,.4);}
+.btn-primary:hover{background:linear-gradient(135deg,#0088ff,#00ccff);box-shadow:0 0 35px rgba(0,200,255,.6);transform:scale(1.04);}
+.btn-secondary{background:transparent;color:#4488aa;border:1px solid #224466;}
+.btn-secondary:hover{color:#88ccff;border-color:#4488aa;}
+
+/* HUD */
+#hud{position:fixed;inset:0;z-index:50;display:none;pointer-events:none;}
+#hud.active{display:block;}
+#warn-bar{position:absolute;top:.6rem;left:50%;transform:translateX(-50%);display:flex;gap:.6rem;font-size:.65rem;z-index:60;}
+.warn{padding:.25rem .7rem;border-radius:3px;background:rgba(180,0,0,.8);border:1px solid #ff4444;color:#ffbbbb;animation:blink .5s infinite;display:none;}
+.warn.active{display:block;}
+@keyframes blink{50%{opacity:0;}}
+#compass-bar{position:absolute;top:.5rem;left:50%;transform:translateX(-50%);width:280px;height:32px;background:rgba(0,8,20,.85);border:1px solid rgba(0,150,255,.3);border-radius:16px;display:flex;align-items:center;justify-content:center;z-index:55;}
+#compass-inner{font-family:'Orbitron',sans-serif;font-size:.75rem;color:#00eeff;letter-spacing:.15em;}
+#speed-tape{position:absolute;top:50%;left:.7rem;transform:translateY(-50%);width:60px;height:200px;background:rgba(0,8,20,.88);border:1px solid rgba(0,120,200,.35);border-radius:4px;overflow:hidden;}
+#alt-tape{position:absolute;top:50%;right:.7rem;transform:translateY(-50%);width:60px;height:200px;background:rgba(0,8,20,.88);border:1px solid rgba(0,120,200,.35);border-radius:4px;overflow:hidden;}
+.tape-readout{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:#00eeff;font-size:.85rem;font-weight:bold;z-index:2;background:rgba(0,5,15,.92);padding:1px 4px;border-radius:2px;white-space:nowrap;}
+.tape-label{position:absolute;bottom:4px;left:0;right:0;text-align:center;font-size:.55rem;color:#336688;}
+.tape-line{position:absolute;top:50%;left:0;right:0;height:1.5px;background:#00eeff;z-index:1;}
+#ahi-wrap{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:160px;height:160px;pointer-events:none;}
+#info-tl{position:absolute;top:1rem;left:.8rem;font-size:.63rem;line-height:1.85;background:rgba(0,8,20,.82);border:1px solid rgba(0,100,200,.3);border-radius:5px;padding:.5rem .8rem;}
+.il{color:#335566;}.iv{color:#00ddff;font-weight:bold;}
+#info-tr{position:absolute;top:1rem;right:.8rem;font-size:.63rem;line-height:1.85;background:rgba(0,8,20,.82);border:1px solid rgba(0,100,200,.3);border-radius:5px;padding:.5rem .8rem;text-align:right;}
+
+/* INSTRUMENT PANEL */
+#instrument-panel{
+  position:absolute;bottom:0;left:0;right:0;height:215px;
+  background:linear-gradient(180deg,rgba(0,5,12,0) 0%,rgba(4,12,25,.97) 15%,#05101e 100%);
+  border-top:1px solid rgba(0,70,140,.4);
+  display:flex;align-items:center;justify-content:center;
+  pointer-events:all;z-index:60;
+  gap:0;overflow:hidden;
+}
+.panel-sec{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:0 .65rem;height:100%;border-right:1px solid rgba(0,50,100,.35);gap:4px;min-width:0;}
+.panel-sec:last-child{border-right:none;}
+.plabel{font-size:.48rem;letter-spacing:.18em;color:#2a4a66;text-transform:uppercase;margin-top:2px;}
+.dial-w{position:relative;width:84px;height:84px;flex-shrink:0;}
+.dial-w svg{width:100%;height:100%;}
+
+/* THROTTLE */
+#thr-slot{width:26px;height:120px;background:rgba(0,15,40,.85);border:1px solid rgba(0,70,150,.5);border-radius:13px;position:relative;cursor:ns-resize;}
+#thr-knob{position:absolute;left:50%;transform:translateX(-50%);width:24px;height:30px;background:linear-gradient(160deg,#cc5500,#ff8800);border-radius:5px;border:1px solid #ffaa44;cursor:ns-resize;box-shadow:0 0 10px rgba(255,110,0,.45);user-select:none;}
+#thr-pct{font-size:.65rem;color:#ff8800;font-weight:bold;}
+
+/* JOYSTICK */
+#stick-area{width:96px;height:96px;background:rgba(0,12,30,.85);border:1px solid rgba(0,70,150,.4);border-radius:50%;position:relative;cursor:crosshair;}
+#stick-dot{position:absolute;width:16px;height:16px;background:radial-gradient(circle,#00eeff,#0055bb);border-radius:50%;border:1px solid #00ffcc;box-shadow:0 0 12px rgba(0,238,255,.8);transform:translate(-50%,-50%);top:50%;left:50%;pointer-events:none;}
+
+/* RUDDER */
+#rud-bar{width:110px;height:20px;background:rgba(0,12,30,.85);border:1px solid rgba(0,70,150,.4);border-radius:3px;position:relative;overflow:hidden;}
+#rud-fill{position:absolute;top:0;height:100%;background:linear-gradient(90deg,#003388,#0077ff);left:50%;width:0;}
+#rud-ctr{position:absolute;top:0;bottom:0;left:50%;width:1px;background:rgba(0,200,255,.35);}
+
+/* FLAPS */
+#flap-track{width:20px;height:85px;background:rgba(0,12,30,.85);border:1px solid rgba(0,70,150,.4);border-radius:3px;position:relative;cursor:ns-resize;}
+#flap-knob{position:absolute;left:50%;transform:translateX(-50%);width:18px;height:14px;background:linear-gradient(160deg,#006633,#00cc66);border-radius:3px;border:1px solid #00ff88;cursor:ns-resize;user-select:none;box-shadow:0 0 7px rgba(0,180,80,.4);}
+#flap-val{font-size:.65rem;color:#00ff88;font-weight:bold;}
+
+/* GEAR/AP */
+.cockpit-btn{width:52px;height:38px;border-radius:5px;font-family:'Share Tech Mono',monospace;font-size:.6rem;cursor:pointer;letter-spacing:.05em;transition:all .2s;pointer-events:all;border:none;line-height:1.3;}
+#gear-btn{background:rgba(0,55,0,.7);border:1px solid #009933;color:#00ff66;}
+#gear-btn.up{background:rgba(60,0,0,.7);border-color:#aa2200;color:#ff4444;}
+#gear-dot{width:10px;height:10px;border-radius:50%;background:#00ff66;box-shadow:0 0 7px #00ff66;margin:2px auto;}
+#gear-dot.up{background:#ff4444;box-shadow:0 0 7px #ff4444;}
+#ap-btn{background:rgba(0,15,55,.7);border:1px solid rgba(0,80,180,.5);color:#4477bb;}
+#ap-btn.on{background:rgba(0,40,120,.7);border-color:#0077ff;color:#00eeff;box-shadow:0 0 10px rgba(0,130,255,.4);}
+
+#keys-hint{font-size:.48rem;color:#1a3344;text-align:center;line-height:1.85;max-width:110px;}
+
+/* PAUSE */
+#pause-screen{position:fixed;inset:0;background:rgba(0,0,0,.82);display:none;flex-direction:column;align-items:center;justify-content:center;z-index:300;backdrop-filter:blur(5px);}
+#pause-screen.active{display:flex;}
+#pause-screen h2{font-family:'Orbitron',sans-serif;font-size:2rem;color:#00eeff;margin-bottom:2rem;text-shadow:0 0 20px rgba(0,238,255,.6);}
+
+/* LOADING */
+#loading{position:fixed;inset:0;background:#000;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:400;transition:opacity .5s;}
+#loading.hidden{opacity:0;pointer-events:none;}
+#load-bar-track{width:280px;height:3px;background:rgba(0,50,100,.5);border-radius:2px;margin-top:1.5rem;overflow:hidden;}
+#load-bar{height:100%;background:linear-gradient(90deg,#0066ff,#00eeff);width:0%;}
+#load-text{font-size:.62rem;color:#336688;margin-top:.8rem;letter-spacing:.25em;}
+</style>
+</head>
+<body>
+
+<div id="loading">
+  <h1 style="font-family:'Orbitron',sans-serif;font-size:1.8rem;background:linear-gradient(180deg,#fff,#0080ff);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">FLIGHT SIMULATOR</h1>
+  <div id="load-bar-track"><div id="load-bar"></div></div>
+  <div id="load-text">INITIALIZING...</div>
+</div>
+
+<div class="screen" id="menu-screen">
+  <h1 class="title">Flight Simulator</h1>
+  <div class="subtitle">ADVANCED AVIATION EXPERIENCE</div>
+  <div class="section-title">SELECT AIRCRAFT</div>
+  <div class="planes-grid" id="planes-grid"></div>
+  <div class="section-title" style="margin-top:1.2rem">SELECT MISSION</div>
+  <div class="levels-grid" id="levels-grid"></div>
+  <div style="margin-top:1.2rem">
+    <button class="btn btn-primary" id="start-btn">LAUNCH MISSION</button>
+  </div>
+  <div style="margin-top:.8rem;font-size:.52rem;color:#223344;text-align:center;">
+    W/S — Pitch &nbsp;·&nbsp; A/D — Roll &nbsp;·&nbsp; Q/E — Yaw/Rudder &nbsp;·&nbsp; Shift/Ctrl — Throttle &nbsp;·&nbsp; F/G — Flaps &nbsp;·&nbsp; L — Gear &nbsp;·&nbsp; P — Pause
+  </div>
+</div>
+
+<canvas id="three-canvas"></canvas>
+
+<div id="hud">
+  <div id="warn-bar">
+    <div class="warn" id="warn-stall">⚠ STALL</div>
+    <div class="warn" id="warn-terrain">⚠ PULL UP</div>
+    <div class="warn" id="warn-fuel">⚠ LOW FUEL</div>
+    <div class="warn" id="warn-overspeed">⚠ OVERSPEED</div>
+  </div>
+  <div id="compass-bar"><div id="compass-inner">HDG 000°</div></div>
+
+  <div id="info-tl">
+    <span class="il">AIRCRAFT </span><span class="iv" id="hud-plane">—</span><br>
+    <span class="il">MISSION  </span><span class="iv" id="hud-level">—</span><br>
+    <span class="il">SCORE    </span><span class="iv" id="hud-score">0</span><br>
+    <span class="il">TIME     </span><span class="iv" id="hud-time">00:00</span>
+  </div>
+  <div id="info-tr">
+    <span class="iv" id="hud-gforce">1.0</span><span class="il">G</span><br>
+    <span class="iv" id="hud-fuel">100</span><span class="il">% FUEL</span><br>
+    <span class="il">V/S </span><span class="iv" id="hud-vs">+0</span><br>
+    <span class="il">FLAPS </span><span class="iv" id="hud-flaps">0°</span>
+  </div>
+
+  <div id="speed-tape">
+    <div class="tape-line"></div>
+    <div class="tape-readout" id="speed-val">0</div>
+    <div class="tape-label">KTS</div>
+  </div>
+  <div id="alt-tape">
+    <div class="tape-line"></div>
+    <div class="tape-readout" id="alt-val">0</div>
+    <div class="tape-label">FT</div>
+  </div>
+
+  <!-- AHI -->
+  <div id="ahi-wrap">
+    <svg id="ahi-svg" viewBox="0 0 160 160" width="160" height="160">
+      <defs><clipPath id="ahiclip"><circle cx="80" cy="80" r="72"/></clipPath></defs>
+      <g id="ahi-world" clip-path="url(#ahiclip)">
+        <rect x="-60" y="-60" width="280" height="160" fill="#1a508a"/>
+        <rect x="-60" y="80" width="280" height="160" fill="#5a3a10"/>
+        <line x1="20" y1="70" x2="140" y2="70" stroke="rgba(255,255,255,.3)" stroke-width="1"/>
+        <line x1="20" y1="90" x2="140" y2="90" stroke="rgba(255,255,255,.3)" stroke-width="1"/>
+        <line x1="35" y1="60" x2="125" y2="60" stroke="rgba(255,255,255,.18)" stroke-width="1"/>
+        <line x1="35" y1="100" x2="125" y2="100" stroke="rgba(255,255,255,.18)" stroke-width="1"/>
+        <line x1="45" y1="50" x2="115" y2="50" stroke="rgba(255,255,255,.12)" stroke-width="1"/>
+        <line x1="45" y1="110" x2="115" y2="110" stroke="rgba(255,255,255,.12)" stroke-width="1"/>
+        <line x1="-60" y1="80" x2="280" y2="80" stroke="white" stroke-width="1.5"/>
+      </g>
+      <g stroke="#ffe844" stroke-width="2.2" fill="none">
+        <line x1="18" y1="80" x2="62" y2="80"/>
+        <line x1="98" y1="80" x2="142" y2="80"/>
+        <polyline points="62,80 68,73 80,80 92,73 98,80"/>
+        <line x1="80" y1="70" x2="80" y2="63"/>
+      </g>
+      <circle cx="80" cy="80" r="72" fill="none" stroke="rgba(0,180,255,.3)" stroke-width="1"/>
+      <polygon id="ahi-bankptr" points="80,10 75,21 85,21" fill="rgba(0,200,255,.65)"/>
+      <g stroke="rgba(0,180,255,.35)" stroke-width="1">
+        <line x1="80" y1="8" x2="80" y2="16"/>
+        <line x1="80" y1="8" x2="80" y2="14" transform="rotate(30,80,80)"/>
+        <line x1="80" y1="8" x2="80" y2="14" transform="rotate(-30,80,80)"/>
+        <line x1="80" y1="8" x2="80" y2="16" transform="rotate(60,80,80)"/>
+        <line x1="80" y1="8" x2="80" y2="16" transform="rotate(-60,80,80)"/>
+      </g>
+      <circle cx="80" cy="80" r="73" fill="none" stroke="rgba(0,90,180,.6)" stroke-width="2"/>
+    </svg>
+  </div>
+
+  <!-- INSTRUMENT PANEL -->
+  <div id="instrument-panel">
+
+    <!-- THROTTLE -->
+    <div class="panel-sec">
+      <div class="plabel">THROTTLE</div>
+      <div id="thr-slot">
+        <div id="thr-knob"></div>
+        <div style="position:absolute;right:-18px;top:3px;font-size:.42rem;color:#334;letter-spacing:0">100%</div>
+        <div style="position:absolute;right:-14px;top:27px;font-size:.42rem;color:#334;">75%</div>
+        <div style="position:absolute;right:-14px;top:55px;font-size:.42rem;color:#334;">50%</div>
+        <div style="position:absolute;right:-14px;top:83px;font-size:.42rem;color:#334;">25%</div>
+        <div style="position:absolute;right:-12px;bottom:3px;font-size:.42rem;color:#334;">0%</div>
+      </div>
+      <div id="thr-pct">30%</div>
+    </div>
+
+    <!-- DIALS ROW -->
+    <div class="panel-sec" style="flex-direction:row;gap:8px;padding:0 .8rem;">
+      <!-- Airspeed -->
+      <div style="display:flex;flex-direction:column;align-items:center;gap:2px;">
+        <div class="dial-w">
+          <svg viewBox="0 0 84 84">
+            <circle cx="42" cy="42" r="38" fill="#050d1c" stroke="#1a4a7a" stroke-width="1.5"/>
+            <!-- colored arcs: white normal, green, yellow, red -->
+            <circle cx="42" cy="42" r="32" fill="none" stroke="#1a3555" stroke-width="5" stroke-dasharray="188 213"/>
+            <circle cx="42" cy="42" r="32" fill="none" stroke="#009944" stroke-width="5" stroke-dasharray="80 314" stroke-dashoffset="-150" stroke-linecap="round"/>
+            <circle cx="42" cy="42" r="32" fill="none" stroke="#aaaa00" stroke-width="5" stroke-dasharray="40 354" stroke-dashoffset="-230" stroke-linecap="round"/>
+            <circle cx="42" cy="42" r="32" fill="none" stroke="#cc2200" stroke-width="5" stroke-dasharray="22 372" stroke-dashoffset="-270" stroke-linecap="round"/>
+            <!-- tick marks every 30deg -->
+            <g stroke="#446688" stroke-width=".8">
+              <line x1="42" y1="6" x2="42" y2="12"/><line x1="42" y1="6" x2="42" y2="12" transform="rotate(30,42,42)"/>
+              <line x1="42" y1="6" x2="42" y2="12" transform="rotate(60,42,42)"/><line x1="42" y1="6" x2="42" y2="12" transform="rotate(90,42,42)"/>
+              <line x1="42" y1="6" x2="42" y2="12" transform="rotate(120,42,42)"/><line x1="42" y1="6" x2="42" y2="12" transform="rotate(150,42,42)"/>
+              <line x1="42" y1="6" x2="42" y2="12" transform="rotate(180,42,42)"/><line x1="42" y1="6" x2="42" y2="12" transform="rotate(210,42,42)"/>
+              <line x1="42" y1="6" x2="42" y2="12" transform="rotate(240,42,42)"/><line x1="42" y1="6" x2="42" y2="12" transform="rotate(270,42,42)"/>
+              <line x1="42" y1="6" x2="42" y2="12" transform="rotate(300,42,42)"/><line x1="42" y1="6" x2="42" y2="12" transform="rotate(330,42,42)"/>
+            </g>
+            <line id="spd-needle" x1="42" y1="42" x2="42" y2="9" stroke="#ff3333" stroke-width="1.8" stroke-linecap="round" transform="rotate(-150,42,42)"/>
+            <circle cx="42" cy="42" r="3.5" fill="#ccc"/>
+            <text x="42" y="57" text-anchor="middle" font-size="5" fill="#335566" font-family="monospace">KTS</text>
+            <text id="spd-txt" x="42" y="65" text-anchor="middle" font-size="6" fill="#00ddff" font-family="monospace">0</text>
+          </svg>
+        </div>
+        <div class="plabel">AIRSPEED</div>
+      </div>
+
+      <!-- Altimeter -->
+      <div style="display:flex;flex-direction:column;align-items:center;gap:2px;">
+        <div class="dial-w">
+          <svg viewBox="0 0 84 84">
+            <circle cx="42" cy="42" r="38" fill="#050d1c" stroke="#1a4a7a" stroke-width="1.5"/>
+            <g stroke="#446688" stroke-width=".8">
+              <line x1="42" y1="6" x2="42" y2="12"/><line x1="42" y1="6" x2="42" y2="11" transform="rotate(36,42,42)"/>
+              <line x1="42" y1="6" x2="42" y2="11" transform="rotate(72,42,42)"/><line x1="42" y1="6" x2="42" y2="12" transform="rotate(90,42,42)"/>
+              <line x1="42" y1="6" x2="42" y2="11" transform="rotate(108,42,42)"/><line x1="42" y1="6" x2="42" y2="11" transform="rotate(144,42,42)"/>
+              <line x1="42" y1="6" x2="42" y2="12" transform="rotate(180,42,42)"/><line x1="42" y1="6" x2="42" y2="11" transform="rotate(216,42,42)"/>
+              <line x1="42" y1="6" x2="42" y2="11" transform="rotate(252,42,42)"/><line x1="42" y1="6" x2="42" y2="12" transform="rotate(270,42,42)"/>
+              <line x1="42" y1="6" x2="42" y2="11" transform="rotate(288,42,42)"/><line x1="42" y1="6" x2="42" y2="11" transform="rotate(324,42,42)"/>
+            </g>
+            <text x="42" y="18" text-anchor="middle" font-size="5" fill="#446688">0</text>
+            <text x="66" y="46" text-anchor="middle" font-size="5" fill="#446688">2</text>
+            <text x="42" y="70" text-anchor="middle" font-size="5" fill="#446688">4</text>
+            <text x="18" y="46" text-anchor="middle" font-size="5" fill="#446688">6</text>
+            <!-- thousands (long thin) and hundreds (short thick) -->
+            <line id="alt-thou" x1="42" y1="42" x2="42" y2="8" stroke="#dddddd" stroke-width="1.2" stroke-linecap="round" transform="rotate(0,42,42)"/>
+            <line id="alt-hun"  x1="42" y1="42" x2="42" y2="13" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" transform="rotate(0,42,42)"/>
+            <circle cx="42" cy="42" r="3.5" fill="#ccc"/>
+            <text id="alt-txt" x="42" y="58" text-anchor="middle" font-size="5.5" fill="#00ddff" font-family="monospace">0</text>
+            <text x="42" y="65" text-anchor="middle" font-size="4" fill="#335566">×1000 FT</text>
+          </svg>
+        </div>
+        <div class="plabel">ALTITUDE</div>
+      </div>
+
+      <!-- VSI -->
+      <div style="display:flex;flex-direction:column;align-items:center;gap:2px;">
+        <div class="dial-w">
+          <svg viewBox="0 0 84 84">
+            <circle cx="42" cy="42" r="38" fill="#050d1c" stroke="#1a4a7a" stroke-width="1.5"/>
+            <path d="M42,42 L42,5 A37,37 0 0,1 79,42 Z" fill="rgba(0,130,50,.12)"/>
+            <path d="M42,42 L79,42 A37,37 0 0,1 42,79 Z" fill="rgba(120,40,0,.1)"/>
+            <path d="M42,42 L42,79 A37,37 0 0,1 5,42 Z" fill="rgba(120,40,0,.1)"/>
+            <path d="M42,42 L5,42 A37,37 0 0,1 42,5 Z" fill="rgba(0,130,50,.12)"/>
+            <line id="vsi-needle" x1="42" y1="42" x2="42" y2="8" stroke="#00ff88" stroke-width="1.8" stroke-linecap="round" transform="rotate(0,42,42)"/>
+            <circle cx="42" cy="42" r="3.5" fill="#ccc"/>
+            <text x="42" y="20" text-anchor="middle" font-size="4.5" fill="#336655">UP</text>
+            <text x="42" y="67" text-anchor="middle" font-size="4.5" fill="#553322">DN</text>
+            <text id="vsi-txt" x="42" y="56" text-anchor="middle" font-size="5" fill="#00ff88" font-family="monospace">0</text>
+            <text x="42" y="75" text-anchor="middle" font-size="3.8" fill="#2a4433">FPM÷100</text>
+          </svg>
+        </div>
+        <div class="plabel">V/SPEED</div>
+      </div>
+    </div>
+
+    <!-- JOYSTICK -->
+    <div class="panel-sec">
+      <div class="plabel" style="margin-bottom:2px;">PITCH / ROLL</div>
+      <div id="stick-area">
+        <div id="stick-dot"></div>
+        <div style="position:absolute;top:50%;left:0;right:0;height:1px;background:rgba(0,200,255,.13);transform:translateY(-50%);"></div>
+        <div style="position:absolute;left:50%;top:0;bottom:0;width:1px;background:rgba(0,200,255,.13);transform:translateX(-50%);"></div>
+      </div>
+      <div style="font-size:.46rem;color:#1a3344;margin-top:2px;">W/S — PITCH &nbsp; A/D — ROLL</div>
+    </div>
+
+    <!-- RUDDER + FLAPS + GEAR -->
+    <div class="panel-sec" style="gap:7px;">
+      <div style="display:flex;flex-direction:column;align-items:center;gap:3px;">
+        <div class="plabel">RUDDER (Q/E)</div>
+        <div id="rud-bar">
+          <div id="rud-fill"></div>
+          <div id="rud-ctr"></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;width:110px;font-size:.5rem;color:#335566;"><span>◄ L</span><span>R ►</span></div>
+      </div>
+      <div style="display:flex;flex-direction:row;align-items:center;gap:8px;">
+        <div style="display:flex;flex-direction:column;align-items:center;gap:2px;">
+          <div class="plabel">FLAPS (F/G)</div>
+          <div id="flap-track">
+            <div id="flap-knob"></div>
+            <div style="position:absolute;right:-16px;top:2px;font-size:.38rem;color:#334;">0°</div>
+            <div style="position:absolute;right:-18px;top:17px;font-size:.38rem;color:#334;">10°</div>
+            <div style="position:absolute;right:-18px;top:34px;font-size:.38rem;color:#334;">20°</div>
+            <div style="position:absolute;right:-18px;top:51px;font-size:.38rem;color:#334;">30°</div>
+            <div style="position:absolute;right:-18px;top:68px;font-size:.38rem;color:#334;">40°</div>
+          </div>
+          <div id="flap-val">0°</div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:7px;align-items:center;">
+          <div style="display:flex;flex-direction:column;align-items:center;gap:2px;">
+            <button class="cockpit-btn" id="gear-btn" onclick="toggleGear()">GEAR<br>DOWN</button>
+            <div id="gear-dot"></div>
+          </div>
+          <button class="cockpit-btn" id="ap-btn" onclick="toggleAP()">A/P<br>OFF</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- GYRO COMPASS + TURN COORD -->
+    <div class="panel-sec" style="flex-direction:row;gap:8px;padding:0 .8rem;">
+      <!-- Gyro compass -->
+      <div style="display:flex;flex-direction:column;align-items:center;gap:2px;">
+        <div class="dial-w">
+          <svg viewBox="0 0 84 84">
+            <circle cx="42" cy="42" r="38" fill="#050d1c" stroke="#1a4a7a" stroke-width="1.5"/>
+            <g id="compass-rose">
+              <text x="42" y="17" text-anchor="middle" font-size="6.5" fill="#ff5533" font-family="monospace" font-weight="bold">N</text>
+              <text x="68" y="46" text-anchor="middle" font-size="5.5" fill="#7799bb" font-family="monospace">E</text>
+              <text x="42" y="72" text-anchor="middle" font-size="5.5" fill="#7799bb" font-family="monospace">S</text>
+              <text x="16" y="46" text-anchor="middle" font-size="5.5" fill="#7799bb" font-family="monospace">W</text>
+              <g stroke="#3a5566" stroke-width=".8">
+                <line x1="42" y1="6" x2="42" y2="11"/><line x1="42" y1="6" x2="42" y2="11" transform="rotate(30,42,42)"/>
+                <line x1="42" y1="6" x2="42" y2="11" transform="rotate(60,42,42)"/><line x1="42" y1="6" x2="42" y2="11" transform="rotate(90,42,42)"/>
+                <line x1="42" y1="6" x2="42" y2="11" transform="rotate(120,42,42)"/><line x1="42" y1="6" x2="42" y2="11" transform="rotate(150,42,42)"/>
+                <line x1="42" y1="6" x2="42" y2="11" transform="rotate(180,42,42)"/><line x1="42" y1="6" x2="42" y2="11" transform="rotate(210,42,42)"/>
+                <line x1="42" y1="6" x2="42" y2="11" transform="rotate(240,42,42)"/><line x1="42" y1="6" x2="42" y2="11" transform="rotate(270,42,42)"/>
+                <line x1="42" y1="6" x2="42" y2="11" transform="rotate(300,42,42)"/><line x1="42" y1="6" x2="42" y2="11" transform="rotate(330,42,42)"/>
+              </g>
+            </g>
+            <!-- Fixed lubber line + plane icon -->
+            <line x1="42" y1="6" x2="42" y2="16" stroke="#ff3300" stroke-width="2"/>
+            <polygon points="42,36 39,44 42,42 45,44" fill="#00eeff"/>
+            <circle cx="42" cy="42" r="3" fill="#aaa"/>
+          </svg>
+        </div>
+        <div class="plabel">HEADING</div>
+      </div>
+
+      <!-- Turn coordinator -->
+      <div style="display:flex;flex-direction:column;align-items:center;gap:2px;">
+        <div class="dial-w">
+          <svg viewBox="0 0 84 84">
+            <circle cx="42" cy="42" r="38" fill="#050d1c" stroke="#1a4a7a" stroke-width="1.5"/>
+            <path d="M18,62 Q42,74 66,62" fill="none" stroke="#3a5566" stroke-width="3"/>
+            <circle id="tc-ball" cx="42" cy="67" r="4.5" fill="#cccccc" stroke="#777" stroke-width="1"/>
+            <g id="tc-plane" transform="rotate(0,42,42)">
+              <line x1="14" y1="42" x2="38" y2="42" stroke="#00eeff" stroke-width="2.5"/>
+              <line x1="46" y1="42" x2="70" y2="42" stroke="#00eeff" stroke-width="2.5"/>
+              <circle cx="42" cy="42" r="3.5" fill="#00eeff"/>
+              <line x1="42" y1="42" x2="42" y2="28" stroke="#00eeff" stroke-width="1.5"/>
+            </g>
+            <line x1="42" y1="7" x2="42" y2="13" stroke="#882200" stroke-width="1.5" transform="rotate(-20,42,42)"/>
+            <line x1="42" y1="7" x2="42" y2="13" stroke="#882200" stroke-width="1.5" transform="rotate(20,42,42)"/>
+            <text x="25" y="22" font-size="5" fill="#3a4a55" font-family="monospace">L</text>
+            <text x="57" y="22" font-size="5" fill="#3a4a55" font-family="monospace">R</text>
+          </svg>
+        </div>
+        <div class="plabel">TURN COORD</div>
+      </div>
+    </div>
+
+    <!-- KEYS -->
+    <div class="panel-sec" style="border-right:none;">
+      <div id="keys-hint">
+        W/S — PITCH<br>
+        A/D — ROLL<br>
+        Q/E — RUDDER<br>
+        SHIFT — THR+<br>
+        CTRL &nbsp;— THR-<br>
+        F/G &nbsp;— FLAPS<br>
+        L — GEAR<br>
+        P — PAUSE<br>
+        R — RESTART
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div id="pause-screen">
+  <h2>PAUSED</h2>
+  <button class="btn btn-primary" id="resume-btn">RESUME</button>
+  <button class="btn btn-secondary" id="menu-btn">MAIN MENU</button>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+// ═══════════════════════ PERLIN ═══════════════════════
+class Perlin{
+  constructor(seed=42){
+    const p=[...Array(256)].map((_,i)=>i);
+    for(let i=255;i>0;i--){const j=Math.floor((seed*i*16807+3)%i||1);[p[i],p[j]]=[p[j],p[i]];}
+    this.p=[...p,...p];
+  }
+  fade(t){return t*t*t*(t*(t*6-15)+10);}
+  lerp(t,a,b){return a+t*(b-a);}
+  grad(h,x,y,z){const hh=h&15,u=hh<8?x:y,v=hh<4?y:hh===12||hh===14?x:z;return((hh&1)?-u:u)+((hh&2)?-v:v);}
+  noise(x,y,z=0){
+    const X=Math.floor(x)&255,Y=Math.floor(y)&255,Z=Math.floor(z)&255;
+    x-=Math.floor(x);y-=Math.floor(y);z-=Math.floor(z);
+    const u=this.fade(x),v=this.fade(y),w=this.fade(z);
+    const A=this.p[X]+Y,AA=this.p[A]+Z,AB=this.p[A+1]+Z,B=this.p[X+1]+Y,BA=this.p[B]+Z,BB=this.p[B+1]+Z;
+    return this.lerp(w,this.lerp(v,this.lerp(u,this.grad(this.p[AA],x,y,z),this.grad(this.p[BA],x-1,y,z)),this.lerp(u,this.grad(this.p[AB],x,y-1,z),this.grad(this.p[BB],x-1,y-1,z))),this.lerp(v,this.lerp(u,this.grad(this.p[AA+1],x,y,z-1),this.grad(this.p[BA+1],x-1,y,z-1)),this.lerp(u,this.grad(this.p[AB+1],x,y-1,z-1),this.grad(this.p[BB+1],x-1,y-1,z-1))));
+  }
+  octave(x,y,oct=6,persist=.5,lac=2){let v=0,a=1,f=1,m=0;for(let i=0;i<oct;i++){v+=this.noise(x*f,y*f)*a;m+=a;a*=persist;f*=lac;}return v/m;}
+}
+
+// ═══════════════════════ DATA ═══════════════════════
+// Physics (SI units — m/s, m/s²):
+// thrustAccel  = max forward accel at 100% throttle (m/s²)
+// dragK        = drag decel = dragK * speed²
+// liftK        = lift accel = liftK * speed²
+//                At cruise level flight: lift = gravity → liftK = 9.81 / cruiseMs²
+//                So plane neither climbs nor sinks when wings-level at cruise.
+// cruiseMs     = wings-level cruise speed in m/s (~70% throttle)
+// stallSpeedMs = below this speed lift fails (m/s)
+const G = 9.81;
+const PLANES=[
+  {id:'cessna',  name:'CESSNA 172', icon:'🛩️',speed:4, agility:5, climb:4, stability:9, color:0xffe050,desc:'Trainer',
+   maxSpeedKts:150, stallSpeedMs:22, thrustAccel:9,  dragK:0.001750,liftK:G/(60*60),    cruiseMs:60},
+  {id:'f16',     name:'F-16 FALCON',icon:'✈️', speed:10,agility:10,climb:10,stability:5, color:0x99aabb,desc:'Fighter',
+   maxSpeedKts:900, stallSpeedMs:65, thrustAccel:60, dragK:0.000806,liftK:G/(220*220),   cruiseMs:220},
+  {id:'boeing',  name:'B-737',      icon:'🛫',speed:5, agility:3, climb:5, stability:10,color:0x3399ff,desc:'Airliner',
+   maxSpeedKts:480, stallSpeedMs:65, thrustAccel:20, dragK:0.000640,liftK:G/(150*150),   cruiseMs:150},
+  {id:'spitfire',name:'SPITFIRE',   icon:'🛸',speed:6, agility:9, climb:7, stability:6, color:0x885533,desc:'WWII',
+   maxSpeedKts:400, stallSpeedMs:42, thrustAccel:22, dragK:0.001236,liftK:G/(110*110),   cruiseMs:110},
+  {id:'sr71',    name:'SR-71',      icon:'🚀',speed:10,agility:6, climb:9, stability:7, color:0x111111,desc:'Recon',
+   maxSpeedKts:2000,stallSpeedMs:88, thrustAccel:85, dragK:0.000319,liftK:G/(400*400),   cruiseMs:400},
+];
+const LEVELS=[
+  {id:1,name:'FREE FLY',    desc:'Open skies',        wind:.04,turb:.02,tod:'day'},
+  {id:2,name:'CROSSWIND',   desc:'Moderate wind',     wind:.28,turb:.1, tod:'day'},
+  {id:3,name:'STORM FRONT', desc:'Heavy turbulence',  wind:.6, turb:.4, tod:'dusk'},
+  {id:4,name:'NIGHT OPS',   desc:'Night navigation',  wind:.35,turb:.18,tod:'night'},
+];
+
+let selectedPlane=0,selectedLevel=0,game=null,paused=false,animId=null;
+let gearDown=true,apOn=false;
+
+// MENU BUILD
+document.getElementById('planes-grid').innerHTML='';
+PLANES.forEach((p,i)=>{
+  const el=document.createElement('div');el.className='plane-card'+(i===0?' selected':'');
+  el.innerHTML=`<span class="plane-icon">${p.icon}</span><div class="plane-name">${p.name}</div>
+  <div style="font-size:.52rem;color:#446;margin:.15rem 0">${p.desc}</div>
+  <div class="stat-bar"><div class="stat-fill" style="width:${p.speed*10}%"></div></div>
+  <div class="stat-bar"><div class="stat-fill" style="width:${p.agility*10}%"></div></div>
+  <div class="stat-bar"><div class="stat-fill" style="width:${p.stability*10}%"></div></div>`;
+  el.onclick=()=>{document.querySelectorAll('.plane-card').forEach(x=>x.classList.remove('selected'));el.classList.add('selected');selectedPlane=i;};
+  document.getElementById('planes-grid').appendChild(el);
+});
+document.getElementById('levels-grid').innerHTML='';
+LEVELS.forEach((l,i)=>{
+  const el=document.createElement('div');el.className='level-card'+(i===0?' selected':'');
+  el.innerHTML=`<div class="level-num">${l.id}</div><div class="level-name">${l.name}</div><div class="level-desc">${l.desc}</div>`;
+  el.onclick=()=>{document.querySelectorAll('.level-card').forEach(x=>x.classList.remove('selected'));el.classList.add('selected');selectedLevel=i;};
+  document.getElementById('levels-grid').appendChild(el);
+});
+
+document.getElementById('start-btn').onclick=startGame;
+document.getElementById('resume-btn').onclick=resumeGame;
+document.getElementById('menu-btn').onclick=returnToMenu;
+
+function toggleGear(){gearDown=!gearDown;const b=document.getElementById('gear-btn'),d=document.getElementById('gear-dot');b.innerHTML=gearDown?'GEAR<br>DOWN':'GEAR<br>UP';b.classList.toggle('up',!gearDown);d.classList.toggle('up',!gearDown);}
+function toggleAP(){apOn=!apOn;const b=document.getElementById('ap-btn');b.innerHTML=apOn?'A/P<br>ON':'A/P<br>OFF';b.classList.toggle('on',apOn);}
+
+// KEYS
+const keys={};
+window.addEventListener('keydown',e=>{
+  keys[e.code]=true;
+  if(e.code==='KeyP')togglePause();
+  if(e.code==='KeyR'&&game)restartGame();
+  if(e.code==='KeyL')toggleGear();
+  if(e.code==='KeyF'&&game){game.flaps=Math.min(40,game.flaps+10);window.flapsDrag&&window.flapsDrag.setVal(game.flaps);}
+  if(e.code==='KeyG'&&game){game.flaps=Math.max(0,game.flaps-10);window.flapsDrag&&window.flapsDrag.setVal(game.flaps);}
+  e.preventDefault();
+},true);
+window.addEventListener('keyup',e=>{keys[e.code]=false;},true);
+
+function togglePause(){if(!game)return;paused=!paused;document.getElementById('pause-screen').classList.toggle('active',paused);}
+function resumeGame(){paused=false;document.getElementById('pause-screen').classList.remove('active');}
+function restartGame(){returnToMenu();setTimeout(startGame,60);}
+function returnToMenu(){
+  if(game){game.dispose();game=null;}
+  if(animId){cancelAnimationFrame(animId);animId=null;}
+  document.getElementById('hud').classList.remove('active');
+  document.getElementById('pause-screen').classList.remove('active');
+  const ms=document.getElementById('menu-screen');ms.classList.remove('hidden');ms.style.opacity='1';
+  paused=false;
+}
+function startGame(){
+  document.getElementById('menu-screen').classList.add('hidden');
+  fakeLoad(()=>{game=new FlightGame(PLANES[selectedPlane],LEVELS[selectedLevel]);game.start();document.getElementById('hud').classList.add('active');});
+}
+function fakeLoad(cb){
+  const L=document.getElementById('loading'),bar=document.getElementById('load-bar'),txt=document.getElementById('load-text');
+  L.classList.remove('hidden');L.style.opacity='1';
+  const msgs=['BUILDING TERRAIN...','POPULATING WORLD...','LOADING AIRCRAFT...','PHYSICS READY...','GO!'];
+  let p=0;
+  const iv=setInterval(()=>{
+    p+=Math.random()*20+8;
+    if(p>=100){p=100;clearInterval(iv);bar.style.width='100%';txt.textContent='READY';
+      setTimeout(()=>{L.style.opacity='0';setTimeout(()=>{L.classList.add('hidden');cb();},500);},300);
+    }else{bar.style.width=p+'%';txt.textContent=msgs[Math.min(Math.floor(p/25),4)];}
+  },100);
+}
+
+// ═══════════ THROTTLE DRAG ═══════════
+(()=>{
+  const slot=document.getElementById('thr-slot'),knob=document.getElementById('thr-knob');
+  let drag=false,sy=0,sp=.3,pct=.3;
+  function set(v){
+    pct=Math.max(0,Math.min(1,v));
+    const sh=slot.clientHeight||120,kh=30,maxB=sh-kh;
+    knob.style.bottom=(pct*maxB)+'px';knob.style.top='auto';
+    document.getElementById('thr-pct').textContent=Math.round(pct*100)+'%';
+    if(game)game.throttle=pct;
+  }
+  set(.3);
+  knob.onmousedown=e=>{drag=true;sy=e.clientY;sp=pct;e.preventDefault();};
+  window.addEventListener('mousemove',e=>{if(!drag)return;const sh=slot.clientHeight||120;set(sp+(sy-e.clientY)/sh);});
+  window.addEventListener('mouseup',()=>drag=false);
+  knob.ontouchstart=e=>{drag=true;sy=e.touches[0].clientY;sp=pct;e.preventDefault();};
+  window.addEventListener('touchmove',e=>{if(!drag)return;const sh=slot.clientHeight||120;set(sp+(sy-e.touches[0].clientY)/sh);});
+  window.addEventListener('touchend',()=>drag=false);
+  window.thrDrag={set,get pct(){return pct;}};
+})();
+
+// ═══════════ FLAPS DRAG ═══════════
+(()=>{
+  const track=document.getElementById('flap-track'),knob=document.getElementById('flap-knob');
+  let drag=false,sy=0,sv=0,val=0;
+  function set(v){
+    val=Math.round(Math.max(0,Math.min(40,v))/10)*10;
+    const th=track.clientHeight||85,kh=14,t=(val/40)*(th-kh);
+    knob.style.top=t+'px';
+    document.getElementById('flap-val').textContent=val+'°';
+    document.getElementById('hud-flaps').textContent=val+'°';
+    if(game)game.flaps=val;
+  }
+  set(0);
+  knob.onmousedown=e=>{drag=true;sy=e.clientY;sv=val;e.preventDefault();};
+  window.addEventListener('mousemove',e=>{if(!drag)return;const th=track.clientHeight||85;set(sv+(e.clientY-sy)/th*40);});
+  window.addEventListener('mouseup',()=>drag=false);
+  window.flapsDrag={set,get val(){return val;}};
+})();
+
+// ═══════════════════════════════════
+// FLIGHT GAME
+// ═══════════════════════════════════
+class FlightGame{
+  constructor(pd,ld){
+    this.pd=pd;this.ld=ld;
+    this.perlin=new Perlin(42);
+    // State: plane flies in -Z direction (into scene)
+    this.pos=new THREE.Vector3(0,600,0);
+    this.vel=new THREE.Vector3(0,0,-pd.cruiseMs*.85); // -Z = forward, start near cruise speed
+    this.pitch=0;this.roll=0;this.yaw=0;
+    this.throttle=.3;this.flaps=0;this.fuel=100;this.gforce=1;
+    this.score=0;this.startTime=Date.now();this.stall=false;
+    this.chunks=new Map();this.chunkSz=2000;this.chunkRes=58;
+    this._setupRenderer();
+    this._setupScene();
+    this._buildPlane();
+    this._initChunks();
+  }
+
+  _setupRenderer(){
+    this.canvas=document.getElementById('three-canvas');
+    this.ren=new THREE.WebGLRenderer({canvas:this.canvas,antialias:true});
+    this.ren.setPixelRatio(Math.min(devicePixelRatio,2));
+    this.ren.setSize(window.innerWidth,window.innerHeight);
+    this.ren.shadowMap.enabled=true;this.ren.shadowMap.type=THREE.PCFSoftShadowMap;
+    this.ren.toneMapping=THREE.ACESFilmicToneMapping;this.ren.toneMappingExposure=1.1;
+    this._onResize=()=>{this.ren.setSize(window.innerWidth,window.innerHeight);this.cam.aspect=window.innerWidth/window.innerHeight;this.cam.updateProjectionMatrix();};
+    window.addEventListener('resize',this._onResize);
+  }
+
+  _setupScene(){
+    this.scene=new THREE.Scene();
+    const tod=this.ld.tod;
+    const skyC={day:'#1a6ab5',dusk:'#4a1a5a',night:'#020510'};
+    const fogC={day:'#88bbdd',dusk:'#5a2055',night:'#020510'};
+    this.ren.setClearColor(skyC[tod]);
+    this.scene.fog=new THREE.FogExp2(fogC[tod],.000095);
+    this.cam=new THREE.PerspectiveCamera(58,window.innerWidth/window.innerHeight,1,80000);
+    const aI={day:.45,dusk:.22,night:.04};
+    this.scene.add(new THREE.AmbientLight(0xffffff,aI[tod]));
+    this.scene.add(new THREE.HemisphereLight(tod==='night'?0x050a1a:0x87ceeb,tod==='night'?0x010205:0x3a7d1e,.38));
+    this.sun=new THREE.DirectionalLight(0xfff5e0,{day:1.2,dusk:.5,night:.02}[tod]);
+    const sp={day:[5000,8000,-3000],dusk:[12000,800,-5000],night:[5000,20000,-3000]};
+    this.sun.position.set(...sp[tod]);
+    this.sun.castShadow=true;
+    this.sun.shadow.mapSize.set(1024,1024);
+    this.sun.shadow.camera.left=-8000;this.sun.shadow.camera.right=8000;
+    this.sun.shadow.camera.top=8000;this.sun.shadow.camera.bottom=-8000;
+    this.sun.shadow.camera.far=40000;
+    this.scene.add(this.sun);
+    if(tod!=='day')this._stars();
+    this._celestial(tod);
+    this._clouds();
+  }
+
+  _stars(){
+    const n=2500,pos=new Float32Array(n*3);
+    for(let i=0;i<n;i++){const t=Math.random()*Math.PI*2,p=Math.acos(2*Math.random()-1),r=42000;pos[i*3]=r*Math.sin(p)*Math.cos(t);pos[i*3+1]=r*Math.sin(p)*Math.sin(t);pos[i*3+2]=r*Math.cos(p);}
+    const geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.BufferAttribute(pos,3));
+    this.scene.add(new THREE.Points(geo,new THREE.PointsMaterial({color:0xffffff,size:18,sizeAttenuation:true})));
+  }
+  _celestial(tod){
+    if(tod==='night'){const m=new THREE.Mesh(new THREE.SphereGeometry(280,12,12),new THREE.MeshBasicMaterial({color:0xeeeeff}));m.position.set(-20000,15000,-30000);this.scene.add(m);}
+    else{const s=new THREE.Mesh(new THREE.SphereGeometry(1000,12,12),new THREE.MeshBasicMaterial({color:tod==='dusk'?0xff7733:0xfffde0}));s.position.copy(this.sun.position);this.scene.add(s);}
+  }
+  _clouds(){
+    this.cloudGrp=new THREE.Group();
+    const mat=new THREE.MeshLambertMaterial({color:0xffffff,transparent:true,opacity:.80});
+    for(let i=0;i<50;i++){
+      const g=new THREE.Group();
+      for(let j=0;j<4+Math.floor(Math.random()*4);j++){
+        const r=70+Math.random()*170;
+        const mesh=new THREE.Mesh(new THREE.SphereGeometry(r,6,5),mat);
+        mesh.position.set((Math.random()-.5)*480,(Math.random()-.5)*65,(Math.random()-.5)*280);
+        mesh.scale.y=.32+Math.random()*.22;g.add(mesh);
+      }
+      g.position.set((Math.random()-.5)*28000,1000+Math.random()*2500,(Math.random()-.5)*28000);
+      this.cloudGrp.add(g);
+    }
+    this.scene.add(this.cloudGrp);
+  }
+
+  terrH(wx,wz){
+    const p=this.perlin,x=wx/8000,z=wz/8000;
+    let h=p.octave(x*.9,z*.9,6,.55,2.1)*1600+p.octave(x*2.5,z*2.5,4,.5,2)*340+p.octave(x*8,z*8,3,.4,2)*65;
+    const flat=p.noise(x*.3,z*.3);if(flat<.35)h*=flat*2.5;
+    return Math.max(h,-15);
+  }
+  terrC(h,wx,wz){
+    const city=this.perlin.noise(wx/5000+10,wz/5000+10);
+    if(h<8)return new THREE.Color(0x1a5a9a);
+    if(h<22&&city>.65)return new THREE.Color(0x888888);
+    if(h<30)return new THREE.Color(0xd4b483);
+    if(h<180)return new THREE.Color(0x4a8a3a);
+    if(h<550)return new THREE.Color(0x2d6622);
+    if(h<1100)return new THREE.Color(0x7a6a5a);
+    return new THREE.Color(0xe8eeff);
+  }
+
+  _chunk(cx,cz){
+    const key=`${cx},${cz}`;if(this.chunks.has(key))return;
+    const res=this.chunkRes,sz=this.chunkSz;
+    const geo=new THREE.PlaneGeometry(sz,sz,res,res);geo.rotateX(-Math.PI/2);
+    const pa=geo.attributes.position.array,col=new Float32Array(pa.length);
+    const ox=cx*sz,oz=cz*sz;
+    for(let i=0;i<=(res);i++)for(let j=0;j<=(res);j++){
+      const idx=(i*(res+1)+j)*3;const wx=ox+pa[idx],wz=oz+pa[idx+2];
+      const h=this.terrH(wx,wz);pa[idx+1]=h;
+      const c=this.terrC(h,wx,wz);col[idx]=c.r;col[idx+1]=c.g;col[idx+2]=c.b;
+    }
+    geo.setAttribute('color',new THREE.BufferAttribute(col,3));geo.computeVertexNormals();
+    const mesh=new THREE.Mesh(geo,new THREE.MeshLambertMaterial({vertexColors:true}));
+    mesh.position.set(ox,0,oz);mesh.receiveShadow=true;this.scene.add(mesh);
+    this._chunkDetails(cx,cz,ox,oz);this.chunks.set(key,mesh);
+  }
+  _chunkDetails(cx,cz,ox,oz){
+    const p=this.perlin;
+    for(let i=0;i<18;i++){
+      const lx=ox+(Math.random()-.5)*this.chunkSz,lz=oz+(Math.random()-.5)*this.chunkSz;
+      const h=this.terrH(lx,lz);
+      if(h>28&&h<480){const t=this._tree();t.position.set(lx,h,lz);this.scene.add(t);}
+    }
+    if(p.noise(cx*.5+10,cz*.5+10)>.65)for(let i=0;i<5;i++){
+      const lx=ox+(Math.random()-.5)*this.chunkSz*.6,lz=oz+(Math.random()-.5)*this.chunkSz*.6;
+      const h=this.terrH(lx,lz);if(h<35){const b=this._bldg();b.position.set(lx,h,lz);this.scene.add(b);}
+    }
+  }
+  _tree(){const g=new THREE.Group();g.add(Object.assign(new THREE.Mesh(new THREE.CylinderGeometry(3,5,48,5),new THREE.MeshLambertMaterial({color:0x5a3a1a})),{}));const l=new THREE.Mesh(new THREE.ConeGeometry(26,75,6),new THREE.MeshLambertMaterial({color:Math.random()>.4?0x2a7a2a:0x1d6020}));l.position.y=62;g.add(l);return g;}
+  _bldg(){const g=new THREE.Group();const w=38+Math.random()*75,d=38+Math.random()*75,h=55+Math.random()*230;const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),new THREE.MeshLambertMaterial({color:Math.random()>.5?0x8899aa:0xaaa}));m.position.y=h/2;g.add(m);return g;}
+  _initChunks(){for(let i=-3;i<=3;i++)for(let j=-3;j<=3;j++)this._chunk(i,j);}
+
+  // ─── PLANE MODEL ─────────────────────────
+  // Plane flies in -Z direction. Camera is behind (+Z), looking toward -Z.
+  // So we see the plane from BEHIND — wings spread left/right, tail toward camera.
+  _buildPlane(){
+    this.pg=new THREE.Group();
+    const col=this.pd.color;
+    const id=this.pd.id;
+    const mat=new THREE.MeshPhongMaterial({color:col,shininess:100});
+    const dark=new THREE.MeshPhongMaterial({color:0x111111,shininess:30});
+    const glass=new THREE.MeshPhongMaterial({color:0x88ccff,transparent:true,opacity:.55,shininess:180});
+
+    // Config: all distances in scene units. Fuselage runs along Z (nose=-Z, tail=+Z)
+    const C={
+      cessna:  {fl:3.5,fr:.55,  ws:5.2,wc:1.1,wy:-.08, tvs:1.8,tvf:.12, ths:2.0,thc:.6,  nos:1.0, eng:0,prop:true,  propB:2},
+      f16:     {fl:4.5,fr:.38,  ws:3.8,wc:1.0,wy:-.18, tvs:1.6,tvf:.1,  ths:1.5,thc:.45, nos:1.8, eng:1,prop:false, propB:0},
+      boeing:  {fl:5.5,fr:1.0,  ws:7.5,wc:1.3,wy:-.38, tvs:2.0,tvf:.14, ths:3.2,thc:.65, nos:1.4, eng:2,prop:false, propB:0},
+      spitfire:{fl:3.8,fr:.48,  ws:4.8,wc:1.2,wy:-.08, tvs:1.7,tvf:.12, ths:1.9,thc:.55, nos:1.1, eng:0,prop:true,  propB:3},
+      sr71:    {fl:7.0,fr:.28,  ws:3.2,wc:2.1,wy:-.12, tvs:1.3,tvf:.09, ths:1.1,thc:.85, nos:2.5, eng:2,prop:false, propB:0},
+    }[id];
+    const S=42; // scale unit
+
+    // FUSELAGE: cylinder along Z
+    const fGeo=new THREE.CylinderGeometry(C.fr*S,C.fr*S*.65,C.fl*S*2,12);
+    fGeo.rotateX(Math.PI/2);
+    this.pg.add(new THREE.Mesh(fGeo,mat));
+
+    // NOSE CONE: points toward -Z
+    const nGeo=new THREE.ConeGeometry(C.fr*S*.92,C.nos*S*2,10);
+    nGeo.rotateX(Math.PI/2); // cone tip points -Z
+    const nm=new THREE.Mesh(nGeo,mat);
+    nm.position.z=-(C.fl+C.nos)*S;
+    this.pg.add(nm);
+
+    // COCKPIT CANOPY (sits above fuselage, offset toward nose)
+    const cGeo=new THREE.SphereGeometry(C.fr*S*.72,8,6,0,Math.PI*2,0,Math.PI/2);
+    const cm=new THREE.Mesh(cGeo,glass);
+    cm.position.set(0,C.fr*S*.9,-C.fl*S*.2);
+    cm.scale.set(1.5,.85,2.2);
+    this.pg.add(cm);
+
+    // WINGS: BoxGeometry spanning X-axis (left/right)
+    const wGeo=new THREE.BoxGeometry(C.ws*S*2,S*.11,C.wc*S);
+    const wm=new THREE.Mesh(wGeo,mat);
+    wm.position.set(0,C.wy*S,-S*.1);
+    this.pg.add(wm);
+
+    // WING TIPS (dihedral)
+    [-1,1].forEach(side=>{
+      const tg=new THREE.BoxGeometry(S*3.5,S*.09,C.wc*S*.7);
+      const tm=new THREE.Mesh(tg,mat);
+      tm.position.set(side*(C.ws*S+S*1.7),C.wy*S+S*.12,-S*.1);
+      tm.rotation.z=side*.13;
+      this.pg.add(tm);
+    });
+
+    // VERTICAL TAIL (Z-axis, at rear)
+    const vtGeo=new THREE.BoxGeometry(S*.1,C.tvs*S*1.5,C.fl*S*.5);
+    const vtm=new THREE.Mesh(vtGeo,mat);
+    vtm.position.set(0,C.tvs*S*.5,C.fl*S*.75);
+    this.pg.add(vtm);
+
+    // HORIZONTAL STABILIZERS
+    const hsGeo=new THREE.BoxGeometry(C.ths*S*2,S*.09,C.thc*S);
+    const hsm=new THREE.Mesh(hsGeo,mat);
+    hsm.position.set(0,C.fr*S*.05,C.fl*S*.8);
+    this.pg.add(hsm);
+
+    // ENGINES
+    this.engGlows=[];
+    const ePos=C.eng===0?[]:C.eng===1?[[0,C.wy*S-S*.32,-S*.1]]:[[C.ws*S*.42,C.wy*S-S*.36,-S*.1],[-C.ws*S*.42,C.wy*S-S*.36,-S*.1]];
+    ePos.forEach(ep=>{
+      const eCyl=new THREE.Mesh(new THREE.CylinderGeometry(S*.28,S*.32,S*1.5,10),dark);
+      eCyl.rotation.x=Math.PI/2;eCyl.position.set(...ep);this.pg.add(eCyl);
+      // Exhaust at tail end (+Z of engine)
+      const gm=new THREE.Mesh(new THREE.CircleGeometry(S*.2,10),new THREE.MeshBasicMaterial({color:0xff5500,side:THREE.DoubleSide}));
+      gm.position.set(ep[0],ep[1],ep[2]+S*.78);
+      this.pg.add(gm);this.engGlows.push(gm);
+    });
+
+    // PROPELLER
+    if(C.prop){
+      const pg2=new THREE.Group();
+      for(let i=0;i<C.propB;i++){
+        const b=new THREE.Mesh(new THREE.BoxGeometry(S*.08,S*2.0,S*.14),dark);
+        b.rotation.z=i*(Math.PI*2/C.propB);pg2.add(b);
+      }
+      pg2.position.z=-(C.fl+C.nos)*S-S*.4;
+      this.pg.add(pg2);this.propGrp=pg2;
+    }
+
+    // LANDING GEAR
+    this.gearGrp=new THREE.Group();
+    const lgMat=new THREE.MeshPhongMaterial({color:0x222222});
+    [[S*.4,-C.fr*S-S*.05,S*.5],[S*.4,-C.fr*S-S*.05,-S*.5],[-C.fl*S*.35,-C.fr*S-S*.05,0]].forEach(lp=>{
+      const strut=new THREE.Mesh(new THREE.CylinderGeometry(S*.06,S*.06,S*.45,5),dark);strut.position.set(...lp);
+      const wheel=new THREE.Mesh(new THREE.CylinderGeometry(S*.15,S*.15,S*.09,10),lgMat);wheel.rotation.z=Math.PI/2;wheel.position.set(lp[0],lp[1]-S*.28,lp[2]);
+      this.gearGrp.add(strut);this.gearGrp.add(wheel);
+    });
+    this.pg.add(this.gearGrp);
+
+    this.pg.position.copy(this.pos);
+    this.scene.add(this.pg);
+  }
+
+  start(){
+    this.lastT=performance.now();
+    const loop=()=>{animId=requestAnimationFrame(loop);if(!paused)this._update();this._render();};loop();
+  }
+  _update(){
+    const now=performance.now();
+    const dt=Math.min((now-this.lastT)/1000,.05);this.lastT=now;
+    this._input(dt);this._physics(dt);this._camera();this._chunks2();this._hud();
+    this.score+=dt*11*this.throttle;
+    if(this.propGrp)this.propGrp.rotation.z+=dt*18*(this.throttle*.8+.2);
+  }
+  _input(dt){
+    const pd=this.pd,pr=.9*(11-pd.stability)/10,rr=1.25*pd.agility/10,yr=.5*pd.agility/10,tr=.35;
+    if(keys['KeyW']||keys['ArrowUp'])   this.pitch-=pr*dt;
+    if(keys['KeyS']||keys['ArrowDown']) this.pitch+=pr*dt;
+    if(keys['KeyA'])this.roll-=rr*dt;
+    if(keys['KeyD'])this.roll+=rr*dt;
+    if(keys['KeyQ'])this.yaw-=yr*dt;
+    if(keys['KeyE'])this.yaw+=yr*dt;
+    if(keys['ShiftLeft']||keys['ShiftRight']){this.throttle=Math.min(1,this.throttle+tr*dt);window.thrDrag&&window.thrDrag.set(this.throttle);}
+    if(keys['ControlLeft']||keys['ControlRight']){this.throttle=Math.max(0,this.throttle-tr*dt);window.thrDrag&&window.thrDrag.set(this.throttle);}
+    if(apOn){this.pitch*=.98;this.roll*=.95;}
+    const st=pd.stability/10;
+    this.roll*=1-2.5*dt*st*.32;this.pitch*=1-dt*st*.17;
+    this.pitch=Math.max(-Math.PI/2.2,Math.min(Math.PI/2.2,this.pitch));
+    this.roll =Math.max(-Math.PI*.75,Math.min(Math.PI*.75,this.roll));
+  }
+  _physics(dt){
+    const pd=this.pd, now=Date.now()/1000;
+
+    // ── Orientation ──────────────────────────────────
+    const q=new THREE.Quaternion().setFromEuler(new THREE.Euler(this.pitch,this.yaw,this.roll,'YXZ'));
+    const fwd=new THREE.Vector3(0,0,-1).applyQuaternion(q); // nose direction (-Z)
+    const up =new THREE.Vector3(0,1,0).applyQuaternion(q);  // local up
+
+    const spd=this.vel.length();
+
+    // ── THRUST ───────────────────────────────────────
+    const thrustAcc = this.throttle * pd.thrustAccel;
+
+    // ── DRAG ─────────────────────────────────────────
+    const dragAcc = pd.dragK * spd * spd;
+    const flapDragAcc = (this.flaps/40) * pd.dragK * spd * spd * 0.5;
+
+    // ── LIFT ─────────────────────────────────────────
+    // liftK is calibrated: liftK * cruiseMs² == G
+    // So wings-level at cruise: lift == gravity → zero net vertical acceleration
+    const liftAcc = pd.liftK * spd * spd + (this.flaps/40) * pd.liftK * spd * spd * 0.3;
+
+    // ── STALL ────────────────────────────────────────
+    this.stall = (spd < pd.stallSpeedMs && this.pos.y > 60);
+    const effectiveLift = this.stall ? 0 : liftAcc; // lift collapses below stall
+
+    // ── WIND / TURBULENCE ────────────────────────────
+    const windX = Math.sin(now*0.18)*this.ld.wind*10 + Math.sin(now*2.9)*this.ld.turb*5;
+    const windY = Math.sin(now*1.6)*this.ld.turb*2.5;
+    const windZ = Math.cos(now*0.22)*this.ld.wind*8;
+
+    // ── ACCUMULATE ACCELERATION ───────────────────────
+    const acc = new THREE.Vector3();
+    acc.addScaledVector(fwd, thrustAcc);                        // thrust forward
+    if(spd > 0.1) acc.addScaledVector(this.vel.clone().normalize(), -(dragAcc + flapDragAcc)); // drag opposing vel
+    acc.addScaledVector(up, effectiveLift);                     // lift in local-up
+    acc.y -= G;                                                 // gravity always down
+    acc.x += windX; acc.y += windY; acc.z += windZ;
+
+    // ── INTEGRATE ────────────────────────────────────
+    this.vel.addScaledVector(acc, dt);
+
+    // Speed cap
+    const maxMs = pd.maxSpeedKts / 1.944;
+    if(this.vel.length() > maxMs) this.vel.setLength(maxMs);
+
+    this.pos.addScaledVector(this.vel, dt);
+
+    // ── TERRAIN COLLISION ─────────────────────────────
+    const th=this.terrH(this.pos.x,this.pos.z);
+    if(this.pos.y < th+35){
+      this.pos.y = th+35;
+      this.vel.y = Math.max(0, this.vel.y);
+      this.vel.x *= 0.7; this.vel.z *= 0.7;
+    }
+    if(this.pos.y > 18000) this.pos.y = 18000;
+
+    // ── SECONDARY STATE ───────────────────────────────
+    this.fuel = Math.max(0, this.fuel - this.throttle * 0.0015 * dt * 100);
+    this.gforce = Math.min(12, acc.length() / G);
+
+    // ── MESH TRANSFORM ───────────────────────────────
+    this.pg.position.copy(this.pos);
+    this.pg.rotation.set(this.pitch, this.yaw, this.roll, 'YXZ');
+    this.gearGrp.visible = gearDown;
+    this.engGlows.forEach(g => g.scale.setScalar(0.4 + this.throttle * 2.0));
+  }
+  _camera(){
+    // Camera behind (+Z) and slightly above, looking toward plane center
+    const q=new THREE.Quaternion().setFromEuler(new THREE.Euler(this.pitch*.22,this.yaw,this.roll*.32,'YXZ'));
+    const offset=new THREE.Vector3(0,65,310).applyQuaternion(q);
+    this.cam.position.lerp(this.pos.clone().add(offset),.09);
+    this.cam.lookAt(this.pos);
+  }
+  _chunks2(){
+    const cx=Math.round(this.pos.x/this.chunkSz),cz=Math.round(this.pos.z/this.chunkSz);
+    for(let i=cx-3;i<=cx+3;i++)for(let j=cz-3;j<=cz+3;j++)this._chunk(i,j);
+    this.cloudGrp.position.set(this.pos.x,0,this.pos.z);
+  }
+  _hud(){
+    const spd=this.vel.length()*1.944,alt=this.pos.y*3.281,vs=this.vel.y*196.85;
+    const hdg=(((-this.yaw*180/Math.PI)%360+360)%360);
+    const el=Math.floor((Date.now()-this.startTime)/1000);
+    document.getElementById('speed-val').textContent=spd.toFixed(0);
+    document.getElementById('alt-val').textContent=alt.toFixed(0);
+    document.getElementById('hud-vs').textContent=(vs>=0?'+':'')+vs.toFixed(0);
+    document.getElementById('hud-plane').textContent=this.pd.name;
+    document.getElementById('hud-level').textContent='LVL '+this.ld.id+' — '+this.ld.name;
+    document.getElementById('hud-score').textContent=Math.floor(this.score).toLocaleString();
+    document.getElementById('hud-time').textContent=String(Math.floor(el/60)).padStart(2,'0')+':'+String(el%60).padStart(2,'0');
+    document.getElementById('hud-gforce').textContent=this.gforce.toFixed(1);
+    document.getElementById('hud-fuel').textContent=this.fuel.toFixed(0);
+    document.getElementById('compass-inner').textContent='HDG '+hdg.toFixed(0).padStart(3,'0')+'°';
+
+    // Warnings
+    const th=this.terrH(this.pos.x,this.pos.z);
+    document.getElementById('warn-stall').classList.toggle('active',this.stall);
+    document.getElementById('warn-terrain').classList.toggle('active',this.pos.y<th+180);
+    document.getElementById('warn-fuel').classList.toggle('active',this.fuel<12);
+    const maxMs=this.pd.maxSpeedKts/1.944;
+    document.getElementById('warn-overspeed').classList.toggle('active',spd/1.944>maxMs*.9);
+
+    // AHI
+    const pitchPx=this.pitch*180/Math.PI*1.85,bankDeg=this.roll*180/Math.PI;
+    document.getElementById('ahi-world').setAttribute('transform',`rotate(${bankDeg},80,80) translate(0,${pitchPx})`);
+    document.getElementById('ahi-bankptr').setAttribute('transform',`rotate(${bankDeg},80,80)`);
+
+    // Turn coordinator
+    document.getElementById('tc-plane').setAttribute('transform',`rotate(${bankDeg*.65},42,42)`);
+    const ballX=42+this.yaw*28;
+    document.getElementById('tc-ball').setAttribute('cx',Math.max(22,Math.min(62,ballX)));
+
+    // Compass rose (rotates opposite to heading)
+    document.getElementById('compass-rose').setAttribute('transform',`rotate(${hdg},42,42)`);
+
+    // Speed needle: -150° to +150° over 0..maxSpeedKts
+    const sA=-150+Math.min(spd/this.pd.maxSpeedKts,1)*300;
+    document.getElementById('spd-needle').setAttribute('transform',`rotate(${sA},42,42)`);
+    document.getElementById('spd-txt').textContent=spd.toFixed(0);
+
+    // Altimeter
+    const hA=(alt%1000)/1000*360,tA=(alt/10000)*360;
+    document.getElementById('alt-hun').setAttribute('transform',`rotate(${hA},42,42)`);
+    document.getElementById('alt-thou').setAttribute('transform',`rotate(${tA},42,42)`);
+    document.getElementById('alt-txt').textContent=(alt/1000).toFixed(1)+'k';
+
+    // VSI
+    const vsiA=Math.max(-1,Math.min(1,vs/2000))*150;
+    document.getElementById('vsi-needle').setAttribute('transform',`rotate(${vsiA},42,42)`);
+    document.getElementById('vsi-txt').textContent=(vs>=0?'+':'')+vs.toFixed(0);
+
+    // Stick dot
+    const dot=document.getElementById('stick-dot');
+    dot.style.left=Math.max(6,Math.min(94,50+this.roll/Math.PI*75*50))+'%';
+    dot.style.top= Math.max(6,Math.min(94,50-this.pitch/(Math.PI/2.2)*75*50))+'%';
+
+    // Rudder bar
+    const rf=this.yaw/(Math.PI*.22),fill=document.getElementById('rud-fill');
+    if(rf>=0){fill.style.left='50%';fill.style.width=Math.min(50,rf*50)+'%';}
+    else{fill.style.left=Math.max(0,(50+rf*50))+'%';fill.style.width=Math.min(50,-rf*50)+'%';}
+  }
+  _render(){this.ren.render(this.scene,this.cam);}
+  dispose(){
+    window.removeEventListener('resize',this._onResize);
+    if(this.ren)this.ren.dispose();
+    this.chunks.forEach(m=>{m.geometry.dispose();m.material.dispose();});
+    this.chunks.clear();
+  }
+}
+
+// Page load
+window.addEventListener('load',()=>{
+  const L=document.getElementById('loading'),bar=document.getElementById('load-bar');
+  let p=0;const iv=setInterval(()=>{p+=Math.random()*20+10;if(p>=100){p=100;clearInterval(iv);bar.style.width='100%';setTimeout(()=>{L.style.opacity='0';setTimeout(()=>L.classList.add('hidden'),500);},400);}else bar.style.width=p+'%';},90);
+});
+</script>
+</body>
+</html>
