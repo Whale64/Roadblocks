@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pixel Physics Sandbox</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono&display=swap');
+        
+        body { 
+            margin: 0; 
+            overflow: hidden; 
+            background-color: #0a0a0c; 
+            color: #e4e4e7; 
+            user-select: none;
+            font-family: 'Inter', sans-serif;
+        }
+
+        canvas { 
+            image-rendering: pixelated;
+            box-shadow: 0 0 40px rgba(0,0,0,0.9);
+            cursor: crosshair;
+        }
+
+        .element-btn {
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+        }
+
+        .element-btn:hover {
+            background-color: #27272a;
+            transform: translateY(-1px);
+        }
+
+        .element-btn.selected {
+            background-color: #3f3f46;
+            box-shadow: inset 0 0 0 2px #60a5fa;
+        }
+
+        .glass-panel {
+            background: rgba(24, 24, 27, 0.8);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(63, 63, 70, 0.5);
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 5px; }
+        ::-webkit-scrollbar-track { background: #09090b; }
+        ::-webkit-scrollbar-thumb { background: #27272a; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: #3f3f46; }
+
+        .inspector-badge {
+            font-family: 'JetBrains Mono', monospace;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+    </style>
+</head>
+<body class="flex h-screen">
+
+    <!-- Sidebar UI -->
+    <div class="w-80 bg-[#0f0f12] border-r border-zinc-800 flex flex-col z-10 shadow-2xl">
+        <!-- Header -->
+        <div class="p-5 border-b border-zinc-800 bg-zinc-900/50">
+            <div class="flex items-center gap-2">
+                <div class="w-3 h-3 rounded-full bg-blue-500 animate-pulse"></div>
+                <h1 class="text-lg font-bold tracking-tight text-white">PIXEL<span class="text-blue-500">LAB</span></h1>
+            </div>
+            <p class="text-[10px] text-zinc-500 mt-1 uppercase tracking-widest font-semibold">50 Elements • 60 FPS Physics</p>
+        </div>
+        
+        <!-- Global Controls -->
+        <div class="p-5 border-b border-zinc-800 space-y-5">
+            <div>
+                <div class="flex justify-between items-center mb-2">
+                    <label class="text-xs font-medium text-zinc-400 uppercase tracking-wider">Brush Radius</label>
+                    <span id="brushSizeDisplay" class="text-xs font-bold text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded">3px</span>
+                </div>
+                <input type="range" id="brushSize" min="1" max="20" value="3" class="w-full h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-blue-500">
+            </div>
+            
+            <div class="flex gap-2">
+                <button id="clearBtn" class="flex-1 bg-zinc-800 hover:bg-red-900/40 hover:text-red-400 border border-zinc-700 text-zinc-300 py-2 rounded-md text-xs font-bold transition-colors">CLEAR</button>
+                <button id="pauseBtn" class="flex-1 bg-blue-600 hover:bg-blue-500 text-white py-2 rounded-md text-xs font-bold transition-all shadow-lg shadow-blue-900/20">PAUSE</button>
+            </div>
+        </div>
+
+        <!-- Elements Grid -->
+        <div class="flex-1 overflow-y-auto p-4 space-y-6" id="elementMenu">
+            <!-- Element Buttons injected via JS -->
+        </div>
+
+        <!-- Status Footer -->
+        <div class="p-4 bg-zinc-900 border-t border-zinc-800">
+            <div class="flex items-center justify-between text-[11px]">
+                <span class="text-zinc-500">Selected</span>
+                <span id="currentElementName" class="font-bold text-white uppercase tracking-wider">Sand</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Viewport -->
+    <div class="flex-1 flex flex-col items-center justify-center bg-[#050507] relative overflow-hidden">
+        
+        <!-- Inspector Overlay (Magnifying Glass View) -->
+        <div id="inspectorUI" class="absolute top-6 right-6 glass-panel rounded-lg p-3 w-48 pointer-events-none opacity-0 transition-opacity duration-200 z-20">
+            <div class="flex items-center gap-2 mb-2">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-blue-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                <span class="text-[10px] font-bold text-zinc-400 uppercase">Inspector</span>
+            </div>
+            <div id="inspectorContent" class="space-y-1">
+                <div class="text-sm font-bold text-white" id="insName">-</div>
+                <div class="flex justify-between text-[10px] inspector-badge">
+                    <span class="text-zinc-500">Type</span>
+                    <span id="insType" class="text-blue-400">-</span>
+                </div>
+                <div class="flex justify-between text-[10px] inspector-badge">
+                    <span class="text-zinc-500">Density</span>
+                    <span id="insDensity" class="text-emerald-400">-</span>
+                </div>
+            </div>
+        </div>
+
+        <div id="canvasContainer" class="relative group">
+            <canvas id="gameCanvas" class="ring-1 ring-white/10"></canvas>
+            
+            <!-- Contextual Brush Preview -->
+            <div id="brushPreview" class="absolute border border-white/30 rounded-full pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-75"></div>
+        </div>
+
+        <div class="mt-4 text-[10px] text-zinc-600 font-medium tracking-widest uppercase">
+            Left Click: Paint • Right Click: Erase • Middle Click: Inspect
+        </div>
+    </div>
+
+<script>
+/**
+ * Pixel Sandbox Engine
+ */
+
+const W = 200; 
+const H = 150; 
+const SCALE = 4; 
+
+const TYPES = { EMPTY: 0, SOLID: 1, POWDER: 2, LIQUID: 3, GAS: 4, ENERGY: 5 };
+const typeNames = ["Gas", "Solid", "Powder", "Liquid", "Gas", "Energy"];
+
+const typeGrid = new Uint8Array(W * H);
+const colorGrid = new Uint32Array(W * H);
+const updatedGrid = new Uint32Array(W * H);
+
+let currentFrame = 1;
+let isPaused = false;
+let currentElement = 2; 
+let brushSize = 3;
+
+// --- ELEMENTS ---
+const rawElements = [
+    { id: 0, name: 'Eraser', cat: 'Tools', type: TYPES.EMPTY, color: [0,0,0], v: 0 },
+    { id: 51, name: 'Inspector', cat: 'Tools', type: TYPES.EMPTY, color: [100, 200, 255], v: 0 }, // Special ID for Inspector tool
+    
+    { id: 1, name: 'Wall', cat: 'Solids', type: TYPES.SOLID, color: [82, 82, 91], v: 5 },
+    { id: 5, name: 'Stone', cat: 'Solids', type: TYPES.SOLID, color: [113, 113, 122], v: 10 },
+    { id: 6, name: 'Wood', cat: 'Solids', type: TYPES.SOLID, color: [120, 53, 15], v: 15 },
+    { id: 12, name: 'Glass', cat: 'Solids', type: TYPES.SOLID, color: [186, 230, 253], v: 5 },
+    { id: 16, name: 'Ice', cat: 'Solids', type: TYPES.SOLID, color: [224, 242, 254], v: 5 },
+    { id: 18, name: 'Coal', cat: 'Solids', type: TYPES.SOLID, color: [24, 24, 27], v: 8 },
+    { id: 19, name: 'Iron', cat: 'Solids', type: TYPES.SOLID, color: [161, 161, 170], v: 5 },
+    { id: 28, name: 'Sponge', cat: 'Solids', type: TYPES.SOLID, color: [234, 179, 8], v: 10, update: updateSponge },
+    { id: 33, name: 'Concrete', cat: 'Solids', type: TYPES.SOLID, color: [168, 162, 158], v: 5 },
+    { id: 36, name: 'Brick', cat: 'Solids', type: TYPES.SOLID, color: [153, 27, 27], v: 10 },
+    { id: 46, name: 'Meat', cat: 'Solids', type: TYPES.SOLID, color: [239, 68, 68], v: 15 },
+    { id: 47, name: 'Bone', cat: 'Solids', type: TYPES.SOLID, color: [245, 245, 244], v: 5 },
+    { id: 50, name: 'Uranium', cat: 'Solids', type: TYPES.SOLID, color: [34, 197, 94], v: 5, update: updateUranium },
+    { id: 49, name: 'Lead', cat: 'Solids', type: TYPES.SOLID, color: [63, 63, 70], v: 5 },
+
+    { id: 2, name: 'Sand', cat: 'Powders', type: TYPES.POWDER, color: [251, 191, 36], v: 15, density: 10 },
+    { id: 14, name: 'Dirt', cat: 'Powders', type: TYPES.POWDER, color: [120, 53, 15], v: 10, density: 10 },
+    { id: 15, name: 'Snow', cat: 'Powders', type: TYPES.POWDER, color: [255, 255, 255], v: 5, density: 4 },
+    { id: 20, name: 'Rust', cat: 'Powders', type: TYPES.POWDER, color: [154, 52, 18], v: 10, density: 11 },
+    { id: 23, name: 'Gunpowder', cat: 'Powders', type: TYPES.POWDER, color: [39, 39, 42], v: 5, density: 9 },
+    { id: 24, name: 'C4', cat: 'Powders', type: TYPES.POWDER, color: [212, 212, 216], v: 5, density: 12 },
+    { id: 25, name: 'TNT', cat: 'Solids', type: TYPES.SOLID, color: [220, 38, 38], v: 10 }, 
+    { id: 26, name: 'Salt', cat: 'Powders', type: TYPES.POWDER, color: [250, 250, 250], v: 10, density: 8 },
+    { id: 35, name: 'Mud', cat: 'Powders', type: TYPES.POWDER, color: [69, 26, 3], v: 10, density: 12 },
+    { id: 37, name: 'Ash', cat: 'Powders', type: TYPES.POWDER, color: [82, 82, 91], v: 10, density: 3 },
+    { id: 38, name: 'Magnesium', cat: 'Powders', type: TYPES.POWDER, color: [228, 228, 231], v: 5, density: 9 },
+    { id: 43, name: 'Slime', cat: 'Powders', type: TYPES.POWDER, color: [132, 204, 22], v: 10, density: 8, update: updateSlime },
+    
+    { id: 3, name: 'Water', cat: 'Liquids', type: TYPES.LIQUID, color: [59, 130, 246], v: 10, density: 5 },
+    { id: 9, name: 'Lava', cat: 'Liquids', type: TYPES.LIQUID, color: [234, 88, 12], v: 15, density: 15, update: updateLava },
+    { id: 11, name: 'Acid', cat: 'Liquids', type: TYPES.LIQUID, color: [163, 230, 53], v: 10, density: 6, update: updateAcid },
+    { id: 17, name: 'Oil', cat: 'Liquids', type: TYPES.LIQUID, color: [44, 44, 44], v: 5, density: 4 },
+    { id: 27, name: 'Saltwater', cat: 'Liquids', type: TYPES.LIQUID, color: [37, 99, 235], v: 10, density: 6 },
+    { id: 34, name: 'Wet Concrete', cat: 'Liquids', type: TYPES.LIQUID, color: [120, 113, 108], v: 5, density: 13, update: updateWetConcrete },
+    { id: 41, name: 'Mercury', cat: 'Liquids', type: TYPES.LIQUID, color: [161, 161, 170], v: 5, density: 20 },
+    { id: 42, name: 'Wax (Melted)', cat: 'Liquids', type: TYPES.LIQUID, color: [253, 224, 71], v: 10, density: 4 },
+    { id: 44, name: 'Honey', cat: 'Liquids', type: TYPES.LIQUID, color: [234, 179, 8], v: 5, density: 7, update: updateHoney },
+    { id: 45, name: 'Blood', cat: 'Liquids', type: TYPES.LIQUID, color: [153, 27, 27], v: 10, density: 5 },
+    { id: 48, name: 'Poison', cat: 'Liquids', type: TYPES.LIQUID, color: [147, 51, 234], v: 10, density: 5 },
+
+    { id: 8, name: 'Smoke', cat: 'Gases', type: TYPES.GAS, color: [113, 113, 122], v: 20, density: 2, update: updateLife },
+    { id: 10, name: 'Steam', cat: 'Gases', type: TYPES.GAS, color: [212, 212, 216], v: 15, density: 1, update: updateLife },
+    { id: 21, name: 'Methane', cat: 'Gases', type: TYPES.GAS, color: [187, 247, 208], v: 10, density: 2 },
+    { id: 39, name: 'Neon', cat: 'Gases', type: TYPES.GAS, color: [236, 72, 153], v: 5, density: 3 },
+    
+    { id: 7, name: 'Fire', cat: 'Energy/Special', type: TYPES.ENERGY, color: [239, 68, 68], v: 30, update: updateFire },
+    { id: 13, name: 'Plant', cat: 'Energy/Special', type: TYPES.SOLID, color: [22, 163, 74], v: 15, update: updatePlant },
+    { id: 22, name: 'Spark', cat: 'Energy/Special', type: TYPES.ENERGY, color: [253, 224, 71], v: 20, update: updateSpark },
+    { id: 29, name: 'Virus', cat: 'Energy/Special', type: TYPES.ENERGY, color: [217, 70, 239], v: 10, update: updateVirus },
+    { id: 30, name: 'Antivirus', cat: 'Energy/Special', type: TYPES.ENERGY, color: [34, 211, 238], v: 10, update: updateAntivirus },
+    { id: 31, name: 'Clone', cat: 'Energy/Special', type: TYPES.SOLID, color: [250, 204, 21], v: 0, update: updateClone },
+    { id: 32, name: 'Void', cat: 'Energy/Special', type: TYPES.SOLID, color: [12, 10, 15], v: 0, update: updateVoid },
+    { id: 40, name: 'Plasma', cat: 'Energy/Special', type: TYPES.ENERGY, color: [139, 92, 246], v: 40, update: updatePlasma },
+];
+
+const elements = new Array(55).fill(null);
+rawElements.forEach(el => elements[el.id] = el);
+
+// Physics Helpers
+const flammables = { 6: { result: 7, chance: 0.05 }, 18: { result: 7, chance: 0.01 }, 17: { result: 7, chance: 0.2 }, 21: { result: 7, chance: 0.5 }, 42: { result: 7, chance: 0.05 }, 46: { result: 7, chance: 0.02 }, 13: { result: 7, chance: 0.1 }, 23: { result: 'explode', radius: 4 }, 24: { result: 'explode', radius: 8 }, 25: { result: 'explode', radius: 12 }, 38: { result: 40, chance: 0.1 } };
+const meltables = { 15: { result: 3, by: [7, 9, 40] }, 16: { result: 3, by: [7, 9, 40] }, 2: { result: 12, by: [7, 9, 40] }, 12: { result: 9, by: [40] } };
+
+// --- ENGINE CORE ---
+
+function generateColor(el) {
+    if(!el || el.id === 0) return 0xFF000000;
+    let r = Math.min(255, Math.max(0, el.color[0] + (Math.random() * el.v * 2 - el.v)));
+    let g = Math.min(255, Math.max(0, el.color[1] + (Math.random() * el.v * 2 - el.v)));
+    let b = Math.min(255, Math.max(0, el.color[2] + (Math.random() * el.v * 2 - el.v)));
+    return (255 << 24) | (b << 16) | (g << 8) | r;
+}
+
+function getIndex(x, y) { return y * W + x; }
+function inBounds(x, y) { return x >= 0 && x < W && y >= 0 && y < H; }
+
+function setCell(x, y, id) {
+    if (!inBounds(x, y)) return;
+    let i = getIndex(x, y);
+    typeGrid[i] = id;
+    colorGrid[i] = generateColor(elements[id]);
+    updatedGrid[i] = currentFrame;
+}
+
+function swapCells(x1, y1, x2, y2) {
+    let i1 = getIndex(x1, y1); let i2 = getIndex(x2, y2);
+    let t = typeGrid[i1]; typeGrid[i1] = typeGrid[i2]; typeGrid[i2] = t;
+    let c = colorGrid[i1]; colorGrid[i1] = colorGrid[i2]; colorGrid[i2] = c;
+    updatedGrid[i1] = currentFrame; updatedGrid[i2] = currentFrame;
+}
+
+function tryMove(x, y, dx, dy, myDensity) {
+    let nx = x + dx, ny = y + dy;
+    if (!inBounds(nx, ny)) return false;
+    let ni = getIndex(nx, ny);
+    let targetId = typeGrid[ni];
+    if (targetId === 0) { swapCells(x, y, nx, ny); return true; }
+    let targetEl = elements[targetId];
+    if (targetEl.type !== TYPES.SOLID && targetEl.density !== undefined && myDensity > targetEl.density) {
+        swapCells(x, y, nx, ny); return true;
+    }
+    return false;
+}
+
+function explode(cx, cy, radius) {
+    for (let y = cy - radius; y <= cy + radius; y++) {
+        for (let x = cx - radius; x <= cx + radius; x++) {
+            if (inBounds(x, y)) {
+                let dx = x - cx; let dy = y - cy;
+                if (dx * dx + dy * dy <= radius * radius) {
+                    let id = typeGrid[getIndex(x, y)];
+                    if (id !== 1 && id !== 32) {
+                        if (Math.random() < 0.4) setCell(x, y, 7);
+                        else if (Math.random() < 0.2) setCell(x, y, 8);
+                        else setCell(x, y, 0);
+                    }
+                }
+            }
+        }
+    }
+}
+
+function getNeighbors(x, y) {
+    const n = [];
+    if(y > 0) n.push({x: x, y: y-1, i: getIndex(x, y-1), id: typeGrid[getIndex(x, y-1)]});
+    if(y < H-1) n.push({x: x, y: y+1, i: getIndex(x, y+1), id: typeGrid[getIndex(x, y+1)]});
+    if(x > 0) n.push({x: x-1, y: y, i: getIndex(x-1, y), id: typeGrid[getIndex(x-1, y)]});
+    if(x < W-1) n.push({x: x+1, y: y, i: getIndex(x+1, y), id: typeGrid[getIndex(x+1, y)]});
+    return n;
+}
+
+// Custom behaviors (simplified from original for brevity, maintaining logic)
+function updateFire(x, y) {
+    if (Math.random() < 0.08) { setCell(x, y, Math.random() < 0.3 ? 8 : 0); return true; }
+    if (Math.random() < 0.3) tryMove(x, y, Math.floor(Math.random() * 3) - 1, -1, 0);
+    getNeighbors(x, y).forEach(adj => {
+        if (flammables[adj.id]) {
+            let f = flammables[adj.id];
+            if (f.result === 'explode') explode(adj.x, adj.y, f.radius);
+            else if (Math.random() < f.chance) setCell(adj.x, adj.y, f.result);
+        }
+        if (meltables[adj.id] && meltables[adj.id].by.includes(7)) setCell(adj.x, adj.y, meltables[adj.id].result);
+        if (adj.id === 3) { setCell(x, y, 10); setCell(adj.x, adj.y, 10); }
+    });
+    return false;
+}
+
+function updatePlasma(x, y) {
+    if (Math.random() < 0.05) setCell(x, y, 0);
+    tryMove(x, y, Math.floor(Math.random() * 5) - 2, Math.floor(Math.random() * 5) - 2, 0);
+    getNeighbors(x, y).forEach(adj => { if(adj.id !== 1 && adj.id !== 32 && adj.id !== 40 && adj.id !== 0 && Math.random() < 0.2) setCell(adj.x, adj.y, 7); });
+    return false;
+}
+
+function updateSpark(x, y) {
+    if (Math.random() < 0.1) setCell(x, y, 0);
+    tryMove(x, y, Math.floor(Math.random() * 3) - 1, 1, 0);
+    getNeighbors(x, y).forEach(adj => { if (flammables[adj.id]?.result === 'explode') explode(adj.x, adj.y, flammables[adj.id].radius); });
+    return false;
+}
+
+function updateLife(x, y) { if (Math.random() < 0.02) { setCell(x, y, 0); return true; } return false; }
+
+function updateAcid(x, y) {
+    getNeighbors(x, y).forEach(adj => {
+        if (![0, 1, 12, 32, 11].includes(adj.id) && Math.random() < 0.1) {
+            setCell(adj.x, adj.y, 0);
+            if (Math.random() < 0.5) setCell(x, y, Math.random()<0.5 ? 8 : 21);
+        }
+    });
+    return false;
+}
+
+function updateLava(x, y) {
+    getNeighbors(x, y).forEach(adj => {
+        if ([3, 27].includes(adj.id)) { setCell(x, y, 5); setCell(adj.x, adj.y, 10); }
+        else if (flammables[adj.id]) {
+            if(flammables[adj.id].result === 'explode') explode(adj.x, adj.y, flammables[adj.id].radius);
+            else setCell(adj.x, adj.y, 7);
+        }
+        if (meltables[adj.id]?.by.includes(9)) setCell(adj.x, adj.y, meltables[adj.id].result);
+    });
+    return false;
+}
+
+function updatePlant(x, y) { getNeighbors(x, y).forEach(adj => { if (adj.id === 3) setCell(adj.x, adj.y, 13); }); return false; }
+function updateSponge(x, y) { getNeighbors(x, y).forEach(adj => { if ([3, 27].includes(adj.id)) setCell(adj.x, adj.y, 0); }); return false; }
+function updateClone(x, y) { 
+    let tid = getNeighbors(x, y).find(a => a.id !== 0 && a.id !== 31)?.id;
+    if (tid) getNeighbors(x, y).forEach(adj => { if (adj.id === 0) setCell(adj.x, adj.y, tid); });
+    return false;
+}
+function updateVoid(x, y) { getNeighbors(x, y).forEach(adj => { if (![0, 32, 1].includes(adj.id)) setCell(adj.x, adj.y, 0); }); return false; }
+function updateVirus(x, y) { getNeighbors(x, y).forEach(adj => { if (![0, 1, 29, 30, 32].includes(adj.id) && Math.random() < 0.2) setCell(adj.x, adj.y, 29); }); return false; }
+function updateAntivirus(x, y) { getNeighbors(x, y).forEach(adj => { if (adj.id === 29) setCell(adj.x, adj.y, 0); }); return false; }
+function updateWetConcrete(x, y) { if (Math.random() < 0.005) { setCell(x, y, 33); return true; } return false; }
+function updateSlime(x, y) { return Math.random() < 0.5; }
+function updateHoney(x, y) { return Math.random() < 0.7; }
+function updateUranium(x, y) {
+    if (Math.random() < 0.01) {
+        let dx = Math.floor(Math.random() * 3) - 1, dy = Math.floor(Math.random() * 3) - 1;
+        if(inBounds(x+dx, y+dy) && typeGrid[getIndex(x+dx, y+dy)] === 0) setCell(x+dx, y+dy, 39);
+    }
+    getNeighbors(x, y).forEach(adj => { if ([15, 16].includes(adj.id)) setCell(adj.x, adj.y, 3); });
+    return false;
+}
+
+// --- PHYSICS LOOP ---
+
+function updatePhysics() {
+    currentFrame++;
+    for (let y = H - 1; y >= 0; y--) {
+        let dir = (currentFrame % 2 === 0) ? 1 : -1;
+        let startX = (dir === 1) ? 0 : W - 1;
+        let endX = (dir === 1) ? W : -1;
+        for (let x = startX; x !== endX; x += dir) {
+            let i = y * W + x;
+            if (updatedGrid[i] === currentFrame) continue;
+            let id = typeGrid[i];
+            if (id === 0) continue;
+            let el = elements[id];
+            if (el.update && el.update(x, y, i, el)) continue;
+            if (el.type === TYPES.POWDER) tryMove(x, y, 0, 1, el.density) || tryMove(x, y, dir, 1, el.density) || tryMove(x, y, -dir, 1, el.density);
+            else if (el.type === TYPES.LIQUID) tryMove(x, y, 0, 1, el.density) || tryMove(x, y, dir, 1, el.density) || tryMove(x, y, -dir, 1, el.density) || tryMove(x, y, dir, 0, el.density) || tryMove(x, y, -dir, 0, el.density);
+            else if (el.type === TYPES.GAS) tryMove(x, y, 0, -1, el.density) || tryMove(x, y, dir, -1, el.density) || tryMove(x, y, -dir, -1, el.density) || tryMove(x, y, dir, 0, el.density) || tryMove(x, y, -dir, 0, el.density);
+        }
+    }
+}
+
+// --- RENDERING ---
+
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+canvas.width = W; canvas.height = H;
+canvas.style.width = (W * SCALE) + 'px'; canvas.style.height = (H * SCALE) + 'px';
+const imageData = ctx.createImageData(W, H);
+const buf = new Uint32Array(imageData.data.buffer);
+
+function render() {
+    for (let i = 0; i < W * H; i++) buf[i] = colorGrid[i];
+    ctx.putImageData(imageData, 0, 0);
+}
+
+function gameLoop() {
+    if (!isPaused) updatePhysics();
+    render();
+    requestAnimationFrame(gameLoop);
+}
+
+// --- INPUT & TOOLS ---
+
+let isDrawing = false;
+let lastX = 0, lastY = 0;
+const brushPreview = document.getElementById('brushPreview');
+const inspectorUI = document.getElementById('inspectorUI');
+
+function updateBrushPreview(pos) {
+    const size = (brushSize * 2 + 1) * SCALE;
+    brushPreview.style.width = size + 'px';
+    brushPreview.style.height = size + 'px';
+    brushPreview.style.left = (pos.x * SCALE - (size/2) + (SCALE/2)) + 'px';
+    brushPreview.style.top = (pos.y * SCALE - (size/2) + (SCALE/2)) + 'px';
+}
+
+function inspectPixel(x, y) {
+    if (!inBounds(x, y)) {
+        inspectorUI.style.opacity = '0';
+        return;
+    }
+    const id = typeGrid[getIndex(x, y)];
+    
+    // Display "Air" for Empty Space (ID 0)
+    const el = id === 0 
+        ? { name: 'Air', type: 0, density: 0 } 
+        : (elements[id] || { name: 'Unknown', type: 0, density: 0 });
+    
+    document.getElementById('insName').innerText = el.name;
+    document.getElementById('insType').innerText = typeNames[el.type];
+    document.getElementById('insDensity').innerText = el.density || (el.type === 1 ? 'INF' : '0');
+    inspectorUI.style.opacity = '1';
+}
+
+function handleInput(e) {
+    const rect = canvas.getBoundingClientRect();
+    const x = Math.floor((e.clientX - rect.left) / SCALE);
+    const y = Math.floor((e.clientY - rect.top) / SCALE);
+    const pos = { x, y };
+
+    updateBrushPreview(pos);
+
+    // Inspector Logic (Always shows on middle click, or if Inspector tool is selected)
+    if (e.buttons === 4 || currentElement === 51) {
+        inspectPixel(x, y);
+    } else if (currentElement !== 51) {
+        inspectorUI.style.opacity = '0';
+    }
+
+    let drawId = currentElement;
+    if (e.buttons === 2) drawId = 0; 
+
+    // Don't draw if using inspector tool
+    const shouldPaint = (e.buttons === 1 || (e.buttons === 2)) && drawId !== 51;
+
+    if (e.type === 'mousedown' && shouldPaint) {
+        isDrawing = true;
+        drawCircle(x, y, brushSize, drawId);
+    } else if (e.type === 'mousemove' && isDrawing && shouldPaint) {
+        drawLine(lastX, lastY, x, y, brushSize, drawId);
+    } else if (e.type === 'mouseup' || e.type === 'mouseleave') {
+        isDrawing = false;
+    }
+    
+    lastX = x; lastY = y;
+}
+
+function drawCircle(cx, cy, radius, id) {
+    for (let y = cy - radius; y <= cy + radius; y++) {
+        for (let x = cx - radius; x <= cx + radius; x++) {
+            if (inBounds(x, y)) {
+                let dx = x - cx; let dy = y - cy;
+                if (dx * dx + dy * dy <= radius * radius) {
+                    let targetId = typeGrid[getIndex(x, y)];
+                    if (id === 0 || id === 1 || id === 32 || targetId === 0 || elements[targetId].type === TYPES.LIQUID || elements[targetId].type === TYPES.GAS) {
+                        setCell(x, y, id);
+                    }
+                }
+            }
+        }
+    }
+}
+
+function drawLine(x0, y0, x1, y1, radius, id) {
+    let dx = Math.abs(x1 - x0), sx = x0 < x1 ? 1 : -1;
+    let dy = -Math.abs(y1 - y0), sy = y0 < y1 ? 1 : -1;
+    let err = dx + dy;
+    while (true) {
+        drawCircle(x0, y0, radius, id);
+        if (x0 === x1 && y0 === y1) break;
+        let e2 = 2 * err;
+        if (e2 >= dy) { err += dy; x0 += sx; }
+        if (e2 <= dx) { err += dx; y0 += sy; }
+    }
+}
+
+canvas.addEventListener('mousedown', handleInput);
+canvas.addEventListener('mousemove', handleInput);
+window.addEventListener('mouseup', handleInput);
+canvas.addEventListener('mouseleave', () => { 
+    isDrawing = false; 
+    inspectorUI.style.opacity = '0';
+    brushPreview.style.opacity = '0';
+});
+canvas.addEventListener('contextmenu', e => e.preventDefault());
+
+// --- UI SETUP ---
+
+function initUI() {
+    const menu = document.getElementById('elementMenu');
+    const categories = {};
+    rawElements.forEach(el => {
+        if (!categories[el.cat]) categories[el.cat] = [];
+        categories[el.cat].push(el);
+    });
+
+    for (let cat in categories) {
+        let catDiv = document.createElement('div');
+        catDiv.innerHTML = `<h2 class="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-2">${cat}</h2>`;
+        let grid = document.createElement('div');
+        grid.className = 'grid grid-cols-4 gap-2';
+        
+        categories[cat].forEach(el => {
+            let btn = document.createElement('button');
+            btn.className = 'element-btn flex flex-col items-center justify-center p-1.5 rounded-md bg-zinc-900 border border-zinc-800';
+            btn.id = 'btn-' + el.id;
+            
+            let swatch = document.createElement('div');
+            swatch.className = 'w-full aspect-square rounded-sm mb-1 shadow-sm';
+            if (el.id === 0) swatch.className += ' bg-zinc-700';
+            else if (el.id === 51) swatch.innerHTML = `<svg class="w-full h-full p-0.5 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>`;
+            else swatch.style.backgroundColor = `rgb(${el.color[0]}, ${el.color[1]}, ${el.color[2]})`;
+            
+            let label = document.createElement('span');
+            label.className = 'text-[9px] text-zinc-400 font-medium truncate w-full text-center';
+            label.innerText = el.name;
+            
+            btn.appendChild(swatch);
+            btn.appendChild(label);
+            btn.onclick = () => {
+                currentElement = el.id;
+                document.getElementById('currentElementName').innerText = el.name;
+                document.querySelectorAll('.element-btn').forEach(b => b.classList.remove('selected'));
+                btn.classList.add('selected');
+            };
+            grid.appendChild(btn);
+        });
+        catDiv.appendChild(grid);
+        menu.appendChild(catDiv);
+    }
+
+    document.getElementById('btn-' + currentElement).classList.add('selected');
+    document.getElementById('brushSize').addEventListener('input', (e) => {
+        brushSize = parseInt(e.target.value);
+        document.getElementById('brushSizeDisplay').innerText = brushSize + 'px';
+    });
+    document.getElementById('clearBtn').addEventListener('click', () => {
+        typeGrid.fill(0); colorGrid.fill(0xFF000000); updatedGrid.fill(0);
+    });
+    document.getElementById('pauseBtn').addEventListener('click', (e) => {
+        isPaused = !isPaused;
+        e.target.innerText = isPaused ? "RESUME" : "PAUSE";
+        e.target.classList.toggle('bg-blue-600');
+        e.target.classList.toggle('bg-amber-600');
+    });
+}
+
+initUI();
+colorGrid.fill(0xFF000000); 
+requestAnimationFrame(gameLoop);
+
+</script>
+</body>
+</html>
