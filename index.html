@@ -181,16 +181,14 @@
         const viewTitle = document.getElementById('view-title');
 
         // State
-        let allFilteredFolders = []; // Master list of compatible/featured folders
-        let currentDisplayFolders = []; // List filtered by search
+        let allFilteredFolders = []; 
+        let currentDisplayFolders = []; 
         let currentIndex = 0;
         const ITEMS_PER_PAGE = 20;
         let isLoading = false;
         
-        // Cache bust string (generates once per page load)
         const cacheBust = Date.now();
 
-        // Determine current platform
         function getDeviceType() {
             const ua = navigator.userAgent;
             if (/(tablet|ipad|playbook|silk)|(android(?!.*mobi))/i.test(ua)) return "mobile";
@@ -219,7 +217,6 @@
             } catch (e) { return false; }
         }
 
-        // Fisher-Yates Shuffle
         function shuffleArray(array) {
             for (let i = array.length - 1; i > 0; i--) {
                 const j = Math.floor(Math.random() * (i + 1));
@@ -228,7 +225,6 @@
             return array;
         }
 
-        // Show loading skeletons
         function showSkeletons() {
             const skeletons = Array(5).fill(0).map(() => `
                 <div class="animate-pulse skeleton-item">
@@ -260,7 +256,6 @@
                     !item.name.startsWith('?')
                 );
                 
-                const experienceData = [];
                 const metadataPromises = folders.map(async (folder) => {
                     const isSupported = await checkDeviceSupport(folder.name);
                     if (isSupported) {
@@ -273,7 +268,6 @@
                 const results = await Promise.all(metadataPromises);
                 allFilteredFolders = results.filter(f => f !== null);
 
-                // Sort: Featured always first, but everything else randomized
                 allFilteredFolders = shuffleArray(allFilteredFolders).sort((a, b) => {
                     if (a.featured && !b.featured) return -1;
                     if (!a.featured && b.featured) return 1;
@@ -282,8 +276,6 @@
 
                 removeSkeletons();
                 isLoading = false;
-
-                // Initial view is everything
                 currentDisplayFolders = [...allFilteredFolders];
 
                 if (currentDisplayFolders.length === 0) {
@@ -303,10 +295,24 @@
 
         function loadNextBatch() {
             if (currentIndex >= currentDisplayFolders.length) return;
-
             const nextBatch = currentDisplayFolders.slice(currentIndex, currentIndex + ITEMS_PER_PAGE);
             renderExperiences(nextBatch);
             currentIndex += ITEMS_PER_PAGE;
+        }
+
+        /**
+         * Logic to attempt loading different image formats in order
+         */
+        function handleImageError(img, folderName, formatsIndex) {
+            const formats = ['png', 'jpg', 'jpeg', 'webp'];
+            if (formatsIndex < formats.length - 1) {
+                const nextIndex = formatsIndex + 1;
+                img.src = `${RAW_URL}/${folderName}/icon.${formats[nextIndex]}?v=${cacheBust}`;
+                img.setAttribute('data-format-index', nextIndex);
+            } else {
+                img.src = `https://placehold.co/400x400/222/white?text=${folderName}`;
+                img.onerror = null; // Prevent infinite loop
+            }
         }
 
         function renderExperiences(folders) {
@@ -315,16 +321,17 @@
                 card.className = 'game-card cursor-pointer group';
                 
                 const displayName = folder.name.replace(/([A-Z])/g, ' $1').trim();
-                const iconUrl = `${RAW_URL}/${folder.name}/icon.png?v=${cacheBust}`;
+                const initialIconUrl = `${RAW_URL}/${folder.name}/icon.png?v=${cacheBust}`;
                 const gameUrl = `${PAGES_URL}/${folder.name}/game.html`;
 
                 card.innerHTML = `
                     <div class="relative aspect-square overflow-hidden rounded-xl bg-[#333] mb-3">
-                        <img src="${iconUrl}" 
+                        <img src="${initialIconUrl}" 
                              alt="${displayName}" 
                              class="w-full h-full object-cover"
                              loading="lazy"
-                             onerror="this.src='https://placehold.co/400x400/222/white?text=${folder.name}'">
+                             data-format-index="0"
+                             onerror="handleImageError(this, '${folder.name}', parseInt(this.getAttribute('data-format-index')))">
                         
                         <div class="absolute inset-x-0 top-0 p-2 flex justify-between items-start">
                             ${folder.featured ? '<span class="featured-tag">Featured</span>' : '<span></span>'}
@@ -343,11 +350,8 @@
             });
         }
 
-        // Search logic
         searchInput.addEventListener('input', (e) => {
             const query = e.target.value.toLowerCase().trim();
-            
-            // Filter the master list
             if (query === "") {
                 currentDisplayFolders = [...allFilteredFolders];
                 viewTitle.textContent = "Games:";
@@ -359,7 +363,6 @@
                 viewTitle.textContent = `Search Results for "${query}":`;
             }
 
-            // Reset view
             grid.innerHTML = '';
             currentIndex = 0;
             
