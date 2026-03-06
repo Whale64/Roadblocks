@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Grab a Mindrot: Rebirth Edition</title>
+    <style>
+        :root { --grass: #2d5a27; --border: #3d3d3d; --neon-g: #00ff00; --neon-r: #ff0000; --gold: #ffd700; --rb: #00ffff; }
+        body { background: #1a1a1a; color: white; font-family: 'Segoe UI', Tahoma, sans-serif; margin: 0; overflow: hidden; user-select: none; }
+        
+        #start-screen { position: fixed; inset: 0; background: radial-gradient(circle, #222, #000); z-index: 1000; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        #start-box { background: rgba(0,0,0,0.8); padding: 40px; border-radius: 20px; border: 4px solid var(--neon-g); text-align: center; }
+        
+        #hud { position: absolute; top: 20px; width: 100%; display: flex; justify-content: center; gap: 15px; z-index: 100; display: none; }
+        .chip { background: rgba(0,0,0,0.85); padding: 10px 20px; border-radius: 50px; border: 2px solid var(--neon-g); font-weight: bold; }
+        
+        /* Rebirth Sidebar */
+        #rb-sidebar { position: absolute; left: 20px; top: 120px; background: rgba(0,0,0,0.9); border: 2px solid var(--rb); padding: 15px; border-radius: 10px; width: 220px; display: none; z-index: 50; }
+        .req { font-size: 13px; margin: 5px 0; font-weight: bold; }
+        .met { color: #00ff00; } .not-met { color: #ff4444; }
+        #rb-btn { width: 100%; background: var(--rb); color: black; border: none; padding: 10px; font-weight: bold; cursor: pointer; border-radius: 5px; margin-top: 10px; }
+        #rb-btn:disabled { background: #444; cursor: not-allowed; }
+
+        #game-world { display: none; flex-direction: column; height: 100vh; align-items: center; justify-content: space-between; padding: 40px 0; }
+        .plot { width: 700px; height: 180px; background: var(--grass); border: 8px solid var(--border); border-radius: 10px; position: relative; display: flex; align-items: center; justify-content: center; gap: 10px; }
+        #guard { position: absolute; font-size: 45px; transition: left 0.4s linear; top: 35px; z-index: 5; }
+        #road { width: 100%; height: 130px; background: #222; border-top: 5px dashed #444; border-bottom: 5px dashed #444; position: relative; }
+
+        .char { cursor: pointer; text-align: center; width: 100px; position: relative; }
+        .char-icon { font-size: 55px; display: block; filter: drop-shadow(2px 4px 5px black); }
+        .char-tag { background: rgba(0,0,0,0.8); font-size: 10px; padding: 5px; border-radius: 5px; border: 1px solid #444; margin-top: 5px; line-height: 1.2; }
+    </style>
+</head>
+<body>
+
+<div id="start-screen">
+    <div id="start-box">
+        <h1 style="color:var(--neon-g); margin:0;">GRAB A MINDROT</h1>
+        <input type="text" id="player-name" placeholder="Enter Name..." maxlength="12" style="padding:10px; margin:20px 0; text-align:center;">
+        <br>
+        <button onclick="startGame()" style="padding:15px 40px; cursor:pointer; font-weight:bold; background:var(--neon-g); border:none; border-radius:10px;">PLAY</button>
+    </div>
+</div>
+
+<div id="rb-sidebar">
+    <h3 style="color:var(--rb); margin:0 0 10px 0; text-align:center;">REBIRTH MENU</h3>
+    <div id="req-list"></div>
+    <button id="rb-btn" onclick="doRebirth()">REBIRTH</button>
+</div>
+
+<div id="hud">
+    <div class="chip" id="name-chip">👤 Player</div>
+    <div class="chip">💰 $<span id="cash">100</span></div>
+    <div class="chip" style="border-color:var(--rb)">✨ RB: <span id="rb-val">0</span> (x<span id="mult">1</span>)</div>
+    <div class="chip" style="border-color:#ffa500">📦 Slots: <span id="slots">0</span>/10</div>
+</div>
+
+<div id="game-world">
+    <div id="opp-plot" class="plot">
+        <div id="guard">👮</div>
+        <div id="opp-list" style="display:flex; gap:10px;"></div>
+    </div>
+    <div id="road"></div>
+    <div id="my-plot" class="plot">
+        <div id="my-list" style="display:flex; gap:10px;"></div>
+    </div>
+</div>
+
+<script>
+    const DATA = [
+        { n: "Noobini Pizzanini", i: "🍕", c: 25, v: 2 },
+        { n: "Lirilì Larilà", i: "🐘", c: 150, v: 10 },
+        { n: "TIM Cheese", i: "🧀", c: 500, v: 30 },
+        { n: "Trippi Troppi", i: "🦈", c: 2000, v: 150 },
+        { n: "Gangster Footera", i: "🦶", c: 5000, v: 450 },
+        { n: "Brr Brr Patapim", i: "🚁", c: 25000, v: 3000 },
+        { n: "Strawberry Elephant", i: "🍓", c: 100000, v: 50000 }
+    ];
+
+    const RB_REQS = [
+        { cash: 10000, chars: ["Noobini Pizzanini"] },
+        { cash: 50000, chars: ["Trippi Troppi"] },
+        { cash: 200000, chars: ["Gangster Footera"] }
+    ];
+
+    let state = { cash: 100, rb: 0, myChars: [], name: "Player" };
+
+    function startGame() {
+        const input = document.getElementById('player-name').value;
+        if(input.trim()) state.name = input;
+        document.getElementById('start-screen').style.display = 'none';
+        document.getElementById('game-world').style.display = 'flex';
+        document.getElementById('hud').style.display = 'flex';
+        document.getElementById('rb-sidebar').style.display = 'block';
+        document.getElementById('name-chip').innerText = `👤 ${state.name}`;
+        fillOpp(); refresh();
+    }
+
+    let gX = 50;
+    setInterval(() => {
+        gX = (gX < 200) ? 550 : 50;
+        document.getElementById('guard').style.left = gX + 'px';
+    }, 1500);
+
+    function createUnit(info, mode) {
+        const div = document.createElement('div');
+        div.className = 'char';
+        if(mode === 'road') { div.style.position = 'absolute'; div.style.top = '10px'; }
+        div.innerHTML = `<span class="char-icon">${info.i}</span><div class="char-tag"><b>${info.n}</b><br><span style="color:#0f0">+$${info.v}/s</span>${mode === 'road' ? `<br><span style="color:gold">$${info.c}</span>` : ''}</div>`;
+
+        div.onclick = () => {
+            if(mode === 'opp') {
+                if(Math.abs(parseInt(document.getElementById('guard').style.left) - div.offsetLeft) < 120) {
+                    alert("BUSTED! The guard took your best mindrot!");
+                    state.myChars.sort((a,b) => b.v - a.v).shift();
+                    refresh();
+                } else if(addUnit(info)) { div.remove(); if(!document.getElementById('opp-list').hasChildNodes()) fillOpp(); }
+            } else if(mode === 'road') {
+                if(state.cash >= info.c && addUnit(info)) { state.cash -= info.c; div.remove(); }
+            } else if(mode === 'mine') {
+                state.cash += Math.floor(info.c * 0.8);
+                state.myChars.splice(state.myChars.indexOf(info), 1);
+                refresh();
+            }
+        };
+        return div;
+    }
+
+    function addUnit(u) {
+        if(state.myChars.length >= 10) return (alert("Base Full!"), false);
+        state.myChars.push(u); refresh(); return true;
+    }
+
+    function refresh() {
+        const myL = document.getElementById('my-list'); myL.innerHTML = '';
+        state.myChars.forEach(u => myL.appendChild(createUnit(u, 'mine')));
+        document.getElementById('slots').innerText = state.myChars.length;
+        document.getElementById('cash').innerText = Math.floor(state.cash).toLocaleString();
+        updateRBMenu();
+    }
+
+    function updateRBMenu() {
+        const currentReq = RB_REQS[state.rb] || { cash: 999999, chars: ["MAX"] };
+        const reqList = document.getElementById('req-list');
+        const hasCash = state.cash >= currentReq.cash;
+        const myNames = state.myChars.map(c => c.n);
+        let html = `<div class="req ${hasCash ? 'met' : 'not-met'}">💰 $${currentReq.cash.toLocaleString()}</div>`;
+        let allChars = true;
+        currentReq.chars.forEach(name => {
+            const has = myNames.includes(name);
+            if(!has) allChars = false;
+            html += `<div class="req ${has ? 'met' : 'not-met'}">👤 ${name}</div>`;
+        });
+        reqList.innerHTML = html;
+        document.getElementById('rb-btn').disabled = !(hasCash && allChars);
+    }
+
+    function doRebirth() {
+        state.rb++; state.cash = 500; state.myChars = [];
+        document.getElementById('rb-val').innerText = state.rb;
+        document.getElementById('mult').innerText = state.rb + 1;
+        fillOpp(); refresh();
+        alert("REBIRTHED! 2X Multiplier Gained!");
+    }
+
+    function fillOpp() {
+        const ol = document.getElementById('opp-list'); ol.innerHTML = '';
+        for(let i=0; i<4; i++) ol.appendChild(createUnit(DATA[Math.floor(Math.random()*4)], 'opp'));
+    }
+
+    setInterval(() => {
+        let inc = state.myChars.reduce((s, c) => s + c.v, 0);
+        state.cash += (inc * (state.rb + 1) * 2);
+        document.getElementById('cash').innerText = Math.floor(state.cash).toLocaleString();
+        updateRBMenu();
+    }, 1000);
+
+    setInterval(() => {
+        if(document.getElementById('game-world').style.display === 'none') return;
+        const info = DATA[Math.floor(Math.random()*DATA.length)];
+        const el = createUnit(info, 'road'); document.getElementById('road').appendChild(el);
+        let x = -120;
+        const m = setInterval(() => {
+            x += 5; el.style.left = x + 'px';
+            if(x > window.innerWidth) { clearInterval(m); el.remove(); }
+        }, 20);
+    }, 2500);
+</script>
+</body>
+</html>
