@@ -1,0 +1,854 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>VOID WALKER — Horror Game</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Creepster&family=Share+Tech+Mono&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #000;
+    overflow: hidden;
+    font-family: 'Share Tech Mono', monospace;
+    color: #fff;
+    cursor: none;
+  }
+
+  #canvas { display: block; width: 100vw; height: 100vh; }
+
+  #ui {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    pointer-events: none;
+    z-index: 10;
+  }
+
+  /* Custom crosshair */
+  #crosshair {
+    position: fixed;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 20px; height: 20px;
+    z-index: 20;
+  }
+  #crosshair::before, #crosshair::after {
+    content: '';
+    position: absolute;
+    background: rgba(255,50,50,0.8);
+  }
+  #crosshair::before { width: 2px; height: 100%; left: 50%; transform: translateX(-50%); }
+  #crosshair::after  { width: 100%; height: 2px; top: 50%; transform: translateY(-50%); }
+
+  /* Stamina / sanity bars */
+  #hud {
+    position: fixed;
+    bottom: 30px; left: 30px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    z-index: 20;
+  }
+  .bar-label { font-size: 11px; letter-spacing: 3px; color: #aaa; margin-bottom: 2px; }
+  .bar-track {
+    width: 180px; height: 6px;
+    background: rgba(255,255,255,0.1);
+    border: 1px solid rgba(255,255,255,0.15);
+  }
+  .bar-fill { height: 100%; transition: width 0.3s ease; }
+  #stamina-fill { background: #c0392b; width: 100%; }
+  #sanity-fill  { background: #2980b9; width: 100%; }
+
+  /* Heartbeat indicator */
+  #heartbeat {
+    position: fixed;
+    bottom: 30px; right: 30px;
+    font-size: 28px;
+    color: #c0392b;
+    z-index: 20;
+    animation: pulse 1s infinite;
+    text-shadow: 0 0 20px #c0392b;
+  }
+  @keyframes pulse {
+    0%,100% { transform: scale(1); opacity: 0.6; }
+    50%      { transform: scale(1.3); opacity: 1; }
+  }
+
+  /* Screen vignette */
+  #vignette {
+    position: fixed; inset: 0;
+    background: radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.85) 100%);
+    pointer-events: none;
+    z-index: 5;
+  }
+
+  /* Blood splatter overlay */
+  #blood {
+    position: fixed; inset: 0;
+    pointer-events: none;
+    z-index: 8;
+    opacity: 0;
+    background:
+      radial-gradient(circle at 20% 10%, rgba(150,0,0,0.4) 0%, transparent 25%),
+      radial-gradient(circle at 80% 5%,  rgba(120,0,0,0.3) 0%, transparent 20%),
+      radial-gradient(circle at 10% 90%, rgba(100,0,0,0.3) 0%, transparent 22%);
+    transition: opacity 0.2s ease;
+  }
+
+  /* Noise / grain overlay */
+  #grain {
+    position: fixed; inset: 0;
+    pointer-events: none;
+    z-index: 9;
+    opacity: 0.04;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+    background-size: 128px;
+    animation: grain 0.5s steps(1) infinite;
+  }
+  @keyframes grain { 0%{background-position:0 0} 25%{background-position:-50px -100px} 50%{background-position:100px 50px} 75%{background-position:-100px 0} 100%{background-position:50px -50px} }
+
+  /* Start screen */
+  #start-screen {
+    position: fixed; inset: 0;
+    background: #000;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    transition: opacity 1s ease;
+  }
+  #start-screen h1 {
+    font-family: 'Creepster', cursive;
+    font-size: clamp(48px, 8vw, 96px);
+    color: #c0392b;
+    text-shadow: 0 0 40px #c0392b, 0 0 80px rgba(192,57,43,0.4);
+    letter-spacing: 8px;
+    margin-bottom: 10px;
+    animation: flicker 4s infinite;
+  }
+  @keyframes flicker {
+    0%,100%{opacity:1} 92%{opacity:1} 93%{opacity:0.4} 94%{opacity:1} 96%{opacity:0.6} 97%{opacity:1}
+  }
+  #start-screen p {
+    color: #555;
+    font-size: 12px;
+    letter-spacing: 4px;
+    margin-bottom: 50px;
+  }
+  #start-btn {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 14px;
+    letter-spacing: 6px;
+    color: #c0392b;
+    background: transparent;
+    border: 1px solid #c0392b;
+    padding: 14px 40px;
+    cursor: pointer;
+    text-transform: uppercase;
+    transition: all 0.3s ease;
+    box-shadow: 0 0 20px rgba(192,57,43,0.2);
+  }
+  #start-btn:hover {
+    background: rgba(192,57,43,0.15);
+    box-shadow: 0 0 40px rgba(192,57,43,0.5);
+    letter-spacing: 8px;
+  }
+  .warning {
+    position: absolute;
+    bottom: 30px;
+    font-size: 10px;
+    color: #333;
+    letter-spacing: 2px;
+    text-align: center;
+  }
+
+  /* Flash effect */
+  #flash {
+    position: fixed; inset: 0;
+    background: #fff;
+    pointer-events: none;
+    z-index: 50;
+    opacity: 0;
+    transition: opacity 0.05s ease;
+  }
+
+  /* Message display */
+  #message {
+    position: fixed;
+    top: 40px; left: 50%;
+    transform: translateX(-50%);
+    font-size: 13px;
+    letter-spacing: 4px;
+    color: #c0392b;
+    z-index: 30;
+    opacity: 0;
+    transition: opacity 0.5s ease;
+    text-shadow: 0 0 20px #c0392b;
+    white-space: nowrap;
+  }
+
+  /* Objective */
+  #objective {
+    position: fixed;
+    top: 20px; right: 20px;
+    font-size: 10px;
+    color: #444;
+    letter-spacing: 2px;
+    z-index: 20;
+    line-height: 1.8;
+  }
+  #objective span { color: #666; }
+
+  /* Game over */
+  #gameover {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 200;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 1.5s ease;
+  }
+  #gameover.show { opacity: 1; pointer-events: all; }
+  #gameover h2 {
+    font-family: 'Creepster', cursive;
+    font-size: clamp(40px, 7vw, 80px);
+    color: #c0392b;
+    text-shadow: 0 0 60px #c0392b;
+    letter-spacing: 6px;
+    margin-bottom: 20px;
+    animation: flicker 3s infinite;
+  }
+  #gameover p { color: #555; font-size: 11px; letter-spacing: 3px; margin-bottom: 40px; }
+  #restart-btn {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 13px; letter-spacing: 5px;
+    color: #c0392b; background: transparent;
+    border: 1px solid #c0392b;
+    padding: 12px 32px; cursor: pointer;
+    transition: all 0.3s;
+  }
+  #restart-btn:hover { background: rgba(192,57,43,0.2); }
+
+  /* Win screen */
+  #winscreen {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0);
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    z-index: 200; opacity: 0; pointer-events: none;
+    transition: opacity 1.5s ease;
+  }
+  #winscreen.show { opacity: 1; pointer-events: all; }
+  #winscreen h2 {
+    font-family: 'Creepster', cursive;
+    font-size: clamp(36px, 6vw, 72px);
+    color: #27ae60;
+    text-shadow: 0 0 60px #27ae60;
+    letter-spacing: 6px; margin-bottom: 20px;
+  }
+  #winscreen p { color: #555; font-size: 11px; letter-spacing: 3px; margin-bottom: 40px; }
+  #play-again {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 13px; letter-spacing: 5px;
+    color: #27ae60; background: transparent;
+    border: 1px solid #27ae60;
+    padding: 12px 32px; cursor: pointer; transition: all 0.3s;
+  }
+  #play-again:hover { background: rgba(39,174,96,0.15); }
+
+  /* Keys collected */
+  #keys-display {
+    position: fixed;
+    top: 80px; right: 20px;
+    font-size: 10px; color: #444;
+    letter-spacing: 2px; z-index: 20;
+  }
+  .key-icon { display: inline-block; color: #f39c12; margin-right: 4px; }
+</style>
+</head>
+<body>
+
+<canvas id="canvas"></canvas>
+
+<div id="vignette"></div>
+<div id="grain"></div>
+<div id="blood"></div>
+<div id="flash"></div>
+<div id="crosshair"></div>
+
+<div id="ui">
+  <div id="hud">
+    <div class="bar-label">STAMINA</div>
+    <div class="bar-track"><div class="bar-fill" id="stamina-fill"></div></div>
+    <div class="bar-label" style="margin-top:8px">SANITY</div>
+    <div class="bar-track"><div class="bar-fill" id="sanity-fill"></div></div>
+  </div>
+  <div id="heartbeat">♥</div>
+  <div id="message"></div>
+  <div id="objective">
+    <span>OBJECTIVE</span><br>
+    Find all 3 keys<br>
+    Reach the exit
+  </div>
+  <div id="keys-display">KEYS: <span id="key-count">0</span> / 3</div>
+</div>
+
+<div id="start-screen">
+  <h1>VOID WALKER</h1>
+  <p>[ A SURVIVAL HORROR EXPERIENCE ]</p>
+  <button id="start-btn" onclick="startGame()">ENTER THE DARKNESS</button>
+  <div class="warning">
+    ⚠ WASD / ARROW KEYS TO MOVE &nbsp;|&nbsp; MOUSE TO LOOK &nbsp;|&nbsp; SHIFT TO RUN<br>
+    Headphones recommended. Play in the dark.
+  </div>
+</div>
+
+<div id="gameover">
+  <h2>YOU DIED</h2>
+  <p>THE DARKNESS CONSUMED YOU</p>
+  <button id="restart-btn" onclick="restartGame()">TRY AGAIN</button>
+</div>
+
+<div id="winscreen">
+  <h2>YOU ESCAPED</h2>
+  <p>BUT IT IS STILL OUT THERE...</p>
+  <button id="play-again" onclick="restartGame()">PLAY AGAIN</button>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+// ─── GLOBAL STATE ───────────────────────────────────────────────
+let scene, camera, renderer, clock;
+let keys = {}, mouseX = 0, mouseY = 0;
+let yaw = 0, pitch = 0;
+let playerVel = new THREE.Vector3();
+let stamina = 100, sanity = 100;
+let keysCollected = 0;
+let isRunning = false;
+let gameOver = false, gameWon = false, gameStarted = false;
+let monsters = [];
+let keyItems = [];
+let exitDoor = null;
+let torches = [];
+let heartRate = 1;
+let lastMonsterScare = 0;
+let frameCount = 0;
+let walls = [];
+let audioCtx = null;
+
+// ─── AUDIO ──────────────────────────────────────────────────────
+function initAudio() {
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+}
+
+function playNoise(freq, dur, vol = 0.3, type = 'sawtooth') {
+  if (!audioCtx) return;
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.connect(gain); gain.connect(audioCtx.destination);
+  osc.type = type; osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+  osc.frequency.exponentialRampToValueAtTime(freq * 0.3, audioCtx.currentTime + dur);
+  gain.gain.setValueAtTime(vol, audioCtx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + dur);
+  osc.start(); osc.stop(audioCtx.currentTime + dur);
+}
+
+function playHeartbeat() {
+  if (!audioCtx) return;
+  const t = audioCtx.currentTime;
+  const buf = audioCtx.createBuffer(1, audioCtx.sampleRate * 0.1, audioCtx.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (audioCtx.sampleRate * 0.03));
+  const src = audioCtx.createBufferSource();
+  const gain = audioCtx.createGain();
+  const filter = audioCtx.createBiquadFilter();
+  filter.type = 'lowpass'; filter.frequency.value = 80;
+  src.buffer = buf; src.connect(filter); filter.connect(gain); gain.connect(audioCtx.destination);
+  gain.gain.value = 0.5 + (1 - sanity / 100) * 1.5;
+  src.start(t);
+}
+
+function playScream() { playNoise(800, 0.8, 0.4, 'sawtooth'); }
+function playPickup() { playNoise(440, 0.3, 0.2, 'sine'); }
+
+// ─── MAZE LAYOUT ────────────────────────────────────────────────
+const CELL = 8;
+const MAZE = [
+  [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+  [1,0,0,0,1,0,0,0,0,0,1,0,0,0,1],
+  [1,0,1,0,1,0,1,1,1,0,1,0,1,0,1],
+  [1,0,1,0,0,0,0,0,1,0,0,0,1,0,1],
+  [1,0,1,1,1,1,1,0,1,1,1,1,1,0,1],
+  [1,0,0,0,0,0,1,0,0,0,0,0,0,0,1],
+  [1,1,1,0,1,0,1,0,1,0,1,1,1,1,1],
+  [1,0,0,0,1,0,0,0,1,0,0,0,0,0,1],
+  [1,0,1,1,1,1,1,1,1,1,1,1,1,0,1],
+  [1,0,0,0,0,0,0,0,0,0,0,0,1,0,1],
+  [1,0,1,1,1,0,1,1,1,0,1,0,1,0,1],
+  [1,0,1,0,0,0,1,0,0,0,1,0,0,0,1],
+  [1,0,1,0,1,1,1,0,1,1,1,1,1,0,1],
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+  [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+];
+const ROWS = MAZE.length, COLS = MAZE[0].length;
+
+function mazeToWorld(row, col) {
+  return new THREE.Vector3(
+    (col - COLS/2) * CELL + CELL/2,
+    0,
+    (row - ROWS/2) * CELL + CELL/2
+  );
+}
+
+function isWallAt(wx, wz) {
+  const col = Math.floor(wx / CELL + COLS/2);
+  const row = Math.floor(wz / CELL + ROWS/2);
+  if (row < 0 || row >= ROWS || col < 0 || col >= COLS) return true;
+  return MAZE[row][col] === 1;
+}
+
+// ─── SCENE SETUP ────────────────────────────────────────────────
+function buildScene() {
+  scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x000000);
+  scene.fog = new THREE.FogExp2(0x110508, 0.022);
+
+  clock = new THREE.Clock();
+
+  // Renderer
+  renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('canvas'), antialias: false });
+  renderer.setPixelRatio(window.devicePixelRatio * 0.8);
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.BasicShadowMap;
+
+  // Camera (player)
+  camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 80);
+  camera.position.set(mazeToWorld(1,1).x, 1.7, mazeToWorld(1,1).z);
+
+  // Ambient — very dark
+  const ambient = new THREE.AmbientLight(0x331818, 1.2);
+  scene.add(ambient);
+
+  buildMaze();
+  spawnKeyItems();
+  spawnMonsters();
+  spawnExit();
+}
+
+// ─── MAZE GEOMETRY ──────────────────────────────────────────────
+function buildMaze() {
+  const wallMat = new THREE.MeshLambertMaterial({ color: 0x4a2020 });
+  const floorMat = new THREE.MeshLambertMaterial({ color: 0x2a1515 });
+  const ceilMat  = new THREE.MeshLambertMaterial({ color: 0x1a1010 });
+
+  // Floor & ceiling spans
+  const totalW = COLS * CELL, totalH = ROWS * CELL;
+  const floorGeo = new THREE.PlaneGeometry(totalW, totalH);
+  const floor = new THREE.Mesh(floorGeo, floorMat);
+  floor.rotation.x = -Math.PI / 2; floor.position.y = 0;
+  scene.add(floor);
+
+  const ceil = new THREE.Mesh(floorGeo, ceilMat);
+  ceil.rotation.x = Math.PI / 2; ceil.position.y = 4;
+  scene.add(ceil);
+
+  // Walls
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      if (MAZE[r][c] === 1) {
+        const geo = new THREE.BoxGeometry(CELL, 4, CELL);
+        const mesh = new THREE.Mesh(geo, wallMat);
+        const pos = mazeToWorld(r, c);
+        mesh.position.set(pos.x, 2, pos.z);
+        mesh.castShadow = true; mesh.receiveShadow = true;
+        scene.add(mesh);
+        walls.push(mesh);
+
+        // Random torch on some walls
+        if (Math.random() < 0.28) addTorch(pos.x, pos.z);
+      }
+    }
+  }
+}
+
+function addTorch(wx, wz) {
+  const light = new THREE.PointLight(0xff7722, 3.5, 18);
+  light.position.set(wx, 2.5, wz);
+  scene.add(light);
+  torches.push({ light, baseIntensity: 3.5, phase: Math.random() * Math.PI * 2 });
+
+  // Flame geometry
+  const geo = new THREE.SphereGeometry(0.12, 6, 6);
+  const mat = new THREE.MeshBasicMaterial({ color: 0xff8800 });
+  const flame = new THREE.Mesh(geo, mat);
+  flame.position.copy(light.position);
+  scene.add(flame);
+}
+
+// ─── KEY ITEMS ──────────────────────────────────────────────────
+function spawnKeyItems() {
+  const positions = [
+    mazeToWorld(3, 9),
+    mazeToWorld(11, 3),
+    mazeToWorld(9, 11),
+  ];
+  positions.forEach((pos, i) => {
+    const geo = new THREE.TorusGeometry(0.22, 0.06, 8, 20);
+    const mat = new THREE.MeshBasicMaterial({ color: 0xf39c12 });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.set(pos.x, 1.0, pos.z);
+    mesh.rotation.x = Math.PI / 2;
+
+    // Glow
+    const glow = new THREE.PointLight(0xf39c12, 1.2, 4);
+    glow.position.copy(mesh.position);
+    scene.add(glow);
+    scene.add(mesh);
+    keyItems.push({ mesh, glow, collected: false, index: i });
+  });
+}
+
+// ─── EXIT DOOR ──────────────────────────────────────────────────
+function spawnExit() {
+  const pos = mazeToWorld(13, 13);
+  const geo = new THREE.BoxGeometry(1.5, 3, 0.3);
+  const mat = new THREE.MeshBasicMaterial({ color: 0x27ae60 });
+  exitDoor = new THREE.Mesh(geo, mat);
+  exitDoor.position.set(pos.x, 1.5, pos.z);
+  scene.add(exitDoor);
+
+  const light = new THREE.PointLight(0x27ae60, 2, 8);
+  light.position.copy(exitDoor.position);
+  scene.add(light);
+}
+
+// ─── MONSTERS ───────────────────────────────────────────────────
+function spawnMonsters() {
+  const positions = [
+    mazeToWorld(7, 6),
+    mazeToWorld(5, 11),
+    mazeToWorld(11, 8),
+  ];
+  positions.forEach(pos => {
+    const group = new THREE.Group();
+
+    // Body
+    const bodyGeo = new THREE.CylinderGeometry(0.25, 0.3, 1.6, 6);
+    const bodyMat = new THREE.MeshLambertMaterial({ color: 0x1a0000 });
+    const body = new THREE.Mesh(bodyGeo, bodyMat);
+    body.position.y = 0.8;
+    group.add(body);
+
+    // Head
+    const headGeo = new THREE.SphereGeometry(0.28, 8, 8);
+    const head = new THREE.Mesh(headGeo, bodyMat);
+    head.position.y = 1.75;
+    group.add(head);
+
+    // Eyes
+    [-0.1, 0.1].forEach(x => {
+      const eyeGeo = new THREE.SphereGeometry(0.06, 6, 6);
+      const eyeMat = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+      const eye = new THREE.Mesh(eyeGeo, eyeMat);
+      eye.position.set(x, 1.8, 0.24);
+      group.add(eye);
+    });
+
+    // Eye glow
+    const eyeLight = new THREE.PointLight(0xff0000, 1.5, 5);
+    eyeLight.position.set(0, 1.8, 0.3);
+    group.add(eyeLight);
+
+    group.position.copy(pos);
+    group.position.y = 0;
+    scene.add(group);
+
+    monsters.push({
+      group, eyeLight,
+      speed: 0.8 + Math.random() * 0.8,
+      state: 'patrol',
+      patrolAngle: Math.random() * Math.PI * 2,
+      patrolDir: new THREE.Vector3(),
+      alertTimer: 0,
+    });
+  });
+}
+
+// ─── INPUT ──────────────────────────────────────────────────────
+function setupInput() {
+  document.addEventListener('keydown', e => { keys[e.code] = true; });
+  document.addEventListener('keyup',   e => { keys[e.code] = false; });
+
+  document.addEventListener('mousemove', e => {
+    if (!gameStarted || gameOver || gameWon) return;
+    yaw   -= e.movementX * 0.002;
+    pitch -= e.movementY * 0.002;
+    pitch  = Math.max(-Math.PI/3, Math.min(Math.PI/3, pitch));
+  });
+
+  document.getElementById('canvas').addEventListener('click', () => {
+    if (gameStarted) document.getElementById('canvas').requestPointerLock();
+  });
+}
+
+// ─── COLLISION ──────────────────────────────────────────────────
+function collideSphere(pos, radius) {
+  const col = Math.floor(pos.x / CELL + COLS/2);
+  const row = Math.floor(pos.z / CELL + ROWS/2);
+  let blocked = false;
+
+  for (let dr = -1; dr <= 1; dr++) {
+    for (let dc = -1; dc <= 1; dc++) {
+      const r = row + dr, c = col + dc;
+      if (r < 0 || r >= ROWS || c < 0 || c >= COLS) continue;
+      if (MAZE[r][c] !== 1) continue;
+      const wx = (c - COLS/2) * CELL + CELL/2;
+      const wz = (r - ROWS/2) * CELL + CELL/2;
+      const dx = Math.max(wx - CELL/2, Math.min(wx + CELL/2, pos.x)) - pos.x;
+      const dz = Math.max(wz - CELL/2, Math.min(wz + CELL/2, pos.z)) - pos.z;
+      const dist = Math.sqrt(dx*dx + dz*dz);
+      if (dist < radius) {
+        const nx = -dx / dist, nz = -dz / dist;
+        const overlap = radius - dist;
+        pos.x += nx * overlap;
+        pos.z += nz * overlap;
+        blocked = true;
+      }
+    }
+  }
+  return blocked;
+}
+
+// ─── SHOW MESSAGE ───────────────────────────────────────────────
+let msgTimeout;
+function showMessage(text, duration = 2500) {
+  const el = document.getElementById('message');
+  el.textContent = text;
+  el.style.opacity = '1';
+  clearTimeout(msgTimeout);
+  msgTimeout = setTimeout(() => { el.style.opacity = '0'; }, duration);
+}
+
+// ─── GAME LOOP ──────────────────────────────────────────────────
+function update(dt) {
+  frameCount++;
+
+  // ── Player movement
+  const speed = (isRunning && stamina > 0) ? 6.5 : 3.5;
+  isRunning = keys['ShiftLeft'] || keys['ShiftRight'];
+
+  const forward = new THREE.Vector3(-Math.sin(yaw), 0, -Math.cos(yaw));
+  const right   = new THREE.Vector3( Math.cos(yaw), 0, -Math.sin(yaw));
+  const move    = new THREE.Vector3();
+
+  if (keys['KeyW'] || keys['ArrowUp'])    move.add(forward);
+  if (keys['KeyS'] || keys['ArrowDown'])  move.sub(forward);
+  if (keys['KeyA'] || keys['ArrowLeft'])  move.sub(right);
+  if (keys['KeyD'] || keys['ArrowRight']) move.add(right);
+
+  if (move.length() > 0) {
+    move.normalize().multiplyScalar(speed * dt);
+    camera.position.x += move.x;
+    camera.position.z += move.z;
+    collideSphere(camera.position, 0.45);
+
+    // Bob
+    camera.position.y = 1.7 + Math.sin(frameCount * 0.15) * 0.04;
+  } else {
+    camera.position.y = 1.7;
+  }
+
+  // Stamina
+  if (isRunning && move.length() > 0) {
+    stamina = Math.max(0, stamina - dt * 25);
+  } else {
+    stamina = Math.min(100, stamina + dt * 15);
+  }
+  document.getElementById('stamina-fill').style.width = stamina + '%';
+
+  // Camera rotation
+  camera.rotation.order = 'YXZ';
+  camera.rotation.y = yaw;
+  camera.rotation.x = pitch;
+
+  // ── Torch flicker
+  torches.forEach(t => {
+    t.phase += dt * 8;
+    t.light.intensity = t.baseIntensity + Math.sin(t.phase) * 0.3 + Math.sin(t.phase * 2.3) * 0.15;
+  });
+
+  // ── Key rotation & collection
+  keyItems.forEach(k => {
+    if (k.collected) return;
+    k.mesh.rotation.z += dt * 2;
+    k.mesh.position.y = 1.0 + Math.sin(frameCount * 0.05) * 0.1;
+
+    const dist = camera.position.distanceTo(k.mesh.position);
+    if (dist < 1.2) {
+      k.collected = true;
+      k.mesh.visible = false;
+      k.glow.visible = false;
+      keysCollected++;
+      document.getElementById('key-count').textContent = keysCollected;
+      playPickup();
+      showMessage('KEY OBTAINED — ' + keysCollected + ' / 3');
+    }
+  });
+
+  // ── Exit check
+  if (exitDoor && keysCollected >= 3) {
+    exitDoor.material.color.setHex(0x00ff77);
+    const dist = camera.position.distanceTo(exitDoor.position);
+    if (dist < 2) triggerWin();
+  } else if (exitDoor) {
+    if (frameCount % 90 === 0 && keysCollected < 3) showMessage('FIND ALL 3 KEYS FIRST', 1500);
+  }
+
+  // ── Monsters
+  const now = clock.getElapsedTime();
+  let monsterNearby = false;
+
+  monsters.forEach(m => {
+    const toPlayer = new THREE.Vector3().subVectors(camera.position, m.group.position);
+    toPlayer.y = 0;
+    const dist = toPlayer.length();
+
+    // Line-of-sight (simple — no raycasting for perf)
+    const canSee = dist < 14;
+
+    if (canSee || m.state === 'chase') {
+      m.state = 'chase';
+      m.alertTimer = 3;
+      const dir = toPlayer.normalize();
+      m.group.position.x += dir.x * m.speed * dt;
+      m.group.position.z += dir.z * m.speed * dt;
+      collideSphere(m.group.position, 0.35);
+      m.group.lookAt(camera.position.x, m.group.position.y, camera.position.z);
+    } else {
+      m.alertTimer -= dt;
+      if (m.alertTimer <= 0) m.state = 'patrol';
+      // Patrol
+      m.patrolAngle += dt * 0.5;
+      m.group.position.x += Math.cos(m.patrolAngle) * 1.2 * dt;
+      m.group.position.z += Math.sin(m.patrolAngle) * 1.2 * dt;
+      collideSphere(m.group.position, 0.35);
+    }
+
+    // Eye flicker when chasing
+    m.eyeLight.intensity = (m.state === 'chase') ? 2.5 + Math.sin(now * 10) * 0.5 : 1.2;
+
+    // Danger proximity
+    if (dist < 10) monsterNearby = true;
+
+    // Death
+    if (dist < 0.9) triggerDeath();
+
+    // Scare
+    if (dist < 5 && now - lastMonsterScare > 4) {
+      lastMonsterScare = now;
+      triggerScare();
+    }
+  });
+
+  // ── Sanity
+  if (monsterNearby) {
+    sanity = Math.max(0, sanity - dt * 8);
+  } else {
+    sanity = Math.min(100, sanity + dt * 3);
+  }
+  document.getElementById('sanity-fill').style.width = sanity + '%';
+
+  // ── Sanity effects
+  if (sanity < 40) {
+    heartRate = 2 - sanity / 40;
+    document.getElementById('heartbeat').style.animationDuration = (0.5 + sanity / 80) + 's';
+    if (sanity < 20) {
+      // Chromatic aberration-like tint
+      document.getElementById('vignette').style.background =
+        'radial-gradient(ellipse at center, transparent 30%, rgba(80,0,0,0.9) 100%)';
+    }
+  } else {
+    document.getElementById('heartbeat').style.animationDuration = '1s';
+    document.getElementById('vignette').style.background =
+      'radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.85) 100%)';
+  }
+
+  // Heartbeat sound
+  if (frameCount % Math.round(60 / heartRate) === 0) playHeartbeat();
+}
+
+// ─── EFFECTS ────────────────────────────────────────────────────
+function triggerScare() {
+  playScream();
+  const flash = document.getElementById('flash');
+  flash.style.opacity = '0.3';
+  setTimeout(() => flash.style.opacity = '0', 80);
+  const blood = document.getElementById('blood');
+  blood.style.opacity = '0.6';
+  setTimeout(() => blood.style.opacity = '0', 400);
+}
+
+function triggerDeath() {
+  if (gameOver || gameWon) return;
+  gameOver = true;
+  playScream();
+  const blood = document.getElementById('blood');
+  blood.style.opacity = '1';
+  blood.style.transition = 'opacity 1s ease';
+  setTimeout(() => {
+    document.getElementById('gameover').classList.add('show');
+  }, 1200);
+}
+
+function triggerWin() {
+  if (gameOver || gameWon) return;
+  gameWon = true;
+  document.getElementById('winscreen').classList.add('show');
+}
+
+// ─── START / RESTART ────────────────────────────────────────────
+function startGame() {
+  initAudio();
+  gameStarted = true;
+  const ss = document.getElementById('start-screen');
+  ss.style.opacity = '0';
+  setTimeout(() => ss.style.display = 'none', 1000);
+  document.getElementById('canvas').requestPointerLock();
+  showMessage('FIND THE THREE KEYS', 3000);
+  animate();
+}
+
+function restartGame() {
+  location.reload();
+}
+
+function animate() {
+  if (gameOver || gameWon) return;
+  requestAnimationFrame(animate);
+  const dt = Math.min(clock.getDelta(), 0.05);
+  update(dt);
+  renderer.render(scene, camera);
+}
+
+// ─── RESIZE ─────────────────────────────────────────────────────
+window.addEventListener('resize', () => {
+  if (!renderer) return;
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+// ─── INIT ───────────────────────────────────────────────────────
+buildScene();
+setupInput();
+</script>
+</body>
+</html>
