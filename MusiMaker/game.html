@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MusiMaker</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        :root {
+            --primary: #4285F4;
+            --secondary: #EA4335;
+        }
+        body {
+            background-color: #F8F9FA;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        .grid-container {
+            display: grid;
+            grid-template-columns: repeat(16, 1fr);
+            gap: 6px;
+        }
+        .cell {
+            aspect-ratio: 1/1;
+            border-radius: 6px;
+            transition: all 0.1s ease;
+            cursor: pointer;
+            background-color: #F1F3F4;
+        }
+        .cell:hover {
+            background-color: #E8EAED;
+        }
+        .cell.active {
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+        .drum-cell {
+            aspect-ratio: 1/1;
+            border-radius: 50%;
+            background-color: #F1F3F4;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            color: transparent;
+        }
+        .drum-cell.active {
+            background-color: #3C4043;
+            color: white;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
+        }
+        .playhead {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            width: 4px;
+            background: rgba(66, 133, 244, 0.3);
+            pointer-events: none;
+            border-radius: 2px;
+            z-index: 10;
+            display: none;
+        }
+        input[type='range'] {
+            -webkit-appearance: none;
+            height: 8px;
+            background: #E8EAED;
+            border-radius: 4px;
+            outline: none;
+        }
+        input[type='range']::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 24px;
+            height: 24px;
+            background: var(--primary);
+            border-radius: 50%;
+            border: 4px solid white;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+            cursor: pointer;
+        }
+        .beat-marker {
+            background-color: rgba(0,0,0,0.03);
+            border-radius: 12px;
+        }
+    </style>
+</head>
+<body class="flex flex-col h-screen overflow-hidden">
+
+    <!-- Header -->
+    <header class="bg-white border-b p-4 flex items-center justify-between shadow-sm z-30">
+        <div class="flex items-center gap-3">
+            <div class="bg-blue-500 p-2 rounded-xl text-white shadow-lg">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle></svg>
+            </div>
+            <h1 class="text-2xl font-black text-gray-800 tracking-tighter">MUSIMAKER</h1>
+        </div>
+        <div class="flex items-center gap-3">
+            <button id="export-midi" class="px-4 py-2 bg-blue-50 text-blue-600 rounded-lg font-bold text-xs hover:bg-blue-100 transition-all uppercase tracking-wider">MIDI</button>
+            <button id="export-wav" class="px-4 py-2 bg-green-50 text-green-600 rounded-lg font-bold text-xs hover:bg-green-100 transition-all uppercase tracking-wider">WAV</button>
+            <button id="clear-btn" class="p-2 text-gray-400 hover:text-red-500 transition-colors">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><path d="M3 3v5h5"></path></svg>
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Workspace -->
+    <main class="flex-1 relative flex flex-col items-center justify-center p-4 md:p-12 overflow-hidden">
+        <div id="workspace" class="relative bg-white rounded-[2rem] shadow-2xl border-[12px] border-white w-full max-w-5xl aspect-[16/9] flex flex-col">
+            
+            <!-- Note Grid -->
+            <div id="note-grid" class="flex-1 grid-container mb-4"></div>
+
+            <!-- Separator -->
+            <div class="h-[2px] bg-gray-100 mb-4 rounded-full"></div>
+
+            <!-- Drum Grid -->
+            <div id="drum-grid" class="h-20 grid-container"></div>
+
+            <!-- Playhead -->
+            <div id="playhead" class="playhead"></div>
+        </div>
+    </main>
+
+    <!-- Controls -->
+    <footer class="bg-white border-t p-6 md:p-8 flex flex-wrap items-center justify-center gap-8 md:gap-16 z-20">
+        
+        <!-- Play Toggle -->
+        <button id="play-btn" class="w-20 h-20 rounded-full bg-blue-600 text-white shadow-xl hover:scale-105 active:scale-95 transition-all flex items-center justify-center">
+            <svg id="play-icon" xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+            <svg id="stop-icon" class="hidden" xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="4" width="16" height="16" rx="2"></rect></svg>
+        </button>
+
+        <!-- Instrument Selector -->
+        <div class="flex flex-col items-center gap-3">
+            <div class="flex bg-gray-100 p-1.5 rounded-2xl shadow-inner">
+                <button data-inst="sine" class="inst-btn px-6 py-2 rounded-xl text-xs font-black uppercase tracking-widest bg-white shadow-md text-blue-600 transition-all">Marimba</button>
+                <button data-inst="triangle" class="inst-btn px-6 py-2 rounded-xl text-xs font-black uppercase tracking-widest text-gray-400 hover:text-gray-600 transition-all">Piano</button>
+                <button data-inst="square" class="inst-btn px-6 py-2 rounded-xl text-xs font-black uppercase tracking-widest text-gray-400 hover:text-gray-600 transition-all">Synth</button>
+            </div>
+            <span class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Sound</span>
+        </div>
+
+        <!-- Tempo -->
+        <div class="flex flex-col items-center gap-3 w-64">
+            <div class="flex justify-between w-full px-1">
+                <span class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Tempo</span>
+                <span id="tempo-val" class="text-lg font-black text-blue-600">120</span>
+            </div>
+            <input type="range" id="tempo-slider" min="40" max="220" value="120" class="w-full">
+        </div>
+    </footer>
+
+    <script>
+        const COLORS = ['#FF4D4D', '#FF8C42', '#FFD151', '#A6E22E', '#48C9B0', '#3498DB', '#9B59B6', '#F06292'];
+        const FREQS = [523.25, 493.88, 440.00, 392.00, 349.23, 329.63, 293.66, 261.63];
+        const MIDI_NOTES = [72, 71, 69, 67, 65, 64, 62, 60];
+        const COLS = 16;
+        const ROWS = 8;
+
+        let audioCtx = null;
+        let isPlaying = false;
+        let currentStep = 0;
+        let bpm = 120;
+        let instrument = 'sine';
+        let timer = null;
+
+        const grid = Array(ROWS).fill().map(() => Array(COLS).fill(false));
+        const drumGrid = Array(2).fill().map(() => Array(COLS).fill(false));
+
+        // DOM Elements
+        const noteGridEl = document.getElementById('note-grid');
+        const drumGridEl = document.getElementById('drum-grid');
+        const playBtn = document.getElementById('play-btn');
+        const playIcon = document.getElementById('play-icon');
+        const stopIcon = document.getElementById('stop-icon');
+        const tempoSlider = document.getElementById('tempo-slider');
+        const tempoVal = document.getElementById('tempo-val');
+        const playhead = document.getElementById('playhead');
+
+        // Initialize Audio Context on first interaction
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+        }
+
+        // Build UI
+        function createGrids() {
+            for (let c = 0; c < COLS; c++) {
+                // Main Notes
+                const colWrapper = document.createElement('div');
+                colWrapper.className = `flex flex-col gap-1.5 h-full ${c % 4 === 0 ? 'beat-marker' : ''}`;
+                for (let r = 0; r < ROWS; r++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'cell flex-1';
+                    cell.onclick = () => {
+                        initAudio();
+                        grid[r][c] = !grid[r][c];
+                        cell.classList.toggle('active');
+                        cell.style.backgroundColor = grid[r][c] ? COLORS[r % COLORS.length] : '';
+                        if (grid[r][c]) playNote(FREQS[r], 0.2);
+                    };
+                    colWrapper.appendChild(cell);
+                }
+                noteGridEl.appendChild(colWrapper);
+
+                // Drums
+                const drumColWrapper = document.createElement('div');
+                drumColWrapper.className = `flex flex-col gap-1.5 h-full ${c % 4 === 0 ? 'beat-marker' : ''}`;
+                for (let r = 0; r < 2; r++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'drum-cell flex-1';
+                    cell.innerText = r === 0 ? '●' : '▲';
+                    cell.onclick = () => {
+                        initAudio();
+                        drumGrid[r][c] = !drumGrid[r][c];
+                        cell.classList.toggle('active');
+                        if (drumGrid[r][c]) playDrum(r);
+                    };
+                    drumColWrapper.appendChild(cell);
+                }
+                drumGridEl.appendChild(drumColWrapper);
+            }
+        }
+
+        function playNote(freq, dur, context = audioCtx, startTime = 0) {
+            const osc = context.createOscillator();
+            const env = context.createGain();
+            const time = startTime || context.currentTime;
+
+            osc.type = instrument;
+            osc.frequency.setValueAtTime(freq, time);
+            
+            env.gain.setValueAtTime(0, time);
+            env.gain.linearRampToValueAtTime(0.2, time + 0.02);
+            env.gain.exponentialRampToValueAtTime(0.001, time + dur);
+
+            osc.connect(env);
+            env.connect(context.destination);
+            osc.start(time);
+            osc.stop(time + dur);
+        }
+
+        function playDrum(type, context = audioCtx, startTime = 0) {
+            const osc = context.createOscillator();
+            const env = context.createGain();
+            const time = startTime || context.currentTime;
+
+            if (type === 0) { // Kick
+                osc.frequency.setValueAtTime(150, time);
+                osc.frequency.exponentialRampToValueAtTime(0.01, time + 0.2);
+                env.gain.setValueAtTime(1, time);
+                env.gain.exponentialRampToValueAtTime(0.01, time + 0.2);
+            } else { // Snare
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(400, time);
+                env.gain.setValueAtTime(0.4, time);
+                env.gain.exponentialRampToValueAtTime(0.01, time + 0.1);
+            }
+
+            osc.connect(env);
+            env.connect(context.destination);
+            osc.start(time);
+            osc.stop(time + 0.2);
+        }
+
+        function step() {
+            if (!isPlaying) return;
+
+            // Trigger sounds
+            for (let r = 0; r < ROWS; r++) {
+                if (grid[r][currentStep]) playNote(FREQS[r], 0.4);
+            }
+            for (let r = 0; r < 2; r++) {
+                if (drumGrid[r][currentStep]) playDrum(r);
+            }
+
+            // Update UI
+            const colWidth = 100 / COLS;
+            playhead.style.display = 'block';
+            playhead.style.left = `calc(${currentStep * colWidth}% + ${colWidth / 2}% - 2px)`;
+
+            currentStep = (currentStep + 1) % COLS;
+            
+            const interval = (60 / bpm) / 2 * 1000;
+            timer = setTimeout(step, interval);
+        }
+
+        // --- Export Logic ---
+        function exportMIDI() {
+            const ticksPerBeat = 128;
+            const stepTicks = ticksPerBeat / 2;
+            let events = [];
+
+            for (let c = 0; c < COLS; c++) {
+                grid.forEach((row, r) => {
+                    if (row[c]) {
+                        events.push({ time: c * stepTicks, data: [0x90, MIDI_NOTES[r], 0x64] });
+                        events.push({ time: (c + 1) * stepTicks - 10, data: [0x80, MIDI_NOTES[r], 0x00] });
+                    }
+                });
+                drumGrid.forEach((row, r) => {
+                    if (row[c]) {
+                        const note = r === 0 ? 36 : 40;
+                        events.push({ time: c * stepTicks, data: [0x99, note, 0x64] });
+                        events.push({ time: c * stepTicks + 20, data: [0x89, note, 0x00] });
+                    }
+                });
+            }
+
+            events.sort((a, b) => a.time - b.time);
+            let track = [];
+            let lastTime = 0;
+            events.forEach(e => {
+                track.push(e.time - lastTime, ...e.data);
+                lastTime = e.time;
+            });
+            track.push(0x00, 0xFF, 0x2F, 0x00);
+
+            const header = [0x4D, 0x54, 0x68, 0x64, 0x00, 0x00, 0x00, 0x06, 0x00, 0x00, 0x00, 0x01, 0x00, ticksPerBeat];
+            const tHead = [0x4D, 0x54, 0x72, 0x6B, (track.length >> 24) & 0xFF, (track.length >> 16) & 0xFF, (track.length >> 8) & 0xFF, track.length & 0xFF];
+            
+            const blob = new Blob([new Uint8Array([...header, ...tHead, ...track])], { type: 'audio/midi' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'musimaker-song.mid';
+            a.click();
+        }
+
+        async function exportWAV() {
+            const dur = (60 / bpm) * (COLS / 2);
+            const sr = 44100;
+            const offCtx = new OfflineAudioContext(2, sr * dur, sr);
+            const stepDur = (60 / bpm) / 2;
+
+            for (let c = 0; c < COLS; c++) {
+                grid.forEach((row, r) => { if (row[c]) playNote(FREQS[r], 0.4, offCtx, c * stepDur); });
+                drumGrid.forEach((row, r) => { if (row[c]) playDrum(r, offCtx, c * stepDur); });
+            }
+
+            const buf = await offCtx.startRendering();
+            const wav = bufferToWav(buf);
+            const url = URL.createObjectURL(wav);
+            const a = document.createElement('a');
+            a.href = url; a.download = 'musimaker-song.wav'; a.click();
+        }
+
+        function bufferToWav(abuf) {
+            const n = abuf.numberOfChannels, len = abuf.length * n * 2 + 44;
+            const buffer = new ArrayBuffer(len), view = new DataView(buffer);
+            let p = 0;
+            const s32 = (d) => { view.setUint32(p, d, true); p += 4; };
+            const s16 = (d) => { view.setUint16(p, d, true); p += 2; };
+            s32(0x46464952); s32(len - 8); s32(0x45564157); s32(0x20746d66); s32(16);
+            s16(1); s16(n); s32(abuf.sampleRate); s32(abuf.sampleRate * 2 * n); s16(n * 2); s16(16);
+            s32(0x61746164); s32(len - p - 4);
+            for (let i = 0; i < abuf.length; i++) {
+                for (let c = 0; c < n; c++) {
+                    let s = Math.max(-1, Math.min(1, abuf.getChannelData(c)[i]));
+                    view.setInt16(p, s < 0 ? s * 0x8000 : s * 0x7FFF, true); p += 2;
+                }
+            }
+            return new Blob([buffer], { type: 'audio/wav' });
+        }
+
+        // Listeners
+        playBtn.onclick = () => {
+            initAudio();
+            isPlaying = !isPlaying;
+            playIcon.classList.toggle('hidden');
+            stopIcon.classList.toggle('hidden');
+            playBtn.classList.toggle('bg-red-500');
+            if (isPlaying) {
+                currentStep = 0;
+                step();
+            } else {
+                clearTimeout(timer);
+                playhead.style.display = 'none';
+            }
+        };
+
+        tempoSlider.oninput = (e) => {
+            bpm = e.target.value;
+            tempoVal.innerText = bpm;
+        };
+
+        document.querySelectorAll('.inst-btn').forEach(btn => {
+            btn.onclick = () => {
+                document.querySelectorAll('.inst-btn').forEach(b => {
+                    b.classList.remove('bg-white', 'shadow-md', 'text-blue-600');
+                    b.classList.add('text-gray-400');
+                });
+                btn.classList.add('bg-white', 'shadow-md', 'text-blue-600');
+                btn.classList.remove('text-gray-400');
+                instrument = btn.dataset.inst;
+            };
+        });
+
+        document.getElementById('clear-btn').onclick = () => {
+            grid.forEach(r => r.fill(false));
+            drumGrid.forEach(r => r.fill(false));
+            document.querySelectorAll('.cell, .drum-cell').forEach(c => {
+                c.classList.remove('active');
+                c.style.backgroundColor = '';
+            });
+        };
+
+        document.getElementById('export-midi').onclick = exportMIDI;
+        document.getElementById('export-wav').onclick = exportWAV;
+
+        // Init
+        createGrids();
+    </script>
+</body>
+</html>
+
