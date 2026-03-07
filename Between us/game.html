@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Among Us AI - Mobile</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: #000;
+            font-family: system-ui, -apple-system, sans-serif;
+            touch-action: none;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        canvas {
+            display: block;
+            touch-action: none;
+        }
+        #ui-overlay {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            z-index: 20;
+        }
+        .touch-btn {
+            pointer-events: auto;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            transition: transform 0.1s, opacity 0.2s;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            -webkit-tap-highlight-color: transparent;
+        }
+        .touch-btn:active {
+            transform: scale(0.85);
+            opacity: 0.8;
+        }
+        #joystick-base {
+            position: absolute;
+            bottom: 30px;
+            left: 30px;
+            width: 140px;
+            height: 140px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            border-radius: 50%;
+            pointer-events: auto;
+        }
+        #joystick-stick {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 60px;
+            height: 60px;
+            background: rgba(255, 255, 255, 0.4);
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+        }
+        .action-container {
+            position: absolute;
+            bottom: 30px;
+            right: 30px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            align-items: flex-end;
+        }
+        .secondary-actions {
+            display: flex;
+            gap: 15px;
+        }
+        #kill-btn {
+            width: 90px;
+            height: 90px;
+            background: #ef4444;
+            border: 5px solid #fca5a5;
+            color: white;
+            font-weight: 900;
+            font-size: 1.2rem;
+        }
+        #kill-btn.disabled {
+            filter: grayscale(1);
+            opacity: 0.5;
+            pointer-events: none;
+        }
+        .small-btn {
+            width: 65px;
+            height: 65px;
+            background: rgba(30, 41, 59, 0.8);
+            border: 3px solid rgba(255, 255, 255, 0.3);
+        }
+        #start-screen {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.95);
+            z-index: 100;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            text-align: center;
+        }
+        .cooldown-ring {
+            position: absolute;
+            inset: 0;
+            border-radius: 50%;
+            border: 5px solid rgba(255,255,255,0.3);
+            border-top-color: transparent;
+            animation: rotate 2s linear infinite;
+            display: none;
+        }
+        @keyframes rotate { from {transform: rotate(0deg)} to {transform: rotate(360deg)} }
+    </style>
+</head>
+<body>
+
+    <div id="start-screen" onclick="beginGame()">
+        <h1 class="text-64px font-black text-red-600 mb-2 italic tracking-tighter" style="font-size: 4rem;">IMPOSTOR</h1>
+        <p class="text-white text-sm tracking-widest uppercase mb-10 opacity-70">Mobile Edition</p>
+        
+        <div class="space-y-4 mb-12 text-zinc-300 text-sm max-w-xs text-left border-l-2 border-red-600 pl-4">
+            <p>• Move with the <b>Joystick</b></p>
+            <p>• <b>Kill</b> crewmates when in range</p>
+            <p>• Use <b>Vents</b> to disappear</p>
+            <p>• Don't get caught by the AI</p>
+        </div>
+        
+        <button class="bg-red-600 text-white px-12 py-4 rounded-full font-black text-xl animate-bounce shadow-xl uppercase">
+            Tap to Start
+        </button>
+    </div>
+
+    <div id="ui-overlay">
+        <div class="absolute top-6 left-6 flex flex-col gap-1">
+            <span class="text-zinc-500 text-xs font-bold uppercase">Crewmates Left</span>
+            <div id="crew-counter" class="text-white text-4xl font-black tabular-nums">10</div>
+        </div>
+
+        <div id="joystick-base">
+            <div id="joystick-stick"></div>
+        </div>
+
+        <div class="action-container">
+            <div class="secondary-actions">
+                <div id="vent-btn" class="touch-btn small-btn">
+                    <svg viewBox="0 0 24 24" class="w-8 h-8 text-blue-400"><path fill="currentColor" d="M3,6H21V18H3V6M5,8V16H19V8H5M7,10H17V14H7V10Z" /></svg>
+                </div>
+                <div id="sabotage-btn" class="touch-btn small-btn">
+                    <svg viewBox="0 0 24 24" class="w-8 h-8 text-yellow-500"><path fill="currentColor" d="M12,2L1,21H23L12,2M12,6L19.53,19H4.47L12,6M11,10V14H13V10H11M11,16V18H13V16H11Z" /></svg>
+                </div>
+            </div>
+            <div id="kill-btn" class="touch-btn">
+                <span>KILL</span>
+                <div id="kill-cooldown-ui" class="absolute inset-0 rounded-full border-4 border-white/20"></div>
+            </div>
+        </div>
+    </div>
+
+    <canvas id="game"></canvas>
+
+    <script>
+        const canvas = document.getElementById('game');
+        const ctx = canvas.getContext('2d');
+        const crewCountEl = document.getElementById('crew-counter');
+        
+        let width, height;
+        let gameRunning = false;
+        let lastTime = 0;
+
+        // Constants
+        const WORLD_SIZE = 2000;
+        const PLAYER_SPEED = 5;
+        const AI_SPEED = 2.5;
+        const KILL_DISTANCE = 110;
+        let killCooldown = 0;
+        let sabotageTime = 0;
+
+        const COLORS = ['#FF3333', '#33FF33', '#3333FF', '#FFFF33', '#FF33FF', '#33FFFF', '#FFAA33', '#AA33FF', '#FFFFFF', '#777777'];
+
+        // State
+        const player = { x: 1000, y: 1000, color: '#c51111', angle: 0, isVenting: false };
+        let crewmates = [];
+        let vents = [{x: 400, y: 400}, {x: 1600, y: 400}, {x: 400, y: 1600}, {x: 1600, y: 1600}, {x: 1000, y: 1000}];
+        let walls = [
+            {x: 0, y: 0, w: 2000, h: 60},
+            {x: 0, y: 1940, w: 2000, h: 60},
+            {x: 0, y: 0, w: 60, h: 2000},
+            {x: 1940, y: 0, w: 60, h: 2000},
+            {x: 700, y: 700, w: 600, h: 60},
+            {x: 700, y: 1240, w: 600, h: 60}
+        ];
+
+        // Controls
+        const joyState = { active: false, dx: 0, dy: 0, currentAngle: 0 };
+        const keys = {};
+
+        function resize() {
+            width = window.innerWidth;
+            height = window.innerHeight;
+            canvas.width = width;
+            canvas.height = height;
+        }
+
+        function init() {
+            window.addEventListener('resize', resize);
+            resize();
+
+            // Populate AI
+            for(let i=0; i<10; i++) {
+                crewmates.push({
+                    x: 200 + Math.random() * 1600,
+                    y: 200 + Math.random() * 1600,
+                    color: COLORS[i],
+                    angle: Math.random() * Math.PI * 2,
+                    dead: false,
+                    target: { x: Math.random() * 2000, y: Math.random() * 2000 },
+                    wait: 0
+                });
+            }
+
+            // Joystick Logic
+            const joyBase = document.getElementById('joystick-base');
+            const joyStick = document.getElementById('joystick-stick');
+
+            const handleJoystick = (e) => {
+                const touch = e.touches ? e.touches[0] : e;
+                const rect = joyBase.getBoundingClientRect();
+                const centerX = rect.left + rect.width / 2;
+                const centerY = rect.top + rect.height / 2;
+                
+                let dx = touch.clientX - centerX;
+                let dy = touch.clientY - centerY;
+                const dist = Math.sqrt(dx*dx + dy*dy);
+                const max = rect.width / 2;
+                
+                const ratio = Math.min(dist, max) / max;
+                const angle = Math.atan2(dy, dx);
+                
+                joyState.dx = Math.cos(angle) * ratio;
+                joyState.dy = Math.sin(angle) * ratio;
+                
+                const visualDist = ratio * max;
+                joyStick.style.transform = `translate(calc(-50% + ${Math.cos(angle) * visualDist}px), calc(-50% + ${Math.sin(angle) * visualDist}px))`;
+            };
+
+            joyBase.addEventListener('touchstart', (e) => { joyState.active = true; handleJoystick(e); e.preventDefault(); }, {passive: false});
+            window.addEventListener('touchmove', (e) => { if(joyState.active) handleJoystick(e); }, {passive: false});
+            window.addEventListener('touchend', () => { 
+                joyState.active = false; 
+                joyState.dx = 0; joyState.dy = 0;
+                joyStick.style.transform = 'translate(-50%, -50%)';
+            });
+
+            // Action Listeners
+            document.getElementById('kill-btn').onclick = triggerKill;
+            document.getElementById('vent-btn').onclick = triggerVent;
+            document.getElementById('sabotage-btn').onclick = triggerSabotage;
+            
+            window.addEventListener('keydown', e => keys[e.code] = true);
+            window.addEventListener('keyup', e => keys[e.code] = false);
+        }
+
+        function beginGame() {
+            document.getElementById('start-screen').style.display = 'none';
+            gameRunning = true;
+            lastTime = performance.now();
+            requestAnimationFrame(loop);
+        }
+
+        function triggerKill() {
+            if(!gameRunning || player.isVenting || killCooldown > 0) return;
+            
+            let nearest = null;
+            let minDist = KILL_DISTANCE;
+
+            crewmates.forEach(c => {
+                if(c.dead) return;
+                const d = Math.hypot(player.x - c.x, player.y - c.y);
+                if(d < minDist) {
+                    minDist = d;
+                    nearest = c;
+                }
+            });
+
+            if(nearest) {
+                nearest.dead = true;
+                killCooldown = 8000; // 8 seconds
+                updateUI();
+            }
+        }
+
+        function triggerVent() {
+            const nearVent = vents.find(v => Math.hypot(player.x - v.x, player.y - v.y) < 80);
+            if(nearVent) {
+                player.isVenting = !player.isVenting;
+                if(player.isVenting) {
+                    player.x = nearVent.x;
+                    player.y = nearVent.y;
+                }
+            } else if (player.isVenting) {
+                const others = vents.filter(v => Math.hypot(player.x - v.x, player.y - v.y) > 100);
+                const target = others[Math.floor(Math.random() * others.length)];
+                player.x = target.x;
+                player.y = target.y;
+            }
+        }
+
+        function triggerSabotage() {
+            if(sabotageTime > 0) return;
+            sabotageTime = 12000;
+        }
+
+        function updateUI() {
+            const count = crewmates.filter(c => !c.dead).length;
+            crewCountEl.innerText = count;
+            if(count === 0) endGame("VICTORY", "All targets eliminated.");
+        }
+
+        function endGame(title, msg) {
+            gameRunning = false;
+            const start = document.getElementById('start-screen');
+            start.style.display = 'flex';
+            start.innerHTML = `
+                <h1 class="text-white font-black text-6xl mb-4 italic">${title}</h1>
+                <p class="text-zinc-400 mb-10">${msg}</p>
+                <button onclick="location.reload()" class="bg-white text-black px-12 py-4 rounded-full font-black uppercase">Play Again</button>
+            `;
+        }
+
+        function update(dt) {
+            if(killCooldown > 0) {
+                killCooldown -= dt;
+                const percent = (killCooldown / 8000) * 100;
+                document.getElementById('kill-cooldown-ui').style.background = `conic-gradient(rgba(255,255,255,0.4) ${percent}%, transparent 0)`;
+                document.getElementById('kill-btn').classList.add('disabled');
+            } else {
+                document.getElementById('kill-btn').classList.remove('disabled');
+                document.getElementById('kill-cooldown-ui').style.background = 'none';
+            }
+            if(sabotageTime > 0) sabotageTime -= dt;
+
+            // Player movement
+            if(!player.isVenting) {
+                let mx = joyState.dx, my = joyState.dy;
+                if(keys['KeyW']) my = -1; if(keys['KeyS']) my = 1;
+                if(keys['KeyA']) mx = -1; if(keys['KeyD']) mx = 1;
+
+                if(mx !== 0 || my !== 0) {
+                    const angle = Math.atan2(my, mx);
+                    const nx = player.x + Math.cos(angle) * PLAYER_SPEED;
+                    const ny = player.y + Math.sin(angle) * PLAYER_SPEED;
+                    if(!checkWall(nx, ny)) {
+                        player.x = nx; player.y = ny;
+                        player.angle = angle;
+                    }
+                }
+            }
+
+            // AI movement
+            crewmates.forEach(c => {
+                if(c.dead) return;
+
+                // Vision logic: If AI sees you kill or sees a body near you
+                const distToPlayer = Math.hypot(c.x - player.x, c.y - player.y);
+                const visionLimit = sabotageTime > 0 ? 180 : 450;
+                
+                if(!player.isVenting && distToPlayer < visionLimit) {
+                    const isLookingAtPlayer = Math.abs(Math.atan2(player.y - c.y, player.x - c.x) - c.angle) < 1.2;
+                    if(isLookingAtPlayer && distToPlayer < 100) {
+                        endGame("DEFEAT", "You were caught!");
+                    }
+                }
+
+                if(c.wait > 0) {
+                    c.wait -= dt;
+                } else {
+                    const dx = c.target.x - c.x, dy = c.target.y - c.y;
+                    const d = Math.hypot(dx, dy);
+                    if(d < 20) {
+                        c.wait = 2000 + Math.random() * 3000;
+                        c.target = { x: Math.random() * 1800 + 100, y: Math.random() * 1800 + 100 };
+                    } else {
+                        const angle = Math.atan2(dy, dx);
+                        c.angle = angle;
+                        c.x += Math.cos(angle) * AI_SPEED;
+                        c.y += Math.sin(angle) * AI_SPEED;
+                    }
+                }
+            });
+        }
+
+        function checkWall(x, y) {
+            return walls.some(w => x+20 > w.x && x-20 < w.x+w.w && y+20 > w.y && y-20 < w.y+w.h);
+        }
+
+        function draw() {
+            ctx.fillStyle = '#0a0a0a';
+            ctx.fillRect(0,0,width,height);
+
+            ctx.save();
+            ctx.translate(width/2 - player.x, height/2 - player.y);
+
+            // Floor
+            ctx.fillStyle = '#161b22';
+            ctx.fillRect(0, 0, WORLD_SIZE, WORLD_SIZE);
+            
+            ctx.strokeStyle = '#21262d';
+            ctx.lineWidth = 4;
+            for(let i=0; i<=WORLD_SIZE; i+=200) {
+                ctx.beginPath(); ctx.moveTo(i,0); ctx.lineTo(i,WORLD_SIZE); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(0,i); ctx.lineTo(WORLD_SIZE,i); ctx.stroke();
+            }
+
+            // Static Objects
+            vents.forEach(v => {
+                ctx.fillStyle = '#30363d';
+                ctx.beginPath(); ctx.arc(v.x, v.y, 45, 0, Math.PI*2); ctx.fill();
+                ctx.strokeStyle = '#000'; ctx.lineWidth = 2; ctx.stroke();
+            });
+
+            walls.forEach(w => {
+                ctx.fillStyle = '#010409';
+                ctx.fillRect(w.x, w.y, w.w, w.h);
+            });
+
+            // Actors
+            crewmates.forEach(c => {
+                if(c.dead) {
+                    ctx.fillStyle = c.color;
+                    ctx.beginPath(); ctx.ellipse(c.x, c.y, 25, 12, 0, 0, Math.PI*2); ctx.fill();
+                } else {
+                    drawAstronaut(c.x, c.y, c.color, c.angle);
+                }
+            });
+
+            if(!player.isVenting) drawAstronaut(player.x, player.y, player.color, player.angle);
+
+            ctx.restore();
+
+            // Darkness
+            if(sabotageTime > 0) {
+                const g = ctx.createRadialGradient(width/2, height/2, 60, width/2, height/2, 280);
+                g.addColorStop(0, 'transparent');
+                g.addColorStop(1, 'rgba(0,0,0,0.95)');
+                ctx.fillStyle = g;
+                ctx.fillRect(0,0,width,height);
+            }
+        }
+
+        function drawAstronaut(x, y, color, angle) {
+            ctx.save();
+            ctx.translate(x, y);
+            const facingLeft = (angle > Math.PI/2 || angle < -Math.PI/2);
+            if(facingLeft) ctx.scale(-1, 1);
+
+            // Body
+            ctx.fillStyle = color;
+            ctx.beginPath();
+            if(ctx.roundRect) ctx.roundRect(-20, -25, 40, 50, 12); else ctx.rect(-20, -25, 40, 50);
+            ctx.fill();
+            
+            // Visor
+            ctx.fillStyle = '#8ab4f8';
+            ctx.beginPath();
+            if(ctx.roundRect) ctx.roundRect(5, -12, 22, 18, 6); else ctx.rect(5, -12, 22, 18);
+            ctx.fill();
+            ctx.strokeStyle = '#000'; ctx.lineWidth = 2; ctx.stroke();
+
+            ctx.restore();
+        }
+
+        function loop(time) {
+            if(!gameRunning) return;
+            const dt = time - lastTime;
+            lastTime = time;
+            update(dt);
+            draw();
+            requestAnimationFrame(loop);
+        }
+
+        init();
+    </script>
+</body>
+</html>
+
