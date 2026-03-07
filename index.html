@@ -19,6 +19,20 @@
             overflow-x: hidden;
         }
 
+        /* Banner Styling */
+        #global-banner {
+            display: none;
+            background-color: #ef4444;
+            color: white;
+            text-align: center;
+            padding: 10px 20px;
+            font-weight: 700;
+            font-size: 0.9rem;
+            z-index: 60;
+            position: relative;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+        }
+
         .game-card {
             transition: transform 0.2s ease, box-shadow 0.2s ease;
         }
@@ -111,6 +125,9 @@
 </head>
 <body>
 
+    <!-- Global Alert Banner -->
+    <div id="global-banner"></div>
+
     <!-- Navigation -->
     <nav class="flex flex-col md:flex-row items-center justify-between px-8 py-4 bg-[#222] border-b border-white/10 sticky top-0 z-50 gap-4">
         <div class="flex items-center gap-3 shrink-0">
@@ -179,6 +196,7 @@
         const loadMoreTrigger = document.getElementById('load-more-trigger');
         const searchInput = document.getElementById('search-input');
         const viewTitle = document.getElementById('view-title');
+        const globalBanner = document.getElementById('global-banner');
 
         // State
         let allFilteredFolders = []; 
@@ -198,6 +216,22 @@
 
         const currentPlatform = getDeviceType();
         deviceIndicator.textContent = `PLATFORM: ${currentPlatform.toUpperCase()}`;
+
+        // Check for root banner.txt
+        async function checkGlobalBanner() {
+            try {
+                const response = await fetch(`${RAW_URL}/banner.txt?v=${cacheBust}`);
+                if (response.ok) {
+                    const text = await response.text();
+                    if (text && text.trim() !== "") {
+                        globalBanner.textContent = text.trim();
+                        globalBanner.style.display = 'block';
+                    }
+                }
+            } catch (e) {
+                // Silently fail if no banner exists
+            }
+        }
 
         async function checkDeviceSupport(folderName) {
             try {
@@ -244,6 +278,9 @@
             if (isLoading) return;
             isLoading = true;
             showSkeletons();
+
+            // Fetch banner in parallel with folder list
+            checkGlobalBanner();
 
             try {
                 const response = await fetch(API_URL);
@@ -300,9 +337,6 @@
             currentIndex += ITEMS_PER_PAGE;
         }
 
-        /**
-         * Logic to attempt loading different image formats in order
-         */
         function handleImageError(img, folderName, formatsIndex) {
             const formats = ['png', 'jpg', 'jpeg', 'webp'];
             if (formatsIndex < formats.length - 1) {
@@ -311,7 +345,7 @@
                 img.setAttribute('data-format-index', nextIndex);
             } else {
                 img.src = `https://placehold.co/400x400/222/white?text=${folderName}`;
-                img.onerror = null; // Prevent infinite loop
+                img.onerror = null;
             }
         }
 
