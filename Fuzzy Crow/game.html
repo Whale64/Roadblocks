@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Fuzzy Crow</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: #4ec0ca;
+            font-family: 'Press Start 2P', cursive;
+            touch-action: manipulation;
+        }
+
+        #game-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            max-width: 500px;
+            margin: 0 auto;
+            background-color: #4ec0ca;
+            overflow: hidden;
+            box-shadow: 0 0 50px rgba(0,0,0,0.5);
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            image-rendering: pixelated;
+        }
+
+        .ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            z-index: 20;
+        }
+
+        #score-display {
+            position: absolute;
+            top: 60px;
+            font-size: 3rem;
+            text-shadow: 4px 4px 0px #000;
+            z-index: 30;
+        }
+
+        .screen {
+            pointer-events: auto;
+            background: #ded895;
+            padding: 2.5rem 1.5rem;
+            border-radius: 4px; /* Sharper edges for retro feel */
+            text-align: center;
+            border: 4px solid #543847;
+            box-shadow: 8px 8px 0 rgba(0,0,0,0.2);
+            animation: popIn 0.2s ease-out;
+            color: #543847;
+            max-width: 90%;
+        }
+
+        @keyframes popIn {
+            0% { transform: scale(0.8); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+
+        .btn {
+            background: #e67e22;
+            color: white;
+            border: 4px solid #fff;
+            padding: 15px 20px;
+            font-size: 1rem;
+            cursor: pointer;
+            margin-top: 25px;
+            box-shadow: 0 6px 0 #a04000;
+            transition: all 0.05s;
+            font-family: 'Press Start 2P', cursive;
+            text-transform: uppercase;
+        }
+
+        .btn:active {
+            transform: translateY(3px);
+            box-shadow: 0 3px 0 #a04000;
+        }
+
+        .hidden { display: none !important; }
+        
+        h1 {
+            font-size: 1.8rem;
+            line-height: 1.4;
+            margin-bottom: 20px;
+            text-shadow: 3px 3px 0px #fff;
+        }
+
+        p {
+            font-size: 0.7rem;
+            line-height: 1.8;
+        }
+        
+        .score-box {
+            background: #f5f0bb;
+            border: 3px solid #543847;
+            padding: 15px;
+            margin: 15px 0;
+            text-transform: uppercase;
+            font-size: 0.8rem;
+        }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <canvas id="gameCanvas"></canvas>
+    
+    <div class="ui-layer">
+        <div id="score-display">0</div>
+        
+        <!-- Start Screen -->
+        <div id="start-screen" class="screen">
+            <h1>FUZZY<br>CROW</h1>
+            <p>CLICK OR SPACE<br>TO FLAP</p>
+            <button class="btn" onclick="startGame()">START</button>
+        </div>
+
+        <!-- Game Over Screen -->
+        <div id="game-over-screen" class="screen hidden">
+            <h1>OVER</h1>
+            <div class="score-box">
+                <div class="mb-3">SCORE: <span id="final-score">0</span></div>
+                <div>BEST: <span id="best-score">0</span></div>
+            </div>
+            <button class="btn" onclick="startGame()">RETRY</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const scoreDisplay = document.getElementById('score-display');
+    const startScreen = document.getElementById('start-screen');
+    const gameOverScreen = document.getElementById('game-over-screen');
+    const finalScoreTxt = document.getElementById('final-score');
+    const bestScoreTxt = document.getElementById('best-score');
+
+    const GRAVITY = 0.28;
+    const JUMP = -5.4;
+    const PIPE_WIDTH = 75;
+    const PIPE_GAP = 155;
+    const PIPE_SPEED = 3.0;
+    const GROUND_HEIGHT = 100;
+
+    let bird, pipes, clouds, score, gameActive, animationId, highScore, groundOffset = 0;
+
+    highScore = localStorage.getItem('fuzzyCrowBest') || 0;
+
+    function init() {
+        resize();
+        bird = {
+            x: canvas.width * 0.3,
+            y: (canvas.height - GROUND_HEIGHT) / 2,
+            velocity: 0,
+            rotation: 0,
+            radius: 15
+        };
+        pipes = [];
+        clouds = Array.from({ length: 3 }, () => createCloud(true));
+        score = 0;
+        gameActive = false;
+        scoreDisplay.innerText = '0';
+    }
+
+    function resize() {
+        const container = document.getElementById('game-container');
+        canvas.width = container.clientWidth;
+        canvas.height = container.clientHeight;
+    }
+
+    window.addEventListener('resize', resize);
+
+    function createCloud(randomX = false) {
+        return {
+            x: randomX ? Math.random() * canvas.width : canvas.width + 100,
+            y: Math.random() * (canvas.height * 0.4),
+            speed: 0.4,
+            scale: 1 + Math.random() * 0.5
+        };
+    }
+
+    function createPipe() {
+        const minHeight = 80;
+        const availableHeight = canvas.height - GROUND_HEIGHT - PIPE_GAP;
+        const topHeight = Math.floor(Math.random() * (availableHeight - minHeight * 2)) + minHeight;
+        pipes.push({
+            x: canvas.width,
+            top: topHeight,
+            passed: false
+        });
+    }
+
+    function drawBird() {
+        ctx.save();
+        ctx.translate(bird.x, bird.y);
+        ctx.rotate(bird.rotation);
+
+        // Pixel-style Crow Body
+        ctx.fillStyle = '#333';
+        ctx.strokeStyle = '#000';
+        ctx.lineWidth = 3;
+        
+        // Body Block
+        ctx.fillRect(-18, -14, 36, 28);
+        ctx.strokeRect(-18, -14, 36, 28);
+
+        // Wing
+        ctx.fillStyle = '#555';
+        const wingFlap = Math.sin(Date.now() / 60) * 8;
+        ctx.fillRect(-15, wingFlap, 15, 10);
+        ctx.strokeRect(-15, wingFlap, 15, 10);
+
+        // Eye White
+        ctx.fillStyle = 'white';
+        ctx.fillRect(6, -10, 10, 10);
+        ctx.strokeRect(6, -10, 10, 10);
+        
+        // Pupil
+        ctx.fillStyle = 'black';
+        ctx.fillRect(10, -8, 4, 4);
+
+        // Beak
+        ctx.fillStyle = '#f39c12';
+        ctx.fillRect(18, -2, 12, 10);
+        ctx.strokeRect(18, -2, 12, 10);
+
+        ctx.restore();
+    }
+
+    function drawCloud(cloud) {
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+        const s = cloud.scale * 10;
+        ctx.fillRect(cloud.x, cloud.y, s * 4, s * 2);
+        ctx.fillRect(cloud.x + s, cloud.y - s, s * 2, s);
+    }
+
+    function drawPipe(pipe) {
+        const pipeColor = '#73bf2e';
+        const pipeDark = '#558022';
+        const pipeLight = '#9ce659';
+        const stroke = '#543847';
+
+        const drawSection = (x, y, w, h, isTop) => {
+            ctx.fillStyle = pipeColor;
+            ctx.fillRect(x, y, w, h);
+            
+            // Retro Highlights
+            ctx.fillStyle = pipeLight;
+            ctx.fillRect(x + 6, y, 8, h);
+            ctx.fillStyle = pipeDark;
+            ctx.fillRect(x + w - 14, y, 8, h);
+            
+            ctx.strokeStyle = stroke;
+            ctx.lineWidth = 4;
+            ctx.strokeRect(x, y, w, h);
+
+            // Cap
+            const capH = 35;
+            const capW = w + 12;
+            const capX = x - 6;
+            const capY = isTop ? y + h - capH : y;
+            
+            ctx.fillStyle = pipeColor;
+            ctx.fillRect(capX, capY, capW, capH);
+            ctx.fillStyle = pipeLight;
+            ctx.fillRect(capX + 6, capY, 8, capH);
+            ctx.fillStyle = pipeDark;
+            ctx.fillRect(capX + capW - 14, capY, 8, capH);
+            ctx.strokeRect(capX, capY, capW, capH);
+        };
+
+        drawSection(pipe.x, 0, PIPE_WIDTH, pipe.top, true);
+        drawSection(pipe.x, pipe.top + PIPE_GAP, PIPE_WIDTH, canvas.height - pipe.top - PIPE_GAP - GROUND_HEIGHT, false);
+    }
+
+    function drawGround() {
+        const groundY = canvas.height - GROUND_HEIGHT;
+        
+        ctx.fillStyle = '#ded895';
+        ctx.fillRect(0, groundY, canvas.width, GROUND_HEIGHT);
+        
+        ctx.fillStyle = '#73bf2e';
+        ctx.fillRect(0, groundY, canvas.width, 18);
+        ctx.strokeStyle = '#543847';
+        ctx.lineWidth = 4;
+        ctx.strokeRect(-5, groundY, canvas.width + 10, 18);
+
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(0, groundY + 18, canvas.width, GROUND_HEIGHT - 18);
+        ctx.clip();
+        
+        ctx.strokeStyle = '#d5ce7b';
+        ctx.lineWidth = 24;
+        for (let i = -100; i < canvas.width + 100; i += 48) {
+            ctx.beginPath();
+            ctx.moveTo(i + groundOffset, groundY + 18);
+            ctx.lineTo(i - 48 + groundOffset, canvas.height);
+            ctx.stroke();
+        }
+        ctx.restore();
+        
+        if (gameActive) {
+            groundOffset -= PIPE_SPEED;
+            if (groundOffset <= -48) groundOffset = 0;
+        }
+    }
+
+    function update() {
+        if (!gameActive) return;
+
+        bird.velocity += GRAVITY;
+        bird.y += bird.velocity;
+        
+        if (bird.velocity < 0) {
+            bird.rotation = -0.4;
+        } else if (bird.velocity > 6) {
+            bird.rotation = Math.min(Math.PI / 2, bird.rotation + 0.12);
+        }
+
+        clouds.forEach((cloud, index) => {
+            cloud.x -= cloud.speed;
+            if (cloud.x < -100) clouds[index] = createCloud();
+        });
+
+        if (pipes.length === 0 || pipes[pipes.length - 1].x < canvas.width - 240) {
+            createPipe();
+        }
+
+        pipes.forEach((pipe) => {
+            pipe.x -= PIPE_SPEED;
+
+            if (!pipe.passed && pipe.x + PIPE_WIDTH < bird.x) {
+                pipe.passed = true;
+                score++;
+                scoreDisplay.innerText = score;
+            }
+
+            const birdLeft = bird.x - 14;
+            const birdRight = bird.x + 14;
+            const birdTop = bird.y - 12;
+            const birdBottom = bird.y + 12;
+
+            if (birdRight > pipe.x && birdLeft < pipe.x + PIPE_WIDTH) {
+                if (birdTop < pipe.top || birdBottom > pipe.top + PIPE_GAP) {
+                    gameOver();
+                }
+            }
+        });
+
+        pipes = pipes.filter(p => p.x > -PIPE_WIDTH - 50);
+
+        if (bird.y + 14 > canvas.height - GROUND_HEIGHT) {
+            bird.y = canvas.height - GROUND_HEIGHT - 14;
+            gameOver();
+        }
+        
+        if (bird.y - 14 < 0) {
+            bird.y = 14;
+            bird.velocity = 0;
+        }
+
+        draw();
+        animationId = requestAnimationFrame(update);
+    }
+
+    function draw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = '#4ec0ca';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        clouds.forEach(drawCloud);
+        pipes.forEach(drawPipe);
+        drawGround();
+        drawBird();
+    }
+
+    function flap() {
+        if (!gameActive) return;
+        bird.velocity = JUMP;
+        bird.rotation = -0.4;
+    }
+
+    function startGame() {
+        init();
+        gameActive = true;
+        startScreen.classList.add('hidden');
+        gameOverScreen.classList.add('hidden');
+        update();
+    }
+
+    function gameOver() {
+        gameActive = false;
+        cancelAnimationFrame(animationId);
+        
+        if (score > highScore) {
+            highScore = score;
+            localStorage.setItem('fuzzyCrowBest', highScore);
+        }
+
+        finalScoreTxt.innerText = score;
+        bestScoreTxt.innerText = highScore;
+        gameOverScreen.classList.remove('hidden');
+        
+        canvas.style.animation = 'none';
+        canvas.offsetHeight;
+        canvas.style.animation = 'shake 0.4s';
+    }
+
+    window.addEventListener('keydown', (e) => {
+        if (e.code === 'Space' || e.code === 'ArrowUp') {
+            e.preventDefault();
+            if (gameActive) flap();
+            else if (!startScreen.classList.contains('hidden')) startGame();
+        }
+    });
+
+    const handleInput = (e) => {
+        if (gameActive) flap();
+    };
+
+    canvas.addEventListener('mousedown', handleInput);
+    canvas.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        handleInput();
+    }, { passive: false });
+
+    const style = document.createElement('style');
+    style.innerHTML = `
+        @keyframes shake {
+            0% { transform: translate(2px, 2px); }
+            20% { transform: translate(-4px, -2px); }
+            40% { transform: translate(4px, 2px); }
+            60% { transform: translate(-4px, 1px); }
+            80% { transform: translate(2px, -2px); }
+            100% { transform: translate(0, 0); }
+        }
+    `;
+    document.head.appendChild(style);
+
+    init();
+    draw();
+</script>
+</body>
+</html>
+
