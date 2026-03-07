@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Bored Games v2 - FIXED</title>
+    <style>
+        :root { --bg: #121212; --card: #1e1e1e; --text: #eee; --accent: #00d4ff; }
+        body { font-family: 'Courier New', monospace; background: var(--bg); color: var(--text); display: flex; flex-direction: column; align-items: center; margin: 0; padding: 10px; }
+        .container { max-width: 650px; width: 100%; text-align: center; }
+        .menu { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-bottom: 15px; }
+        button { padding: 8px 12px; cursor: pointer; border: 1px solid var(--accent); background: transparent; color: var(--accent); font-weight: bold; border-radius: 4px; }
+        button:hover { background: var(--accent); color: #000; }
+        .game-area { background: var(--card); padding: 20px; border-radius: 8px; min-height: 420px; display: flex; flex-direction: column; align-items: center; justify-content: center; border: 1px solid #333; }
+        .grid { display: grid; grid-gap: 5px; }
+        .cell { width: 60px; height: 60px; background: #333; display: flex; align-items: center; justify-content: center; font-size: 24px; cursor: pointer; border-radius: 4px; }
+        .c4-grid { display: grid; grid-template-columns: repeat(7, 45px); grid-gap: 5px; background: #1a4a6e; padding: 10px; border-radius: 5px; }
+        .slot { width: 45px; height: 45px; background: var(--bg); border-radius: 50%; cursor: pointer; }
+        .red { background: #ff4136; }
+        .yellow { background: #ffdc00; }
+        .tile { width: 70px; height: 70px; background: #444; color: white; display: flex; align-items: center; justify-content: center; font-size: 20px; font-weight: bold; border-radius: 4px; }
+        .revealed { background: #222; cursor: default; }
+        #status { margin-top: 15px; color: var(--accent); font-weight: bold; height: 20px; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>BORED GAMES v2</h1>
+    <div class="menu">
+        <button onclick="initTTT()">Tic-Tac-Nope</button>
+        <button onclick="initC4()">Connect-ish 4</button>
+        <button onclick="initMines()">Landmine Roulette</button>
+        <button onclick="init2048()">2048-ish</button>
+        <button onclick="initSnake()">Snek</button>
+    </div>
+    <div style="margin-bottom: 10px;">
+        <label><input type="checkbox" id="botToggle"> Play Against Bot</label>
+    </div>
+    <div id="game-container" class="game-area"><p>Choose a game to begin.</p></div>
+    <div id="status"></div>
+</div>
+
+<script>
+    const container = document.getElementById('game-container');
+    const status = document.getElementById('status');
+    const botCheck = document.getElementById('botToggle');
+    let currentPlayer, gameState, gameActive, timer;
+
+    const TTT_WINS = [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
+
+    function clearUI(title) {
+        clearInterval(timer);
+        gameActive = true;
+        container.innerHTML = `<h2>${title}</h2>`;
+        status.innerText = "";
+        window.onkeydown = null;
+    }
+
+    // --- TIC TAC NOPE ---
+    function initTTT() {
+        clearUI("Tic-Tac-Nope");
+        currentPlayer = 'X';
+        gameState = Array(9).fill("");
+        const grid = document.createElement('div');
+        grid.className = 'grid'; grid.style.gridTemplateColumns = 'repeat(3, 60px)';
+        for(let i=0; i<9; i++) {
+            const cell = document.createElement('div');
+            cell.className = 'cell';
+            cell.onclick = () => {
+                if(gameState[i] || !gameActive) return;
+                makeTTTMove(i);
+                if(gameActive && botCheck.checked && currentPlayer === 'O') {
+                    setTimeout(() => {
+                        let move = TTT_WINS.find(c => c.map(idx => gameState[idx]).filter(v => v === 'O').length === 2 && c.some(idx => gameState[idx] === ""))?.find(idx => gameState[idx] === "")
+                                || TTT_WINS.find(c => c.map(idx => gameState[idx]).filter(v => v === 'X').length === 2 && c.some(idx => gameState[idx] === ""))?.find(idx => gameState[idx] === "")
+                                || gameState.map((v, i) => v === "" ? i : null).filter(v => v !== null)[0];
+                        if(move !== undefined) makeTTTMove(move);
+                    }, 300);
+                }
+            };
+            grid.appendChild(cell);
+        }
+        container.appendChild(grid);
+    }
+
+    function makeTTTMove(i) {
+        gameState[i] = currentPlayer;
+        container.querySelectorAll('.cell')[i].innerText = currentPlayer;
+        if(TTT_WINS.some(w => w.every(idx => gameState[idx] === currentPlayer))) {
+            status.innerText = `${currentPlayer} Wins!`; gameActive = false;
+        } else if(!gameState.includes("")) {
+            status.innerText = "Draw!"; gameActive = false;
+        } else {
+            currentPlayer = currentPlayer === 'X' ? 'O' : 'X';
+            status.innerText = `Turn: ${currentPlayer}`;
+        }
+    }
+
+    // --- CONNECT-ISH 4 ---
+    function initC4() {
+        clearUI("Connect-ish 4");
+        currentPlayer = 'red';
+        gameState = Array(42).fill(null);
+        const grid = document.createElement('div');
+        grid.className = 'c4-grid';
+        for(let i=0; i<42; i++) {
+            const slot = document.createElement('div');
+            slot.className = 'slot';
+            slot.onclick = () => { if(gameActive && (currentPlayer === 'red' || !botCheck.checked)) makeC4Move(i % 7); };
+            grid.appendChild(slot);
+        }
+        container.appendChild(grid);
+    }
+
+    function makeC4Move(col) {
+        for (let r = 5; r >= 0; r--) {
+            let idx = r * 7 + col;
+            if (!gameState[idx]) {
+                gameState[idx] = currentPlayer;
+                container.querySelectorAll('.slot')[idx].classList.add(currentPlayer);
+                if(checkC4Win()) { status.innerText = `${currentPlayer.toUpperCase()} Wins!`; gameActive = false; }
+                else if(!gameState.includes(null)) { status.innerText = "Draw!"; gameActive = false; }
+                else {
+                    currentPlayer = currentPlayer === 'red' ? 'yellow' : 'red';
+                    status.innerText = `Turn: ${currentPlayer}`;
+                    if(gameActive && botCheck.checked && currentPlayer === 'yellow') setTimeout(() => makeC4Move(Math.floor(Math.random()*7)), 400);
+                }
+                return;
+            }
+        }
+    }
+
+    function checkC4Win() {
+        const dirs = [[0,1],[1,0],[1,1],[1,-1]];
+        for(let i=0; i<42; i++) {
+            if(!gameState[i]) continue;
+            let r = Math.floor(i/7), c = i%7;
+            for(let [dr, dc] of dirs) {
+                let count = 1;
+                for(let s=1; s<4; s++) {
+                    let nr = r+dr*s, nc = c+dc*s;
+                    if(nr>=0 && nr<6 && nc>=0 && nc<7 && gameState[nr*7+nc] === gameState[i]) count++; else break;
+                }
+                if(count >= 4) return true;
+            }
+        }
+        return false;
+    }
+
+    // --- MINES ---
+    function initMines() {
+        clearUI("Landmine Roulette");
+        gameState = Array(64).fill(0);
+        for(let i=0; i<10; i++) { let r = Math.floor(Math.random()*64); gameState[r] = 'M'; }
+        const grid = document.createElement('div');
+        grid.className = 'grid'; grid.style.gridTemplateColumns = 'repeat(8, 40px)';
+        gameState.forEach((val, i) => {
+            const cell = document.createElement('div');
+            cell.className = 'cell'; cell.style.width = '40px'; cell.style.height = '40px';
+            cell.onclick = () => {
+                if(!gameActive) return;
+                if(val === 'M') { cell.innerText = '💣'; cell.style.background = 'red'; status.innerText = "Game Over!"; gameActive = false; }
+                else { cell.classList.add('revealed'); cell.innerText = '•'; }
+            };
+            grid.appendChild(cell);
+        });
+        container.appendChild(grid);
+    }
+
+    // --- 2048-ISH ---
+    function init2048() {
+        clearUI("2048-ish");
+        gameState = Array(16).fill(0);
+        const grid = document.createElement('div');
+        grid.className = 'grid'; grid.style.gridTemplateColumns = 'repeat(4, 70px)';
+        const add = () => { let empty = gameState.map((v, i) => v === 0 ? i : null).filter(v => v !== null); if(empty.length) gameState[empty[Math.floor(Math.random()*empty.length)]] = 2; };
+        const draw = () => { grid.innerHTML = ''; gameState.forEach(v => { let t = document.createElement('div'); t.className = 'tile'; t.innerText = v || ''; t.style.background = v ? `hsl(${Math.log2(v)*25}, 60%, 40%)` : '#333'; grid.appendChild(t); }); };
+        add(); add(); draw();
+        window.onkeydown = (e) => { if([37,38,39,40].includes(e.keyCode)) { add(); draw(); } };
+        container.appendChild(grid);
+        status.innerText = "Arrows to move";
+    }
+
+    // --- SNAKE ---
+    function initSnake() {
+        clearUI("Snek");
+        const cvs = document.createElement('canvas'); cvs.width = cvs.height = 300;
+        container.appendChild(cvs);
+        const ctx = cvs.getContext('2d'), box = 15;
+        let snek = [{x: 150, y: 150}], d = 'R', food = {x: 60, y: 60};
+        window.onkeydown = e => { let k = e.keyCode; if(k==37&&d!='R') d='L'; if(k==38&&d!='D') d='U'; if(k==39&&d!='L') d='R'; if(k==40&&d!='U') d='D'; };
+        timer = setInterval(() => {
+            ctx.fillStyle = "#000"; ctx.fillRect(0,0,300,300);
+            ctx.fillStyle = "red"; ctx.fillRect(food.x, food.y, box, box);
+            ctx.fillStyle = "#00d4ff"; snek.forEach(s => ctx.fillRect(s.x, s.y, box, box));
+            let h = {...snek[0]};
+            if(d=='L') h.x-=box; if(d=='U') h.y-=box; if(d=='R') h.x+=box; if(d=='D') h.y+=box;
+            if(h.x==food.x && h.y==food.y) { food = {x: Math.floor(Math.random()*19)*box, y: Math.floor(Math.random()*19)*box}; } else snek.pop();
+            if(h.x<0||h.x>=300||h.y<0||h.y>=300||snek.some(s=>s.x==h.x&&s.y==h.y)) { clearInterval(timer); status.innerText = "RIP Snek"; }
+            else snek.unshift(h);
+        }, 100);
+    }
+</script>
+</body>
+</html>
