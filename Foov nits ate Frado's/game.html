@@ -1,0 +1,1529 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Five Nights at Freddy's</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=VT323&family=Creepster&family=Special+Elite&display=swap');
+
+  :root {
+    --green: #00ff41;
+    --red: #ff2200;
+    --amber: #ffaa00;
+    --dark: #050505;
+    --scanline: rgba(0,255,65,0.03);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #000;
+    color: var(--green);
+    font-family: 'VT323', monospace;
+    overflow: hidden;
+    height: 100vh;
+    width: 100vw;
+    cursor: none;
+  }
+
+  #custom-cursor {
+    position: fixed;
+    width: 20px; height: 20px;
+    border: 2px solid var(--green);
+    border-radius: 50%;
+    pointer-events: none;
+    z-index: 9999;
+    transform: translate(-50%, -50%);
+    box-shadow: 0 0 8px var(--green);
+    transition: border-color 0.1s;
+  }
+
+  body::after {
+    content: '';
+    position: fixed; inset: 0;
+    background: repeating-linear-gradient(0deg, var(--scanline) 0px, transparent 1px, transparent 3px);
+    pointer-events: none;
+    z-index: 1000;
+    animation: flicker 0.15s infinite;
+  }
+
+  @keyframes flicker {
+    0%,100% { opacity: 1; } 92% { opacity: 1; } 93% { opacity: 0.85; } 94% { opacity: 1; } 98% { opacity: 1; } 99% { opacity: 0.9; }
+  }
+
+  .screen { position: fixed; inset: 0; display: none; }
+  .screen.active { display: flex; }
+
+  /* TITLE */
+  #title-screen {
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: #000;
+    gap: 20px;
+  }
+
+  #title-screen .logo-text {
+    font-family: 'Creepster', cursive;
+    font-size: clamp(28px, 6vw, 72px);
+    color: #ff2200;
+    text-shadow: 0 0 20px #ff2200, 0 0 60px #ff000088;
+    text-align: center;
+    letter-spacing: 4px;
+    animation: titlePulse 2s ease-in-out infinite;
+    line-height: 1.1;
+  }
+
+  @keyframes titlePulse {
+    0%,100% { text-shadow: 0 0 20px #ff2200, 0 0 60px #ff000088; }
+    50% { text-shadow: 0 0 40px #ff2200, 0 0 100px #ff0000cc, 0 0 5px #fff; }
+  }
+
+  #title-screen .subtitle {
+    font-family: 'Special Elite', serif;
+    font-size: clamp(14px, 2vw, 22px);
+    color: #ffaa00;
+    letter-spacing: 8px;
+    text-transform: uppercase;
+    opacity: 0.8;
+  }
+
+  #title-screen .stars { position: absolute; width: 100%; height: 100%; overflow: hidden; pointer-events: none; }
+
+  .star {
+    position: absolute;
+    background: #ff220033;
+    border-radius: 50%;
+    animation: starFloat linear infinite;
+  }
+
+  @keyframes starFloat {
+    from { transform: translateY(100vh) scale(0); opacity: 0; }
+    10% { opacity: 1; } 90% { opacity: 1; }
+    to { transform: translateY(-10vh) scale(1); opacity: 0; }
+  }
+
+  .start-btn {
+    font-family: 'VT323', monospace;
+    font-size: clamp(18px, 3vw, 36px);
+    color: #000;
+    background: var(--red);
+    border: none;
+    padding: 12px 40px;
+    cursor: pointer;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    box-shadow: 0 0 20px var(--red);
+    animation: btnBlink 1.5s step-end infinite;
+    position: relative;
+    z-index: 10;
+  }
+
+  @keyframes btnBlink { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+  .start-btn:hover { animation: none; box-shadow: 0 0 40px var(--red), 0 0 80px var(--red); transform: scale(1.05); }
+
+  .freddy-ascii {
+    font-size: clamp(7px, 1.2vw, 13px);
+    line-height: 1.3;
+    color: #ff220066;
+    text-align: center;
+    white-space: pre;
+    font-family: monospace;
+    animation: asciiFlicker 4s ease-in-out infinite;
+  }
+
+  @keyframes asciiFlicker {
+    0%,100% { color: #ff220066; } 50% { color: #ff2200aa; } 75% { color: #ff220044; }
+  }
+
+  /* GAME */
+  #game-screen { flex-direction: column; background: #000; position: relative; }
+
+  #top-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 16px;
+    background: #050505;
+    border-bottom: 1px solid #1a1a1a;
+    flex-shrink: 0;
+    z-index: 10;
+  }
+
+  #time-display { font-size: clamp(20px, 3vw, 36px); color: var(--amber); text-shadow: 0 0 10px var(--amber); letter-spacing: 2px; }
+  #night-display { font-family: 'Creepster', cursive; font-size: clamp(16px, 2.5vw, 30px); color: var(--red); text-shadow: 0 0 8px var(--red); }
+  #power-display { font-size: clamp(14px, 2vw, 26px); color: var(--green); }
+  #power-display span { display: inline-block; min-width: 50px; text-align: right; }
+  #power-bar-container { display: inline-block; width: 80px; height: 12px; background: #111; border: 1px solid #333; vertical-align: middle; margin-left: 6px; }
+  #power-bar { height: 100%; background: var(--green); transition: width 0.5s, background 0.5s; box-shadow: 0 0 6px currentColor; }
+
+  #main-area { display: flex; flex: 1; overflow: hidden; min-height: 0; }
+
+  #camera-panel { flex: 1; display: flex; flex-direction: column; position: relative; min-width: 0; }
+
+  #camera-view {
+    flex: 1;
+    position: relative;
+    background: #030303;
+    overflow: hidden;
+    min-height: 0;
+    border: 2px solid #111;
+  }
+
+  .cam-room { position: absolute; inset: 0; display: none; flex-direction: column; align-items: center; justify-content: center; font-size: clamp(10px,1.5vw,18px); }
+  .cam-room.active { display: flex; }
+
+  .cam-room .room-name { position: absolute; top: 10px; left: 14px; font-size: clamp(12px,1.8vw,20px); color: var(--green); opacity: 0.7; letter-spacing: 2px; z-index:5; }
+
+  .cam-room canvas { width: 100%; height: 100%; object-fit: cover; image-rendering: pixelated; filter: grayscale(0.8) contrast(1.3) brightness(0.5); }
+
+  .cam-room::before {
+    content: '';
+    position: absolute; inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.15'/%3E%3C/svg%3E");
+    pointer-events: none;
+    opacity: 0.4;
+    mix-blend-mode: overlay;
+    z-index: 2;
+    animation: noiseShift 0.5s steps(2) infinite;
+  }
+
+  @keyframes noiseShift {
+    0% { transform: translate(0,0); } 25% { transform: translate(-2px,1px); }
+    50% { transform: translate(1px,-1px); } 75% { transform: translate(-1px,2px); }
+    100% { transform: translate(0,0); }
+  }
+
+  .animatronic-cam {
+    position: absolute;
+    bottom: 5%;
+    left: 50%;
+    transform: translateX(-50%);
+    animation: camBob 3s ease-in-out infinite;
+    filter: brightness(0.55) sepia(0.4) contrast(1.2);
+    z-index: 3;
+    display: none;
+    image-rendering: pixelated;
+  }
+
+  .animatronic-cam.visible { display: block; }
+
+  @keyframes camBob { 0%,100% { transform: translateX(-50%) translateY(0) rotate(-1deg); } 50% { transform: translateX(-50%) translateY(-6px) rotate(1deg); } }
+
+  @keyframes doorCreep {
+    0%   { transform: translateX(-8px) scaleX(1); }
+    100% { transform: translateX(4px) scaleX(1); }
+  }
+  #office-right { animation: doorCreepR 0.6s ease-in-out infinite alternate !important; }
+  @keyframes doorCreepR {
+    0%   { transform: translateX(8px) scaleX(-1); }
+    100% { transform: translateX(-4px) scaleX(-1); }
+  }
+
+  #cam-selector {
+    display: flex;
+    gap: 6px;
+    padding: 8px 10px;
+    background: #060606;
+    border-top: 1px solid #1a1a1a;
+    flex-wrap: wrap;
+    flex-shrink: 0;
+  }
+
+  .cam-btn {
+    font-family: 'VT323', monospace;
+    font-size: clamp(11px, 1.5vw, 18px);
+    padding: 4px 10px;
+    background: #0a0a0a;
+    border: 1px solid #222;
+    color: var(--green);
+    cursor: pointer;
+    letter-spacing: 1px;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+
+  .cam-btn:hover, .cam-btn.active { background: #001a00; border-color: var(--green); box-shadow: 0 0 8px var(--green); color: #fff; }
+
+  #side-panel {
+    width: clamp(140px, 20vw, 220px);
+    background: #040404;
+    border-left: 1px solid #111;
+    display: flex;
+    flex-direction: column;
+    padding: 10px;
+    gap: 12px;
+    flex-shrink: 0;
+    overflow-y: auto;
+  }
+
+  .panel-section { border: 1px solid #1a1a1a; padding: 8px; background: #060606; }
+
+  .panel-section h3 {
+    font-size: clamp(12px, 1.5vw, 18px);
+    color: var(--amber);
+    border-bottom: 1px solid #222;
+    padding-bottom: 4px;
+    margin-bottom: 8px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+  }
+
+  .door-btn {
+    width: 100%;
+    font-family: 'VT323', monospace;
+    font-size: clamp(13px, 1.8vw, 20px);
+    padding: 8px;
+    background: #0a0a0a;
+    border: 1px solid #333;
+    color: #ccc;
+    cursor: pointer;
+    margin-bottom: 6px;
+    letter-spacing: 1px;
+    transition: all 0.2s;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .door-btn:hover { background: #111; border-color: var(--amber); }
+  .door-btn.closed { border-color: var(--red); color: var(--red); background: #110000; box-shadow: 0 0 8px #ff220033; }
+  .door-status { font-size: 0.8em; opacity: 0.7; }
+
+  .anim-status { display: flex; justify-content: space-between; font-size: clamp(11px,1.4vw,16px); margin-bottom: 5px; align-items: center; color: #888; }
+  .anim-status .anim-name { color: #aaa; }
+
+  .anim-dot { width: 8px; height: 8px; border-radius: 50%; background: #333; flex-shrink: 0; }
+  .anim-dot.near { background: var(--amber); box-shadow: 0 0 6px var(--amber); animation: dotPulse 0.8s infinite; }
+  .anim-dot.danger { background: var(--red); box-shadow: 0 0 6px var(--red); animation: dotPulse 0.4s infinite; }
+
+  @keyframes dotPulse { 0%,100% { opacity: 1; } 50% { opacity: 0.2; } }
+
+  #phone-log { font-size: clamp(9px,1.2vw,14px); color: #555; line-height: 1.6; max-height: 120px; overflow-y: auto; scrollbar-width: thin; scrollbar-color: #222 #000; }
+  #phone-log .log-entry { color: #444; }
+  #phone-log .log-entry.warn { color: var(--amber); }
+  #phone-log .log-entry.danger { color: var(--red); }
+
+  #bottom-bar { padding: 6px 16px; background: #040404; border-top: 1px solid #111; display: flex; justify-content: space-between; font-size: clamp(10px,1.4vw,16px); color: #444; flex-shrink: 0; }
+  #cam-label { color: var(--green); opacity: 0.7; }
+
+  #cam-static { position: absolute; inset: 0; background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,255,65,0.03) 2px, rgba(0,255,65,0.03) 4px); pointer-events: none; z-index: 4; opacity: 0; transition: opacity 0.3s; }
+  #cam-static.glitch { opacity: 1; animation: staticAnim 0.1s steps(1) infinite; background: rgba(0,255,65,0.08); }
+
+  @keyframes staticAnim {
+    0% { clip-path: inset(80% 0 0 0); } 20% { clip-path: inset(10% 0 60% 0); } 40% { clip-path: inset(60% 0 10% 0); } 60% { clip-path: inset(20% 0 70% 0); } 80% { clip-path: inset(10% 0 50% 0); } 100% { clip-path: inset(10% 0 80% 0); }
+  }
+
+  #alert-banner {
+    position: fixed; top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    font-family: 'Creepster', cursive;
+    font-size: clamp(20px,4vw,50px);
+    color: var(--red); text-shadow: 0 0 20px var(--red);
+    z-index: 2000; pointer-events: none;
+    opacity: 0; transition: opacity 0.2s; letter-spacing: 4px;
+  }
+  #alert-banner.show { opacity: 1; }
+
+  /* JUMPSCARE */
+  #jumpscare-overlay { position: fixed; inset: 0; z-index: 5000; display: none; align-items: center; justify-content: center; background: #000; }
+  #jumpscare-overlay.active { display: flex; }
+
+  #jumpscare-canvas {
+    animation: jumpscareAnim 0.25s steps(3) forwards;
+    filter: drop-shadow(0 0 30px red) brightness(1.4);
+    image-rendering: pixelated;
+  }
+
+  @keyframes jumpscareAnim {
+    0% { transform: scale(0.3) rotate(-15deg); filter: brightness(5) drop-shadow(0 0 60px #ff0000); }
+    40% { transform: scale(1.4) rotate(8deg); filter: brightness(2.5) drop-shadow(0 0 40px #ff0000); }
+    70% { transform: scale(0.95) rotate(-3deg); filter: brightness(1.5) drop-shadow(0 0 20px #ff0000); }
+    100% { transform: scale(1) rotate(0deg); filter: brightness(1.2) drop-shadow(0 0 15px #ff0000); }
+  }
+
+  /* GAMEOVER */
+  #gameover-screen { flex-direction: column; align-items: center; justify-content: center; background: #000; gap: 24px; }
+
+  #gameover-screen h1 { font-family: 'Creepster', cursive; font-size: clamp(40px,10vw,120px); color: var(--red); text-shadow: 0 0 40px var(--red), 0 0 2px #fff; animation: goFlicker 0.3s step-end infinite; }
+  @keyframes goFlicker { 0%,100% { opacity: 1; } 33% { opacity: 0.7; } 66% { opacity: 0.9; } }
+
+  /* WIN */
+  #win-screen { flex-direction: column; align-items: center; justify-content: center; background: #000; gap: 20px; }
+  #win-screen h1 { font-family: 'Creepster', cursive; font-size: clamp(30px,7vw,90px); color: #00ff41; text-shadow: 0 0 30px #00ff41; text-align: center; }
+
+  .restart-btn { font-family: 'VT323', monospace; font-size: clamp(16px,2.5vw,30px); padding: 10px 36px; background: transparent; border: 2px solid var(--green); color: var(--green); cursor: pointer; letter-spacing: 3px; box-shadow: 0 0 15px var(--green); transition: all 0.2s; }
+  .restart-btn:hover { background: var(--green); color: #000; box-shadow: 0 0 30px var(--green); }
+</style>
+</head>
+<body>
+
+<div id="custom-cursor"></div>
+<div id="alert-banner">⚠ CHECK THE DOORS ⚠</div>
+
+<!-- TITLE -->
+<div id="title-screen" class="screen active">
+  <div class="stars" id="stars"></div>
+  <div class="logo-text">FIVE NIGHTS<br>AT FREDDY'S</div>
+  <div class="subtitle">— Fazbear Entertainment —</div>
+  <div class="freddy-ascii">░░░░░░░░░░░░░░░░░░░░░░░░░
+░░░▄▄████████████▄▄░░░░░
+░░▄██▀▀░░░░░░░░▀▀██▄░░░
+░░██░░░░░░░░░░░░░░░██░░░
+░░██░ ▄▀▀▀▄  ▄▀▀▀▄ ░░██░
+░░██░ █ ◉ █  █ ◉ █ ░░██░
+░░░██░▀▄▄▄▀  ▀▄▄▄▀░░██░░
+░░░░██░░░  ‿‿‿  ░░░░██░░
+░░░░░▀▀██████████▀▀░░░░░
+░░░░░░░░░░░░░░░░░░░░░░░░</div>
+  <button class="start-btn" onclick="startGame()">[ CLOCK IN ]</button>
+  <div style="font-size:clamp(10px,1.5vw,16px); color:#333; letter-spacing:3px; margin-top:10px; font-family:'VT323',monospace;">NIGHT 1 OF 5 · SURVIVE UNTIL 6AM</div>
+</div>
+
+<!-- GAME -->
+<div id="game-screen" class="screen">
+  <div id="top-bar">
+    <div id="night-display">NIGHT 1</div>
+    <div id="time-display">12 AM</div>
+    <div id="power-display">
+      POWER: <span id="power-pct">100</span>%
+      <div id="power-bar-container"><div id="power-bar" style="width:100%"></div></div>
+    </div>
+  </div>
+
+  <div id="main-area">
+    <div id="camera-panel">
+      <div id="camera-view">
+        <div id="cam-static"></div>
+
+        <div class="cam-room active" id="cam-1A">
+          <span class="room-name">CAM 1A – SHOW STAGE</span>
+          <canvas id="c1A" width="600" height="400"></canvas>
+          <canvas class="animatronic-cam" id="freddy-1A" width="120" height="160"></canvas>
+          <canvas class="animatronic-cam" id="bonnie-1A" width="120" height="160" style="left:30%"></canvas>
+          <canvas class="animatronic-cam" id="chica-1A"  width="120" height="160" style="left:60%"></canvas>
+        </div>
+
+        <div class="cam-room" id="cam-1B">
+          <span class="room-name">CAM 1B – DINING AREA</span>
+          <canvas id="c1B" width="600" height="400"></canvas>
+          <canvas class="animatronic-cam" id="freddy-1B" width="120" height="160" style="left:25%"></canvas>
+          <canvas class="animatronic-cam" id="chica-1B"  width="120" height="160" style="left:55%"></canvas>
+        </div>
+
+        <div class="cam-room" id="cam-2A">
+          <span class="room-name">CAM 2A – WEST HALL</span>
+          <canvas id="c2A" width="600" height="400"></canvas>
+          <canvas class="animatronic-cam" id="bonnie-2A" width="140" height="180" style="left:35%"></canvas>
+          <canvas class="animatronic-cam" id="foxy-2A"   width="140" height="180" style="left:50%"></canvas>
+        </div>
+
+        <div class="cam-room" id="cam-2B">
+          <span class="room-name">CAM 2B – W. HALL CORNER</span>
+          <canvas id="c2B" width="600" height="400"></canvas>
+          <canvas class="animatronic-cam" id="bonnie-2B" width="160" height="200" style="left:30%"></canvas>
+          <canvas class="animatronic-cam" id="foxy-2B"   width="160" height="200" style="left:50%"></canvas>
+        </div>
+
+        <div class="cam-room" id="cam-3">
+          <span class="room-name">CAM 3 – SUPPLY CLOSET</span>
+          <canvas id="c3" width="600" height="400"></canvas>
+        </div>
+
+        <div class="cam-room" id="cam-4A">
+          <span class="room-name">CAM 4A – EAST HALL</span>
+          <canvas id="c4A" width="600" height="400"></canvas>
+          <canvas class="animatronic-cam" id="chica-4A" width="140" height="180" style="left:38%"></canvas>
+        </div>
+
+        <div class="cam-room" id="cam-4B">
+          <span class="room-name">CAM 4B – E. HALL CORNER</span>
+          <canvas id="c4B" width="600" height="400"></canvas>
+          <canvas class="animatronic-cam" id="chica-4B" width="170" height="210" style="left:32%"></canvas>
+        </div>
+
+        <div class="cam-room" id="cam-5">
+          <span class="room-name">CAM 5 – BACKSTAGE</span>
+          <canvas id="c5" width="600" height="400"></canvas>
+          <canvas class="animatronic-cam" id="foxy-5" width="120" height="160" style="left:40%"></canvas>
+        </div>
+
+        <!-- OFFICE VIEW -->
+        <div class="cam-room" id="cam-office" style="background:#000;">
+          <canvas id="office-canvas" width="800" height="450" style="width:100%;height:100%;object-fit:cover;image-rendering:pixelated;"></canvas>
+          <!-- Animatronics that appear at office doors -->
+          <canvas class="office-intruder" id="office-left"  width="160" height="260" style="position:absolute;bottom:12%;left:1%;display:none;image-rendering:pixelated;filter:brightness(0.35) sepia(0.5) contrast(1.3);animation:doorCreep 0.6s ease-in-out infinite alternate;"></canvas>
+          <canvas class="office-intruder" id="office-right" width="160" height="260" style="position:absolute;bottom:12%;right:1%;display:none;image-rendering:pixelated;filter:brightness(0.35) sepia(0.5) contrast(1.3);animation:doorCreep 0.6s ease-in-out infinite alternate;transform:scaleX(-1);"></canvas>
+        </div>
+      </div>
+
+      <div id="cam-selector">
+        <button class="cam-btn active" onclick="switchCam('1A')">1A STAGE</button>
+        <button class="cam-btn" onclick="switchCam('1B')">1B DINING</button>
+        <button class="cam-btn" onclick="switchCam('2A')">2A W.HALL</button>
+        <button class="cam-btn" onclick="switchCam('2B')">2B W.CRN</button>
+        <button class="cam-btn" onclick="switchCam('3')">3 SUPPLY</button>
+        <button class="cam-btn" onclick="switchCam('4A')">4A E.HALL</button>
+        <button class="cam-btn" onclick="switchCam('4B')">4B E.CRN</button>
+        <button class="cam-btn" onclick="switchCam('5')">5 BACK</button>
+        <button class="cam-btn office-btn" onclick="switchCam('office')" style="border-color:#ffaa0066;color:#ffaa00;">🏢 OFFICE</button>
+      </div>
+    </div>
+
+    <div id="side-panel">
+      <div class="panel-section">
+        <h3>Doors</h3>
+        <button class="door-btn" id="left-door-btn" onclick="toggleDoor('left')">
+          <span>◀ LEFT</span><span class="door-status" id="left-status">OPEN</span>
+        </button>
+        <button class="door-btn" id="right-door-btn" onclick="toggleDoor('right')">
+          <span>RIGHT ▶</span><span class="door-status" id="right-status">OPEN</span>
+        </button>
+        <div style="font-size:clamp(9px,1.2vw,13px); color:#333; margin-top:4px;">⚡ Closed doors drain power</div>
+      </div>
+
+      <div class="panel-section">
+        <h3>Animatronics</h3>
+        <div class="anim-status"><span class="anim-name">🎩 Freddy</span><div class="anim-dot" id="dot-freddy"></div></div>
+        <div class="anim-status"><span class="anim-name">🎸 Bonnie</span><div class="anim-dot" id="dot-bonnie"></div></div>
+        <div class="anim-status"><span class="anim-name">🍕 Chica</span><div class="anim-dot" id="dot-chica"></div></div>
+        <div class="anim-status"><span class="anim-name">🏴‍☠️ Foxy</span><div class="anim-dot" id="dot-foxy"></div></div>
+      </div>
+
+      <div class="panel-section" style="flex:1; min-height:80px;">
+        <h3>Activity Log</h3>
+        <div id="phone-log">
+          <div class="log-entry">System initialized...</div>
+          <div class="log-entry">Cameras online.</div>
+          <div class="log-entry warn">Animatronics active.</div>
+        </div>
+      </div>
+
+      <div class="panel-section" style="font-size:clamp(9px,1.1vw,13px); color:#333; line-height:1.7;">
+        <h3>Guide</h3>
+        🎥 Watch cams to track animatronics<br>
+        🚪 Close doors when they're near<br>
+        ⚡ Don't run out of power!<br>
+        ⏰ Survive until 6 AM
+      </div>
+    </div>
+  </div>
+
+  <div id="bottom-bar">
+    <span id="cam-label">CAMERA ACTIVE</span>
+    <span>FAZBEAR ENTERTAINMENT™</span>
+    <span id="clock-real"></span>
+  </div>
+</div>
+
+<!-- JUMPSCARE -->
+<div id="jumpscare-overlay">
+  <canvas id="jumpscare-canvas" width="400" height="500" style="image-rendering:pixelated; max-width:80vmin; max-height:80vmin;"></canvas>
+</div>
+
+<!-- GAME OVER -->
+<div id="gameover-screen" class="screen">
+  <h1>GAME OVER</h1>
+  <div style="font-family:'Special Elite',serif; color:#660000; font-size:clamp(14px,2vw,24px); letter-spacing:3px;">IT'S ME...</div>
+  <div style="font-family:'VT323',monospace; font-size:clamp(12px,1.5vw,20px); color:#333;">
+    You survived until <span id="death-time" style="color:#ff4400"></span>
+  </div>
+  <button class="restart-btn" onclick="restartGame()">[ TRY AGAIN ]</button>
+</div>
+
+<!-- WIN -->
+<div id="win-screen" class="screen">
+  <h1>6 AM!</h1>
+  <div style="font-family:'Special Elite',serif; color:#005500; font-size:clamp(14px,2vw,22px); letter-spacing:3px; text-align:center;">YOU SURVIVED THE NIGHT</div>
+  <div style="font-family:'VT323',monospace; font-size:clamp(12px,1.5vw,18px); color:#444; text-align:center; max-width:400px; line-height:1.6;">$7.25 has been deposited to your account.<br>Thank you for your service.</div>
+  <button class="restart-btn" onclick="restartGame()">[ NEXT NIGHT ]</button>
+</div>
+
+<script>
+// === STATE ===
+const S = {
+  hour: 0, power: 100, night: 1, ticks: 0,
+  leftDoor: false, rightDoor: false,
+  leftLight: false, rightLight: false,
+  gameOver: false, won: false,
+  anim: {
+    freddy: { pos: 0, ai: 1, maxPos: 3, doorSide: 'right', camIds: ['1A','1B','1B','office'] },
+    bonnie: { pos: 0, ai: 3, maxPos: 3, doorSide: 'left',  camIds: ['1A','2A','2B','office'] },
+    chica:  { pos: 0, ai: 3, maxPos: 4, doorSide: 'right', camIds: ['1A','1B','4A','4B','office'] },
+    foxy:   { pos: 0, ai: 2, maxPos: 3, doorSide: 'left',  camIds: ['5','2A','2B','office'] },
+  },
+  loop: null, hourLoop: null,
+};
+
+const HOURS = ['12 AM','1 AM','2 AM','3 AM','4 AM','5 AM','6 AM'];
+
+// ======= SPRITE DRAWING SYSTEM =======
+// Each function draws a full animatronic onto a canvas context at given scale
+// All sprites drawn at 120x160 base, scale up for closer cams / jumpscare
+
+function drawFreddy(ctx, w, h, opts={}) {
+  ctx.clearRect(0,0,w,h);
+  const s = w/120;
+  const angry = opts.angry||false;
+
+  // Body - dark brown
+  ctx.fillStyle = angry ? '#3a1a00' : '#2d1800';
+  roundRect(ctx, w*0.2, h*0.42, w*0.6, h*0.52, 6*s);
+  ctx.fill();
+
+  // Belly patch - tan
+  ctx.fillStyle = '#8b6914';
+  roundRect(ctx, w*0.32, h*0.48, w*0.36, h*0.3, 4*s);
+  ctx.fill();
+
+  // Bow tie
+  ctx.fillStyle = angry ? '#cc0000' : '#8b0000';
+  ctx.beginPath();
+  ctx.moveTo(w*0.42, h*0.47); ctx.lineTo(w*0.5, h*0.5); ctx.lineTo(w*0.42, h*0.53);
+  ctx.moveTo(w*0.58, h*0.47); ctx.lineTo(w*0.5, h*0.5); ctx.lineTo(w*0.58, h*0.53);
+  ctx.fill();
+
+  // Arms
+  ctx.fillStyle = '#2d1800';
+  roundRect(ctx, w*0.04, h*0.45, w*0.18, h*0.28, 4*s); ctx.fill();
+  roundRect(ctx, w*0.78, h*0.45, w*0.18, h*0.28, 4*s); ctx.fill();
+
+  // Legs
+  ctx.fillStyle = '#1a0e00';
+  roundRect(ctx, w*0.25, h*0.86, w*0.2, h*0.13, 3*s); ctx.fill();
+  roundRect(ctx, w*0.55, h*0.86, w*0.2, h*0.13, 3*s); ctx.fill();
+
+  // Head - brown bear
+  ctx.fillStyle = '#3d2200';
+  ctx.beginPath(); ctx.ellipse(w*0.5, h*0.27, w*0.3, h*0.24, 0, 0, Math.PI*2); ctx.fill();
+
+  // Ears
+  ctx.fillStyle = '#3d2200';
+  ctx.beginPath(); ctx.arc(w*0.24, h*0.1, w*0.1, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(w*0.76, h*0.1, w*0.1, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#5a3300';
+  ctx.beginPath(); ctx.arc(w*0.24, h*0.1, w*0.06, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(w*0.76, h*0.1, w*0.06, 0, Math.PI*2); ctx.fill();
+
+  // Snout
+  ctx.fillStyle = '#5a3a10';
+  ctx.beginPath(); ctx.ellipse(w*0.5, h*0.3, w*0.14, h*0.09, 0, 0, Math.PI*2); ctx.fill();
+
+  // Nose
+  ctx.fillStyle = '#111';
+  ctx.beginPath(); ctx.ellipse(w*0.5, h*0.26, w*0.05, h*0.03, 0, 0, Math.PI*2); ctx.fill();
+
+  // Eyes - glowing
+  const eyeColor = angry ? '#ff0000' : '#ffcc00';
+  ctx.fillStyle = '#111';
+  ctx.beginPath(); ctx.ellipse(w*0.38, h*0.22, w*0.07, h*0.055, 0, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(w*0.62, h*0.22, w*0.07, h*0.055, 0, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = eyeColor;
+  ctx.beginPath(); ctx.ellipse(w*0.38, h*0.22, w*0.04, h*0.033, 0, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(w*0.62, h*0.22, w*0.04, h*0.033, 0, 0, Math.PI*2); ctx.fill();
+  // Eye glow
+  ctx.shadowColor = eyeColor; ctx.shadowBlur = 8*s;
+  ctx.fillStyle = eyeColor;
+  ctx.beginPath(); ctx.ellipse(w*0.38, h*0.22, w*0.02, h*0.016, 0, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(w*0.62, h*0.22, w*0.02, h*0.016, 0, 0, Math.PI*2); ctx.fill();
+  ctx.shadowBlur = 0;
+
+  // Mouth
+  ctx.strokeStyle = '#111'; ctx.lineWidth = 2*s;
+  if (angry) {
+    ctx.beginPath(); ctx.moveTo(w*0.4, h*0.33); ctx.lineTo(w*0.5, h*0.31); ctx.lineTo(w*0.6, h*0.33); ctx.stroke();
+    // Teeth
+    ctx.fillStyle = '#eee';
+    for (let i=0;i<4;i++) { ctx.fillRect(w*(0.41+i*0.05), h*0.33, w*0.03, h*0.04); }
+  } else {
+    ctx.beginPath(); ctx.arc(w*0.5, h*0.29, w*0.09, 0.2, Math.PI-0.2); ctx.stroke();
+  }
+
+  // Top hat
+  ctx.fillStyle = '#1a1a1a';
+  ctx.fillRect(w*0.35, h*0.01, w*0.3, h*0.07);  // brim
+  ctx.fillRect(w*0.4,  h*-0.03, w*0.2, h*0.05); // crown part
+  roundRect(ctx, w*0.42, h*-0.06, w*0.16, h*0.1, 2*s); ctx.fill(); // crown top
+  ctx.fillStyle = '#8b0000';
+  ctx.fillRect(w*0.35, h*0.065, w*0.3, h*0.012); // hat band
+
+  // Mic
+  ctx.fillStyle = '#888';
+  ctx.fillRect(w*0.84, h*0.5, w*0.04, h*0.2);
+  ctx.beginPath(); ctx.arc(w*0.86, h*0.5, w*0.055, 0, Math.PI*2); ctx.fill();
+}
+
+function drawBonnie(ctx, w, h, opts={}) {
+  ctx.clearRect(0,0,w,h);
+  const s = w/120;
+  const angry = opts.angry||false;
+
+  // Body - dark purple
+  ctx.fillStyle = angry ? '#1a0030' : '#2a0050';
+  roundRect(ctx, w*0.2, h*0.42, w*0.6, h*0.52, 6*s); ctx.fill();
+
+  // Belly
+  ctx.fillStyle = '#8866aa';
+  roundRect(ctx, w*0.32, h*0.48, w*0.36, h*0.3, 4*s); ctx.fill();
+
+  // Bow tie
+  ctx.fillStyle = '#cc0066';
+  ctx.beginPath();
+  ctx.moveTo(w*0.42,h*0.47); ctx.lineTo(w*0.5,h*0.5); ctx.lineTo(w*0.42,h*0.53);
+  ctx.moveTo(w*0.58,h*0.47); ctx.lineTo(w*0.5,h*0.5); ctx.lineTo(w*0.58,h*0.53);
+  ctx.fill();
+
+  // Arms
+  ctx.fillStyle = '#2a0050';
+  roundRect(ctx, w*0.04, h*0.45, w*0.18, h*0.28, 4*s); ctx.fill();
+  roundRect(ctx, w*0.78, h*0.45, w*0.18, h*0.28, 4*s); ctx.fill();
+
+  // Guitar on back (visible on left side)
+  ctx.fillStyle = '#8b4000';
+  roundRect(ctx, w*0.04, h*0.38, w*0.1, h*0.35, 3*s); ctx.fill();
+  ctx.fillStyle = '#cc6600';
+  ctx.beginPath(); ctx.ellipse(w*0.09, h*0.58, w*0.06, w*0.08, 0, 0, Math.PI*2); ctx.fill();
+  ctx.strokeStyle = '#ffcc88'; ctx.lineWidth=1;
+  for(let i=0;i<4;i++){ctx.beginPath();ctx.moveTo(w*0.09,h*0.38);ctx.lineTo(w*0.09,h*0.73);ctx.stroke();}
+
+  // Legs
+  ctx.fillStyle = '#1a0030';
+  roundRect(ctx, w*0.25, h*0.86, w*0.2, h*0.13, 3*s); ctx.fill();
+  roundRect(ctx, w*0.55, h*0.86, w*0.2, h*0.13, 3*s); ctx.fill();
+
+  // Head - rabbit
+  ctx.fillStyle = '#3a0066';
+  ctx.beginPath(); ctx.ellipse(w*0.5, h*0.27, w*0.28, h*0.23, 0, 0, Math.PI*2); ctx.fill();
+
+  // Ears - long rabbit ears
+  ctx.fillStyle = '#3a0066';
+  roundRect(ctx, w*0.3, h*-0.12, w*0.12, h*0.26, 4*s); ctx.fill();
+  roundRect(ctx, w*0.58, h*-0.12, w*0.12, h*0.26, 4*s); ctx.fill();
+  ctx.fillStyle = '#cc66cc';
+  roundRect(ctx, w*0.33, h*-0.1, w*0.06, h*0.2, 3*s); ctx.fill();
+  roundRect(ctx, w*0.61, h*-0.1, w*0.06, h*0.2, 3*s); ctx.fill();
+
+  // Snout
+  ctx.fillStyle = '#5533aa';
+  ctx.beginPath(); ctx.ellipse(w*0.5, h*0.31, w*0.12, h*0.08, 0, 0, Math.PI*2); ctx.fill();
+
+  // Nose
+  ctx.fillStyle = '#ff66cc';
+  ctx.beginPath(); ctx.ellipse(w*0.5, h*0.27, w*0.04, h*0.025, 0, 0, Math.PI*2); ctx.fill();
+
+  // Eyes
+  const eyeColor = angry ? '#ff0000' : '#00ffcc';
+  ctx.fillStyle = '#111';
+  ctx.beginPath(); ctx.ellipse(w*0.38, h*0.23, w*0.07, h*0.055, 0, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(w*0.62, h*0.23, w*0.07, h*0.055, 0, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = eyeColor;
+  ctx.beginPath(); ctx.ellipse(w*0.38, h*0.23, w*0.04, h*0.033, 0, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(w*0.62, h*0.23, w*0.04, h*0.033, 0, 0, Math.PI*2); ctx.fill();
+  ctx.shadowColor = eyeColor; ctx.shadowBlur = 8*s;
+  ctx.fillStyle = '#fff';
+  ctx.beginPath(); ctx.ellipse(w*0.38, h*0.23, w*0.015, h*0.012, 0, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(w*0.62, h*0.23, w*0.015, h*0.012, 0, 0, Math.PI*2); ctx.fill();
+  ctx.shadowBlur = 0;
+
+  // Mouth
+  ctx.strokeStyle = '#111'; ctx.lineWidth = 2*s;
+  if (angry) {
+    ctx.beginPath(); ctx.moveTo(w*0.4,h*0.34); ctx.lineTo(w*0.5,h*0.32); ctx.lineTo(w*0.6,h*0.34); ctx.stroke();
+    ctx.fillStyle = '#eee';
+    for(let i=0;i<4;i++){ctx.fillRect(w*(0.41+i*0.05),h*0.34,w*0.03,h*0.035);}
+  } else {
+    ctx.beginPath(); ctx.arc(w*0.5,h*0.3,w*0.08,0.2,Math.PI-0.2); ctx.stroke();
+  }
+}
+
+function drawChica(ctx, w, h, opts={}) {
+  ctx.clearRect(0,0,w,h);
+  const s = w/120;
+  const angry = opts.angry||false;
+
+  // Body - yellow
+  ctx.fillStyle = angry ? '#664400' : '#cc8800';
+  roundRect(ctx, w*0.2, h*0.42, w*0.6, h*0.52, 6*s); ctx.fill();
+
+  // Bib - white with text
+  ctx.fillStyle = '#eee';
+  roundRect(ctx, w*0.3, h*0.47, w*0.4, h*0.28, 4*s); ctx.fill();
+  ctx.fillStyle = '#ff4400'; ctx.font = `bold ${7*s}px monospace`;
+  ctx.textAlign='center'; ctx.fillText("LET'S EAT!", w*0.5, h*0.63);
+
+  // Arms
+  ctx.fillStyle = '#cc8800';
+  roundRect(ctx, w*0.04, h*0.45, w*0.18, h*0.25, 4*s); ctx.fill();
+  roundRect(ctx, w*0.78, h*0.45, w*0.18, h*0.25, 4*s); ctx.fill();
+
+  // Pizza on right arm
+  ctx.fillStyle = '#cc6600';
+  ctx.beginPath(); ctx.moveTo(w*0.82,h*0.62); ctx.lineTo(w*0.95,h*0.68); ctx.lineTo(w*0.88,h*0.75); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = '#ff4400';
+  ctx.beginPath(); ctx.arc(w*0.86, h*0.66, w*0.04, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#ffcc00';
+  for(let i=0;i<3;i++){ctx.beginPath();ctx.arc(w*(0.83+i*0.03),h*(0.64+i*0.02),w*0.01,0,Math.PI*2);ctx.fill();}
+
+  // Legs
+  ctx.fillStyle = '#996600';
+  roundRect(ctx, w*0.25, h*0.86, w*0.2, h*0.13, 3*s); ctx.fill();
+  roundRect(ctx, w*0.55, h*0.86, w*0.2, h*0.13, 3*s); ctx.fill();
+
+  // Head - yellow chicken
+  ctx.fillStyle = '#ddaa00';
+  ctx.beginPath(); ctx.ellipse(w*0.5, h*0.27, w*0.27, h*0.22, 0, 0, Math.PI*2); ctx.fill();
+
+  // Comb on top
+  ctx.fillStyle = '#ff4400';
+  for(let i=0;i<3;i++){
+    ctx.beginPath(); ctx.arc(w*(0.38+i*0.12),h*0.07,w*0.04,Math.PI,0); ctx.fill();
+  }
+
+  // Beak
+  ctx.fillStyle = '#ff8800';
+  ctx.beginPath();
+  ctx.moveTo(w*0.42, h*0.3); ctx.lineTo(w*0.58, h*0.3);
+  ctx.lineTo(w*0.5, h*0.38); ctx.closePath(); ctx.fill();
+  if (angry) {
+    ctx.fillStyle = '#ff4400';
+    ctx.beginPath(); ctx.moveTo(w*0.43,h*0.3); ctx.lineTo(w*0.57,h*0.3); ctx.lineTo(w*0.5,h*0.34); ctx.closePath(); ctx.fill();
+  }
+
+  // Eyes
+  const eyeColor = angry ? '#ff0000' : '#4488ff';
+  ctx.fillStyle = '#111';
+  ctx.beginPath(); ctx.ellipse(w*0.38, h*0.22, w*0.07, h*0.055, 0, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(w*0.62, h*0.22, w*0.07, h*0.055, 0, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = eyeColor;
+  ctx.beginPath(); ctx.ellipse(w*0.38, h*0.22, w*0.04, h*0.032, 0, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(w*0.62, h*0.22, w*0.04, h*0.032, 0, 0, Math.PI*2); ctx.fill();
+  ctx.shadowColor = eyeColor; ctx.shadowBlur = 8*s;
+  ctx.fillStyle = '#fff';
+  ctx.beginPath(); ctx.ellipse(w*0.38, h*0.21, w*0.015, h*0.012, 0, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(w*0.62, h*0.21, w*0.015, h*0.012, 0, 0, Math.PI*2); ctx.fill();
+  ctx.shadowBlur = 0;
+
+  // Eyebrows (angry)
+  if(angry){
+    ctx.strokeStyle='#cc6600'; ctx.lineWidth=3*s;
+    ctx.beginPath(); ctx.moveTo(w*0.31,h*0.16); ctx.lineTo(w*0.45,h*0.18); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(w*0.55,h*0.18); ctx.lineTo(w*0.69,h*0.16); ctx.stroke();
+  }
+}
+
+function drawFoxy(ctx, w, h, opts={}) {
+  ctx.clearRect(0,0,w,h);
+  const s = w/120;
+  const angry = opts.angry||false;
+
+  // Body - red/brown pirate
+  ctx.fillStyle = angry ? '#4a0000' : '#8b1a00';
+  roundRect(ctx, w*0.2, h*0.42, w*0.6, h*0.52, 6*s); ctx.fill();
+
+  // Shirt rags
+  ctx.fillStyle = '#5a1100';
+  ctx.beginPath(); ctx.moveTo(w*0.2,h*0.6); ctx.lineTo(w*0.35,h*0.55); ctx.lineTo(w*0.2,h*0.75); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(w*0.8,h*0.6); ctx.lineTo(w*0.65,h*0.55); ctx.lineTo(w*0.8,h*0.75); ctx.fill();
+
+  // Hook on right arm
+  ctx.fillStyle = '#aaaaaa';
+  ctx.beginPath();
+  ctx.arc(w*0.9, h*0.62, w*0.06, Math.PI, 0); ctx.stroke();
+  ctx.strokeStyle = '#aaaaaa'; ctx.lineWidth = 4*s;
+  ctx.beginPath(); ctx.arc(w*0.9, h*0.62, w*0.06, -Math.PI/2, Math.PI/4); ctx.stroke();
+
+  // Arms
+  ctx.fillStyle = '#8b1a00';
+  roundRect(ctx, w*0.04, h*0.44, w*0.18, h*0.28, 4*s); ctx.fill();
+  roundRect(ctx, w*0.78, h*0.44, w*0.18, h*0.2, 4*s); ctx.fill();
+
+  // Legs
+  ctx.fillStyle = '#5a1100';
+  roundRect(ctx, w*0.25, h*0.86, w*0.2, h*0.13, 3*s); ctx.fill();
+  ctx.fillStyle = '#888'; // peg leg
+  roundRect(ctx, w*0.57, h*0.82, w*0.14, h*0.17, 2*s); ctx.fill();
+  ctx.fillStyle = '#555';
+  roundRect(ctx, w*0.6, h*0.96, w*0.08, h*0.04, 2*s); ctx.fill();
+
+  // Head - fox
+  ctx.fillStyle = '#cc3300';
+  ctx.beginPath(); ctx.ellipse(w*0.5, h*0.27, w*0.28, h*0.22, 0, 0, Math.PI*2); ctx.fill();
+
+  // Ears - pointy fox
+  ctx.fillStyle = '#cc3300';
+  ctx.beginPath(); ctx.moveTo(w*0.22,h*0.12); ctx.lineTo(w*0.3,h*-0.05); ctx.lineTo(w*0.38,h*0.1); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(w*0.62,h*0.1); ctx.lineTo(w*0.7,h*-0.05); ctx.lineTo(w*0.78,h*0.12); ctx.fill();
+  ctx.fillStyle = '#ffaaaa';
+  ctx.beginPath(); ctx.moveTo(w*0.26,h*0.1); ctx.lineTo(w*0.3,h*0); ctx.lineTo(w*0.34,h*0.1); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(w*0.66,h*0.1); ctx.lineTo(w*0.7,h*0); ctx.lineTo(w*0.74,h*0.1); ctx.fill();
+
+  // Muzzle
+  ctx.fillStyle = '#ffccaa';
+  ctx.beginPath(); ctx.ellipse(w*0.5, h*0.3, w*0.16, h*0.1, 0, 0, Math.PI*2); ctx.fill();
+
+  // Nose
+  ctx.fillStyle = '#331100';
+  ctx.beginPath(); ctx.ellipse(w*0.5, h*0.25, w*0.05, h*0.03, 0, 0, Math.PI*2); ctx.fill();
+
+  // Eyes - one normal, one eyepatch
+  const eyeColor = angry ? '#ff0000' : '#ff6600';
+  // Eyepatch left
+  ctx.fillStyle = '#111';
+  ctx.beginPath(); ctx.ellipse(w*0.37, h*0.22, w*0.09, h*0.07, 0, 0, Math.PI*2); ctx.fill();
+  ctx.strokeStyle = '#555'; ctx.lineWidth = 2*s;
+  ctx.beginPath(); ctx.moveTo(w*0.27, h*0.18); ctx.lineTo(w*0.47, h*0.18); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(w*0.28, h*0.15); ctx.lineTo(w*0.46, h*0.28); ctx.stroke();
+
+  // Right eye glowing
+  ctx.fillStyle = '#111';
+  ctx.beginPath(); ctx.ellipse(w*0.63, h*0.22, w*0.07, h*0.055, 0, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = eyeColor;
+  ctx.beginPath(); ctx.ellipse(w*0.63, h*0.22, w*0.04, h*0.033, 0, 0, Math.PI*2); ctx.fill();
+  ctx.shadowColor = eyeColor; ctx.shadowBlur = 10*s;
+  ctx.fillStyle = '#fff';
+  ctx.beginPath(); ctx.ellipse(w*0.63, h*0.21, w*0.015, h*0.012, 0, 0, Math.PI*2); ctx.fill();
+  ctx.shadowBlur = 0;
+
+  // Teeth - sharp
+  ctx.fillStyle = '#eee';
+  ctx.strokeStyle = '#999'; ctx.lineWidth = 1;
+  if (angry) {
+    for(let i=0;i<5;i++){
+      ctx.beginPath();
+      ctx.moveTo(w*(0.38+i*0.05), h*0.32);
+      ctx.lineTo(w*(0.41+i*0.05), h*0.38);
+      ctx.lineTo(w*(0.43+i*0.05), h*0.32);
+      ctx.fill(); ctx.stroke();
+    }
+  } else {
+    ctx.beginPath();
+    ctx.moveTo(w*0.39, h*0.32); ctx.lineTo(w*0.5, h*0.36); ctx.lineTo(w*0.61, h*0.32);
+    ctx.strokeStyle='#111'; ctx.lineWidth=2*s; ctx.stroke();
+    ctx.fillStyle = '#eee';
+    for(let i=0;i<3;i++){ctx.fillRect(w*(0.4+i*0.07),h*0.32,w*0.04,h*0.04);}
+  }
+
+  // Tail
+  ctx.fillStyle = '#aa2200';
+  ctx.beginPath(); ctx.moveTo(w*0.2,h*0.75); ctx.quadraticCurveTo(w*-0.05,h*0.7,w*0.05,h*0.55); ctx.lineTo(w*0.12,h*0.58); ctx.quadraticCurveTo(w*0.05,h*0.7,w*0.25,h*0.78); ctx.fill();
+  ctx.fillStyle = '#ffeecc';
+  ctx.beginPath(); ctx.arc(w*0.05, h*0.55, w*0.04, 0, Math.PI*2); ctx.fill();
+}
+
+// Utility: rounded rect
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x+r, y);
+  ctx.lineTo(x+w-r, y); ctx.quadraticCurveTo(x+w, y, x+w, y+r);
+  ctx.lineTo(x+w, y+h-r); ctx.quadraticCurveTo(x+w, y+h, x+w-r, y+h);
+  ctx.lineTo(x+r, y+h); ctx.quadraticCurveTo(x, y+h, x, y+h-r);
+  ctx.lineTo(x, y+r); ctx.quadraticCurveTo(x, y, x+r, y);
+  ctx.closePath();
+}
+
+const DRAW_FNS = { freddy: drawFreddy, bonnie: drawBonnie, chica: drawChica, foxy: drawFoxy };
+
+function initSprites() {
+  // Draw all animatronic canvases
+  const spriteCvs = document.querySelectorAll('.animatronic-cam');
+  spriteCvs.forEach(cv => {
+    const id = cv.id; // e.g. "freddy-1A"
+    const name = id.split('-')[0];
+    const fn = DRAW_FNS[name];
+    if (fn) fn(cv.getContext('2d'), cv.width, cv.height);
+  });
+}
+
+// Draw jumpscare face
+function drawJumpscare(name) {
+  const cv = document.getElementById('jumpscare-canvas');
+  const ctx = cv.getContext('2d');
+  const fn = DRAW_FNS[name];
+  if (fn) {
+    // Fill background red
+    ctx.fillStyle = '#ff0000';
+    ctx.fillRect(0,0,cv.width,cv.height);
+    fn(ctx, cv.width, cv.height, { angry: true });
+    // Add red vignette
+    const g = ctx.createRadialGradient(cv.width/2,cv.height/2,cv.width*0.2,cv.width/2,cv.height/2,cv.width*0.8);
+    g.addColorStop(0,'transparent'); g.addColorStop(1,'rgba(180,0,0,0.7)');
+    ctx.fillStyle=g; ctx.fillRect(0,0,cv.width,cv.height);
+  }
+}
+
+// Animatronic → cam element mapping
+const CAM_ELEMS = {
+  freddy: { 0: 'freddy-1A', 1: 'freddy-1B' },
+  bonnie: { 0: 'bonnie-1A', 1: 'bonnie-2A', 2: 'bonnie-2B' },
+  chica:  { 0: 'chica-1A',  1: 'chica-1B',  2: 'chica-4A', 3: 'chica-4B' },
+  foxy:   { 0: 'foxy-5',    1: 'foxy-2A',   2: 'foxy-2B' },
+};
+
+// === STARS ===
+(function() {
+  const c = document.getElementById('stars');
+  for (let i = 0; i < 40; i++) {
+    const s = document.createElement('div');
+    s.className = 'star';
+    const sz = Math.random() * 4 + 2;
+    s.style.cssText = `width:${sz}px;height:${sz}px;left:${Math.random()*100}%;animation-duration:${Math.random()*8+6}s;animation-delay:${Math.random()*8}s;`;
+    c.appendChild(s);
+  }
+})();
+
+// === CURSOR ===
+const cursor = document.getElementById('custom-cursor');
+document.addEventListener('mousemove', e => { cursor.style.left=e.clientX+'px'; cursor.style.top=e.clientY+'px'; });
+
+// === CANVAS ROOMS ===
+function drawRoom(id, hue, label) {
+  const cv = document.getElementById(id);
+  if (!cv) return;
+  const ctx = cv.getContext('2d');
+  const w=cv.width, h=cv.height;
+  ctx.fillStyle='#030303'; ctx.fillRect(0,0,w,h);
+
+  // Gradient bg
+  const g = ctx.createLinearGradient(0,0,0,h);
+  g.addColorStop(0, `hsla(${hue},60%,8%,1)`);
+  g.addColorStop(1, `hsla(${hue},40%,4%,1)`);
+  ctx.fillStyle = g; ctx.fillRect(0,0,w,h);
+
+  // Floor
+  ctx.fillStyle = `hsla(${hue},30%,6%,0.8)`; ctx.fillRect(0,h*0.65,w,h*0.35);
+
+  // Walls perspective
+  ctx.strokeStyle = `hsla(${hue},50%,15%,0.6)`; ctx.lineWidth=1;
+  for (let i=0;i<6;i++) { ctx.beginPath(); ctx.moveTo(w/2,h*0.3); ctx.lineTo(i*w/5,h); ctx.stroke(); }
+
+  // Horizontal scan lines
+  ctx.strokeStyle = `hsla(${hue},30%,12%,0.4)`; ctx.lineWidth=1;
+  for (let y=0;y<h;y+=20) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(w,y); ctx.stroke(); }
+
+  // Label
+  ctx.fillStyle = `hsla(${hue},80%,50%,0.25)`;
+  ctx.font = 'bold 22px VT323, monospace';
+  ctx.fillText('['+label+']', 20, 50);
+
+  // Noise
+  for (let i=0;i<300;i++) {
+    ctx.fillStyle = `rgba(255,255,255,${Math.random()*0.05})`;
+    ctx.fillRect(Math.random()*w, Math.random()*h, 1, 1);
+  }
+}
+
+function initCanvases() {
+  drawRoom('c1A', 120, 'SHOW STAGE');
+  drawRoom('c1B', 100, 'DINING AREA');
+  drawRoom('c2A', 200, 'WEST HALL');
+  drawRoom('c2B', 210, 'W. HALL CORNER');
+  drawRoom('c3',  40,  'SUPPLY CLOSET');
+  drawRoom('c4A', 20,  'EAST HALL');
+  drawRoom('c4B', 10,  'E. HALL CORNER');
+  drawRoom('c5',  0,   'BACKSTAGE');
+  drawOffice();
+}
+
+function drawOffice() {
+  const cv = document.getElementById('office-canvas');
+  if (!cv) return;
+  const ctx = cv.getContext('2d');
+  const W = cv.width, H = cv.height;
+  ctx.clearRect(0,0,W,H);
+
+  // ── BACKGROUND ──
+  // Ceiling
+  ctx.fillStyle = '#0d0a06'; ctx.fillRect(0, 0, W, H*0.18);
+  // Back wall
+  const wallG = ctx.createLinearGradient(0, H*0.18, 0, H*0.72);
+  wallG.addColorStop(0, '#1a1208'); wallG.addColorStop(1, '#100c04');
+  ctx.fillStyle = wallG; ctx.fillRect(0, H*0.18, W, H*0.54);
+  // Floor
+  const floorG = ctx.createLinearGradient(0, H*0.72, 0, H);
+  floorG.addColorStop(0, '#0e0b05'); floorG.addColorStop(1, '#060402');
+  ctx.fillStyle = floorG; ctx.fillRect(0, H*0.72, W, H*0.28);
+
+  // Ceiling strip / light bar (flickery)
+  ctx.fillStyle = '#2a2010';
+  ctx.fillRect(W*0.3, H*0.0, W*0.4, H*0.04);
+  ctx.fillStyle = 'rgba(255,200,80,0.06)';
+  ctx.fillRect(0, H*0.0, W, H*0.25);
+
+  // ── BACK WALL DETAILS ──
+  // Faded Freddy Fazbear poster on back wall
+  ctx.fillStyle = '#1c1408';
+  ctx.fillRect(W*0.43, H*0.22, W*0.14, H*0.22);
+  ctx.strokeStyle = '#2a1e08'; ctx.lineWidth = 2;
+  ctx.strokeRect(W*0.43, H*0.22, W*0.14, H*0.22);
+  // Poster content
+  ctx.fillStyle = '#3a2800'; ctx.font = `bold ${10}px monospace`;
+  ctx.textAlign = 'center';
+  ctx.fillText('FREDDY', W*0.5, H*0.3);
+  ctx.fillStyle = '#2e2000'; ctx.font = `${8}px monospace`;
+  ctx.fillText("FAZBEAR'S", W*0.5, H*0.37);
+  ctx.fillText('PIZZA', W*0.5, H*0.41);
+  // Tiny Freddy icon on poster
+  ctx.fillStyle = '#2d1800';
+  ctx.beginPath(); ctx.arc(W*0.5, H*0.26, 7, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#1a0a00';
+  ctx.beginPath(); ctx.arc(W*0.5-4, H*0.24, 2.5, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(W*0.5+4, H*0.24, 2.5, 0, Math.PI*2); ctx.fill();
+
+  // Ventilation grate center top
+  ctx.fillStyle = '#111008';
+  ctx.fillRect(W*0.44, H*0.19, W*0.12, H*0.04);
+  ctx.strokeStyle = '#1a1608'; ctx.lineWidth=1;
+  for (let i=0;i<6;i++) {
+    ctx.beginPath(); ctx.moveTo(W*0.44 + i*(W*0.02), H*0.19);
+    ctx.lineTo(W*0.44 + i*(W*0.02), H*0.23); ctx.stroke();
+  }
+
+  // ── LEFT DOOR FRAME ──
+  const lDoor = S.leftDoor;
+  // Hallway visible through left opening (dark green tint)
+  if (!lDoor) {
+    // Hallway depth - dark narrow corridor
+    const hallL = ctx.createLinearGradient(W*0.01, 0, W*0.18, 0);
+    hallL.addColorStop(0, '#000000');
+    hallL.addColorStop(0.4, '#030805');
+    hallL.addColorStop(1, '#0a1206');
+    ctx.fillStyle = hallL;
+    ctx.fillRect(W*0.01, H*0.15, W*0.17, H*0.6);
+    // Hall floor
+    ctx.fillStyle = '#050a03'; ctx.fillRect(W*0.01, H*0.72, W*0.17, H*0.13);
+    // Receding wall lines
+    ctx.strokeStyle = '#0d1a08'; ctx.lineWidth=1;
+    for (let y=H*0.2; y<H*0.72; y+=H*0.1) {
+      ctx.beginPath(); ctx.moveTo(W*0.01,y); ctx.lineTo(W*0.18,y); ctx.stroke();
+    }
+    // Ominous depth glow
+    ctx.fillStyle = 'rgba(0,40,0,0.3)';
+    ctx.fillRect(W*0.01, H*0.15, W*0.08, H*0.6);
+  }
+  // Left door frame (thick)
+  ctx.fillStyle = '#1a1408';
+  ctx.fillRect(W*0.0,  H*0.13, W*0.03, H*0.62); // left jamb
+  ctx.fillRect(W*0.18, H*0.13, W*0.03, H*0.62); // right jamb
+  ctx.fillRect(W*0.0,  H*0.13, W*0.21, H*0.04); // top
+  // Door itself (if closed, solid panel)
+  if (lDoor) {
+    const dg = ctx.createLinearGradient(W*0.03, 0, W*0.18, 0);
+    dg.addColorStop(0, '#2a2018'); dg.addColorStop(1, '#1a1410');
+    ctx.fillStyle = dg;
+    ctx.fillRect(W*0.03, H*0.17, W*0.15, H*0.58);
+    // Door bolts
+    ctx.fillStyle = '#555';
+    [[0.06,0.22],[0.15,0.22],[0.06,0.6],[0.15,0.6]].forEach(([x,y])=>{
+      ctx.beginPath(); ctx.arc(W*x, H*y, 3, 0, Math.PI*2); ctx.fill();
+    });
+    // Red closed light
+    ctx.fillStyle = '#ff2200';
+    ctx.shadowColor='#ff2200'; ctx.shadowBlur=8;
+    ctx.beginPath(); ctx.arc(W*0.19, H*0.19, 4, 0, Math.PI*2); ctx.fill();
+    ctx.shadowBlur=0;
+  } else {
+    // Open - green light button
+    ctx.fillStyle = '#00ff41';
+    ctx.shadowColor='#00ff41'; ctx.shadowBlur=8;
+    ctx.beginPath(); ctx.arc(W*0.19, H*0.19, 4, 0, Math.PI*2); ctx.fill();
+    ctx.shadowBlur=0;
+  }
+
+  // Left light button panel
+  ctx.fillStyle = '#111';
+  ctx.fillRect(W*0.195, H*0.16, W*0.025, H*0.1);
+  ctx.fillStyle = S.leftLight ? '#ffee44' : '#332200';
+  ctx.fillRect(W*0.198, H*0.17, W*0.018, H*0.04);
+  ctx.fillStyle = '#888'; ctx.font='6px monospace'; ctx.textAlign='left';
+  ctx.fillText('LT', W*0.197, H*0.24);
+
+  // ── RIGHT DOOR FRAME ──
+  const rDoor = S.rightDoor;
+  if (!rDoor) {
+    const hallR = ctx.createLinearGradient(W*0.99, 0, W*0.82, 0);
+    hallR.addColorStop(0, '#000000');
+    hallR.addColorStop(0.4, '#080305');
+    hallR.addColorStop(1, '#120a06');
+    ctx.fillStyle = hallR;
+    ctx.fillRect(W*0.82, H*0.15, W*0.17, H*0.6);
+    ctx.fillStyle = '#0a0503'; ctx.fillRect(W*0.82, H*0.72, W*0.17, H*0.13);
+    ctx.strokeStyle = '#1a0d08'; ctx.lineWidth=1;
+    for (let y=H*0.2; y<H*0.72; y+=H*0.1) {
+      ctx.beginPath(); ctx.moveTo(W*0.82,y); ctx.lineTo(W*0.99,y); ctx.stroke();
+    }
+    ctx.fillStyle = 'rgba(30,0,0,0.3)';
+    ctx.fillRect(W*0.91, H*0.15, W*0.08, H*0.6);
+  }
+  ctx.fillStyle = '#1a1408';
+  ctx.fillRect(W*0.79, H*0.13, W*0.03, H*0.62);
+  ctx.fillRect(W*0.97, H*0.13, W*0.03, H*0.62);
+  ctx.fillRect(W*0.79, H*0.13, W*0.21, H*0.04);
+  if (rDoor) {
+    const dg2 = ctx.createLinearGradient(W*0.82, 0, W*0.97, 0);
+    dg2.addColorStop(0, '#1a1410'); dg2.addColorStop(1, '#2a2018');
+    ctx.fillStyle = dg2;
+    ctx.fillRect(W*0.82, H*0.17, W*0.15, H*0.58);
+    ctx.fillStyle = '#555';
+    [[0.85,0.22],[0.94,0.22],[0.85,0.6],[0.94,0.6]].forEach(([x,y])=>{
+      ctx.beginPath(); ctx.arc(W*x, H*y, 3, 0, Math.PI*2); ctx.fill();
+    });
+    ctx.fillStyle = '#ff2200';
+    ctx.shadowColor='#ff2200'; ctx.shadowBlur=8;
+    ctx.beginPath(); ctx.arc(W*0.81, H*0.19, 4, 0, Math.PI*2); ctx.fill();
+    ctx.shadowBlur=0;
+  } else {
+    ctx.fillStyle = '#00ff41';
+    ctx.shadowColor='#00ff41'; ctx.shadowBlur=8;
+    ctx.beginPath(); ctx.arc(W*0.81, H*0.19, 4, 0, Math.PI*2); ctx.fill();
+    ctx.shadowBlur=0;
+  }
+  ctx.fillStyle = '#111';
+  ctx.fillRect(W*0.785, H*0.16, W*0.025, H*0.1);
+  ctx.fillStyle = S.rightLight ? '#ffee44' : '#332200';
+  ctx.fillRect(W*0.787, H*0.17, W*0.018, H*0.04);
+  ctx.fillStyle = '#888'; ctx.font='6px monospace'; ctx.textAlign='left';
+  ctx.fillText('LT', W*0.787, H*0.24);
+
+  // ── DESK ──
+  const deskG = ctx.createLinearGradient(0, H*0.72, 0, H);
+  deskG.addColorStop(0, '#2a1e0c'); deskG.addColorStop(1,'#1a1208');
+  ctx.fillStyle = deskG;
+  ctx.fillRect(W*0.2, H*0.72, W*0.6, H*0.1);
+  // Desk edge highlight
+  ctx.fillStyle = '#3a2a10';
+  ctx.fillRect(W*0.2, H*0.72, W*0.6, H*0.012);
+
+  // ── MONITOR on desk ──
+  ctx.fillStyle = '#0a0a0a';
+  roundRect(ctx, W*0.38, H*0.5, W*0.24, H*0.2, 4); ctx.fill();
+  ctx.strokeStyle = '#222'; ctx.lineWidth=1.5; ctx.stroke();
+  // Screen glow
+  ctx.fillStyle = '#001a00';
+  roundRect(ctx, W*0.39, H*0.51, W*0.22, H*0.17, 3); ctx.fill();
+  // Camera grid on screen
+  ctx.strokeStyle = '#003300'; ctx.lineWidth=0.5;
+  ctx.strokeRect(W*0.39, H*0.51, W*0.22, H*0.17);
+  ctx.beginPath(); ctx.moveTo(W*0.5, H*0.51); ctx.lineTo(W*0.5, H*0.68); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(W*0.39, H*0.595); ctx.lineTo(W*0.61, H*0.595); ctx.stroke();
+  // Tiny text on screen
+  ctx.fillStyle = '#00ff4188'; ctx.font='5px VT323,monospace'; ctx.textAlign='center';
+  ctx.fillText('CAM FEED', W*0.5, H*0.535);
+  // Monitor stand
+  ctx.fillStyle = '#111';
+  ctx.fillRect(W*0.485, H*0.7, W*0.03, H*0.025);
+  ctx.fillRect(W*0.472, H*0.722, W*0.056, H*0.01);
+
+  // Coffee cup on desk
+  ctx.fillStyle = '#1a1008';
+  ctx.fillRect(W*0.66, H*0.73, W*0.025, H*0.055);
+  ctx.fillStyle = '#2a1a0a';
+  ctx.fillRect(W*0.658, H*0.73, W*0.029, H*0.008);
+  ctx.fillStyle = '#3d1a00'; // coffee
+  ctx.fillRect(W*0.661, H*0.733, W*0.022, H*0.015);
+
+  // Papers on desk
+  ctx.fillStyle = '#1c1810';
+  ctx.fillRect(W*0.26, H*0.735, W*0.08, H*0.05);
+  ctx.fillStyle = '#141210';
+  ctx.fillRect(W*0.265, H*0.74, W*0.07, H*0.04);
+  ctx.fillStyle = '#2a2416'; ctx.font='4px monospace'; ctx.textAlign='left';
+  for(let i=0;i<4;i++) ctx.fillRect(W*0.268, H*(0.743+i*0.009), W*0.055, 0.8);
+
+  // Phone on desk
+  ctx.fillStyle = '#111';
+  ctx.fillRect(W*0.305, H*0.735, W*0.04, H*0.05);
+  ctx.fillStyle = '#1a1a1a'; ctx.fillRect(W*0.307, H*0.737, W*0.028, H*0.02);
+  // Phone blink light
+  if (Math.random()>0.7) {
+    ctx.fillStyle='#ff0000';
+    ctx.shadowColor='#ff0000'; ctx.shadowBlur=4;
+    ctx.beginPath(); ctx.arc(W*0.309,H*0.762,2,0,Math.PI*2); ctx.fill();
+    ctx.shadowBlur=0;
+  }
+
+  // ── FAN on desk ──
+  ctx.fillStyle = '#1a1610';
+  ctx.beginPath(); ctx.arc(W*0.72, H*0.74, W*0.018, 0, Math.PI*2); ctx.fill();
+  ctx.strokeStyle='#2a2418'; ctx.lineWidth=2;
+  for(let a=0;a<4;a++){
+    const ang = (Date.now()*0.003 + a*Math.PI/2)%(Math.PI*2);
+    ctx.beginPath();
+    ctx.moveTo(W*0.72, H*0.74);
+    ctx.lineTo(W*(0.72+Math.cos(ang)*0.015), H*(0.74+Math.sin(ang)*0.02));
+    ctx.stroke();
+  }
+
+  // ── CEILING LIGHT GLOW ──
+  const lightG2 = ctx.createRadialGradient(W*0.5, H*0.0, 0, W*0.5, H*0.0, W*0.5);
+  lightG2.addColorStop(0, 'rgba(255,200,80,0.04)');
+  lightG2.addColorStop(1, 'transparent');
+  ctx.fillStyle = lightG2; ctx.fillRect(0,0,W,H*0.5);
+
+  // ── LEFT DOOR LIGHT ──
+  if (S.leftLight) {
+    const llg = ctx.createRadialGradient(W*0.1, H*0.5, 0, W*0.1, H*0.5, W*0.25);
+    llg.addColorStop(0, 'rgba(255,240,100,0.18)');
+    llg.addColorStop(1, 'transparent');
+    ctx.fillStyle = llg; ctx.fillRect(0, H*0.1, W*0.35, H*0.75);
+  }
+  // ── RIGHT DOOR LIGHT ──
+  if (S.rightLight) {
+    const rlg = ctx.createRadialGradient(W*0.9, H*0.5, 0, W*0.9, H*0.5, W*0.25);
+    rlg.addColorStop(0, 'rgba(255,240,100,0.18)');
+    rlg.addColorStop(1, 'transparent');
+    ctx.fillStyle = rlg; ctx.fillRect(W*0.65, H*0.1, W*0.35, H*0.75);
+  }
+
+  // ── SCAN LINES ──
+  for (let y=0; y<H; y+=4) {
+    ctx.fillStyle='rgba(0,0,0,0.12)'; ctx.fillRect(0,y,W,1);
+  }
+
+  // ── VIGNETTE ──
+  const vig = ctx.createRadialGradient(W/2,H/2,H*0.2,W/2,H/2,W*0.7);
+  vig.addColorStop(0,'transparent'); vig.addColorStop(1,'rgba(0,0,0,0.7)');
+  ctx.fillStyle=vig; ctx.fillRect(0,0,W,H);
+
+  // Update office intruder sprites
+  updateOfficeIntruders();
+}
+
+function updateOfficeIntruders() {
+  // Show animatronic at left door if at final position and door open
+  const leftIntruder = ['bonnie','foxy'].find(n => S.anim[n].pos >= S.anim[n].maxPos && !S.leftDoor);
+  const rightIntruder = ['freddy','chica'].find(n => S.anim[n].pos >= S.anim[n].maxPos && !S.rightDoor);
+
+  const leftEl = document.getElementById('office-left');
+  const rightEl = document.getElementById('office-right');
+
+  if (leftIntruder && leftEl) {
+    leftEl.style.display = 'block';
+    const fn = DRAW_FNS[leftIntruder];
+    if (fn) fn(leftEl.getContext('2d'), leftEl.width, leftEl.height, { angry: true });
+  } else if (leftEl) {
+    leftEl.style.display = 'none';
+  }
+
+  if (rightIntruder && rightEl) {
+    rightEl.style.display = 'block';
+    const fn = DRAW_FNS[rightIntruder];
+    if (fn) fn(rightEl.getContext('2d'), rightEl.width, rightEl.height, { angry: true });
+  } else if (rightEl) {
+    rightEl.style.display = 'none';
+  }
+}
+
+// === CAM SWITCH ===
+function switchCam(id) {
+  document.querySelectorAll('.cam-room').forEach(e=>e.classList.remove('active'));
+  document.querySelectorAll('.cam-btn').forEach(e=>e.classList.remove('active'));
+  const room = document.getElementById('cam-'+id);
+  if (room) room.classList.add('active');
+  const btns = [...document.querySelectorAll('.cam-btn')];
+  const btn = btns.find(b=>b.textContent.trim().startsWith(id) || (id==='office' && b.textContent.includes('OFFICE')));
+  if (btn) btn.classList.add('active');
+  document.getElementById('cam-label').textContent = id==='office' ? 'YOUR OFFICE' : ('CAMERA '+id+' ACTIVE');
+  if (id !== 'office') {
+    const st = document.getElementById('cam-static');
+    st.classList.add('glitch'); setTimeout(()=>st.classList.remove('glitch'), 300);
+  }
+  if (id === 'office') drawOffice();
+}
+
+
+// === DOORS ===
+function toggleDoor(side) {
+  S[side+'Door'] = !S[side+'Door'];
+  const closed = S[side+'Door'];
+  document.getElementById(side+'-door-btn').classList.toggle('closed', closed);
+  document.getElementById(side+'-status').textContent = closed ? 'CLOSED' : 'OPEN';
+  addLog(side.toUpperCase()+' door '+(closed?'CLOSED':'opened')+'.', closed?'warn':'');
+  // Redraw office to show door state change
+  if (document.getElementById('cam-office')?.classList.contains('active')) drawOffice();
+  else { const cv=document.getElementById('office-canvas'); if(cv) setTimeout(drawOffice,0); }
+}
+
+// === LOG ===
+function addLog(msg, type='') {
+  const log = document.getElementById('phone-log');
+  const e = document.createElement('div');
+  e.className = 'log-entry' + (type?' '+type:'');
+  e.textContent = '['+HOURS[Math.min(S.hour,6)]+'] '+msg;
+  log.appendChild(e);
+  log.scrollTop = log.scrollHeight;
+  // Keep log trim
+  while (log.children.length > 20) log.removeChild(log.firstChild);
+}
+
+// === ALERT ===
+function showAlert() {
+  const a = document.getElementById('alert-banner');
+  a.classList.add('show'); setTimeout(()=>a.classList.remove('show'), 2000);
+}
+
+// === ANIMATRONIC VISUALS ===
+function updateAnimVisuals() {
+  document.querySelectorAll('.animatronic-cam').forEach(e=>e.classList.remove('visible'));
+  for (const [name, a] of Object.entries(S.anim)) {
+    if (a.pos < a.maxPos) {
+      const elId = CAM_ELEMS[name]?.[a.pos];
+      if (elId) document.getElementById(elId)?.classList.add('visible');
+    }
+  }
+}
+
+// === STATUS DOTS ===
+function updateDots() {
+  for (const [name, a] of Object.entries(S.anim)) {
+    const dot = document.getElementById('dot-'+name);
+    dot.className = 'anim-dot';
+    if (a.pos >= a.maxPos-1) dot.classList.add('danger');
+    else if (a.pos >= a.maxPos-2) dot.classList.add('near');
+  }
+}
+
+// === MOVE ===
+function moveAnim(name, a) {
+  if (Math.random()*20 < a.ai*(1+S.hour*0.3)) {
+    if (a.pos < a.maxPos) {
+      a.pos++;
+      if (a.pos === a.maxPos) {
+        addLog('⚠ '+name.toUpperCase()+' IS AT YOUR DOOR!', 'danger');
+        showAlert();
+      } else {
+        addLog(name.charAt(0).toUpperCase()+name.slice(1)+' is moving...', 'warn');
+      }
+    }
+  }
+}
+
+// === ATTACK ===
+function checkAttack() {
+  for (const [name, a] of Object.entries(S.anim)) {
+    if (a.pos >= a.maxPos) {
+      const closed = a.doorSide === 'left' ? S.leftDoor : S.rightDoor;
+      if (!closed) { triggerJumpscare(name); return; }
+      else { a.pos = 0; addLog(name.charAt(0).toUpperCase()+name.slice(1)+' retreated.', ''); }
+    }
+  }
+}
+
+// === JUMPSCARE ===
+function triggerJumpscare(name) {
+  if (S.gameOver||S.won) return;
+  S.gameOver = true;
+  clearInterval(S.loop); clearInterval(S.hourLoop);
+  const ov = document.getElementById('jumpscare-overlay');
+  drawJumpscare(name);
+  ov.classList.add('active');
+  // Flash effect
+  document.body.style.background = '#fff';
+  setTimeout(()=>{ document.body.style.background='#000'; }, 50);
+  setTimeout(()=>{
+    ov.classList.remove('active');
+    document.getElementById('death-time').textContent = HOURS[Math.min(S.hour,6)];
+    showScreen('gameover-screen');
+  }, 2000);
+}
+
+// === POWER ===
+function drainPower() {
+  let d = 0.25;
+  if (S.leftDoor) d += 0.5;
+  if (S.rightDoor) d += 0.5;
+  S.power = Math.max(0, S.power-d);
+  const pct = Math.round(S.power);
+  document.getElementById('power-pct').textContent = pct;
+  const bar = document.getElementById('power-bar');
+  bar.style.width = pct+'%';
+  if (pct<25) { bar.style.background='#ff2200'; }
+  else if (pct<50) { bar.style.background='#ffaa00'; }
+  if (S.power<=0) {
+    addLog('POWER OUT! FREDDY IS COMING!', 'danger');
+    S.leftDoor=false; S.rightDoor=false;
+    document.getElementById('left-door-btn').classList.remove('closed');
+    document.getElementById('right-door-btn').classList.remove('closed');
+    document.getElementById('left-status').textContent='OPEN';
+    document.getElementById('right-status').textContent='OPEN';
+    setTimeout(()=>{ if(!S.gameOver&&!S.won) triggerJumpscare('freddy'); }, 8000);
+  }
+}
+
+// === HOUR ===
+function tickHour() {
+  if (S.gameOver||S.won) return;
+  S.hour++;
+  document.getElementById('time-display').textContent = HOURS[Math.min(S.hour,6)];
+  addLog('Time is now '+HOURS[Math.min(S.hour,6)]+'.','');
+  if (S.hour>=6) winGame();
+}
+
+function winGame() {
+  if (S.won||S.gameOver) return;
+  S.won=true; clearInterval(S.loop); clearInterval(S.hourLoop);
+  setTimeout(()=>showScreen('win-screen'), 600);
+}
+
+// === TICK ===
+function tick() {
+  if (S.gameOver||S.won) return;
+  S.ticks++;
+  drainPower();
+  const interval = Math.max(12, 35 - S.hour*3);
+  if (S.ticks%interval===0) {
+    moveAnim('bonnie', S.anim.bonnie);
+    moveAnim('chica',  S.anim.chica);
+    moveAnim('foxy',   S.anim.foxy);
+    if (S.hour>=2) moveAnim('freddy', S.anim.freddy);
+  }
+  if (S.ticks%3===0) checkAttack();
+  updateAnimVisuals();
+  updateDots();
+  // Clock
+  const now=new Date();
+  document.getElementById('clock-real').textContent=now.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+}
+
+// === SCREEN ===
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+
+// === START ===
+function startGame() {
+  clearInterval(S.loop); clearInterval(S.hourLoop);
+  S.hour=0; S.power=100; S.ticks=0;
+  S.leftDoor=false; S.rightDoor=false;
+  S.leftLight=false; S.rightLight=false;
+  S.gameOver=false; S.won=false;
+  Object.assign(S.anim, {
+    freddy:{ pos:0, ai:1, maxPos:3, doorSide:'right', camIds:['1A','1B','1B','office'] },
+    bonnie:{ pos:0, ai:3, maxPos:3, doorSide:'left',  camIds:['1A','2A','2B','office'] },
+    chica: { pos:0, ai:3, maxPos:4, doorSide:'right', camIds:['1A','1B','4A','4B','office'] },
+    foxy:  { pos:0, ai:2, maxPos:3, doorSide:'left',  camIds:['5','2A','2B','office'] },
+  });
+  document.getElementById('time-display').textContent='12 AM';
+  document.getElementById('power-pct').textContent='100';
+  const bar=document.getElementById('power-bar');
+  bar.style.width='100%'; bar.style.background='var(--green)';
+  document.getElementById('left-door-btn').classList.remove('closed');
+  document.getElementById('right-door-btn').classList.remove('closed');
+  document.getElementById('left-status').textContent='OPEN';
+  document.getElementById('right-status').textContent='OPEN';
+  document.getElementById('phone-log').innerHTML='<div class="log-entry">System initialized...</div><div class="log-entry warn">Animatronics active.</div>';
+  initCanvases();
+  initSprites();
+  updateDots();
+  updateAnimVisuals();
+  switchCam('1A');
+  showScreen('game-screen');
+  S.loop = setInterval(tick, 1000);
+  S.hourLoop = setInterval(tickHour, 15000); // 15s per hour, 90s per night
+}
+
+function restartGame() { startGame(); }
+</script>
+</body>
+</html>
