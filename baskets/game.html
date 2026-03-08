@@ -1,0 +1,1062 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🏀 Basketball</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow+Condensed:wght@400;700;900&display=swap');
+
+:root {
+  --orange: #F4631E;
+  --orange-dark: #C44A0A;
+  --court-wood: #C8893A;
+  --court-light: #E8A84A;
+  --court-line: rgba(255,255,255,0.35);
+  --hoop-red: #CC2200;
+  --net-white: rgba(255,255,255,0.85);
+  --bg-dark: #0a0a12;
+  --crowd: #1a1025;
+  --score-gold: #FFD700;
+  --sky: #1a0530;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  background: var(--bg-dark);
+  overflow: hidden;
+  width: 100vw;
+  height: 100vh;
+  font-family: 'Barlow Condensed', sans-serif;
+  user-select: none;
+  cursor: crosshair;
+}
+
+/* === ARENA === */
+#arena {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* Background crowd / arena lights */
+#arena-bg {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse 80% 60% at 50% 0%, #2a1045 0%, #0a0a12 70%);
+}
+
+/* Crowd dots */
+.crowd-row {
+  position: absolute;
+  width: 100%;
+  display: flex;
+  justify-content: space-around;
+}
+
+/* Arena spotlights */
+.spotlight {
+  position: absolute;
+  top: 0;
+  width: 180px;
+  height: 60vh;
+  background: linear-gradient(180deg, rgba(255,220,100,0.08) 0%, transparent 100%);
+  clip-path: polygon(40% 0%, 60% 0%, 100% 100%, 0% 100%);
+  pointer-events: none;
+}
+
+/* === COURT === */
+#court {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 52vh;
+  background: linear-gradient(180deg, var(--court-wood) 0%, #B07828 100%);
+  border-top: 4px solid rgba(255,255,255,0.2);
+  overflow: hidden;
+}
+
+/* Wood grain lines */
+#court::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    90deg,
+    transparent 0px,
+    transparent 38px,
+    rgba(0,0,0,0.07) 38px,
+    rgba(0,0,0,0.07) 40px
+  );
+}
+
+/* Court lines */
+.court-line-h {
+  position: absolute;
+  left: 0; right: 0;
+  height: 2px;
+  background: var(--court-line);
+}
+
+/* Three point arc */
+#three-arc {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 70%;
+  height: 200px;
+  border: 2px solid var(--court-line);
+  border-bottom: none;
+  border-radius: 200px 200px 0 0;
+}
+
+/* Center circle */
+#center-circle {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 120px;
+  height: 120px;
+  border: 2px solid var(--court-line);
+  border-radius: 50%;
+}
+
+/* Key/paint */
+#paint {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 220px;
+  height: 140px;
+  border: 2px solid var(--court-line);
+  border-bottom: none;
+  background: rgba(200, 100, 30, 0.25);
+}
+
+/* === BACKBOARD & HOOP === */
+#basket-container {
+  position: absolute;
+  top: 8vh;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+#pole {
+  width: 8px;
+  height: 12vh;
+  background: linear-gradient(90deg, #555, #888, #555);
+  border-radius: 4px;
+  position: absolute;
+  top: -12vh;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+#backboard {
+  width: 130px;
+  height: 80px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.92), rgba(200,220,255,0.85));
+  border: 4px solid #333;
+  border-radius: 4px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.6), inset 0 0 20px rgba(255,255,255,0.3);
+  position: relative;
+}
+
+#backboard-inner {
+  position: absolute;
+  top: 14px; left: 20px; right: 20px; bottom: 10px;
+  border: 3px solid var(--hoop-red);
+  border-radius: 2px;
+}
+
+#hoop-arm {
+  width: 30px;
+  height: 8px;
+  background: linear-gradient(180deg, #888, #555);
+  border-radius: 2px;
+}
+
+#hoop {
+  width: 80px;
+  height: 12px;
+  border: 5px solid var(--hoop-red);
+  border-radius: 50%;
+  position: relative;
+  box-shadow: 0 2px 10px rgba(204,34,0,0.6);
+  background: transparent;
+}
+
+/* Net */
+#net {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 68px;
+  height: 44px;
+  pointer-events: none;
+}
+
+/* === BALL === */
+#ball {
+  position: absolute;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #F4631E, #C44A0A 60%, #8B2E00);
+  box-shadow: inset -6px -6px 14px rgba(0,0,0,0.5), inset 2px 2px 8px rgba(255,200,100,0.3), 0 8px 24px rgba(0,0,0,0.6);
+  cursor: grab;
+  z-index: 20;
+  touch-action: none;
+  transition: box-shadow 0.1s;
+}
+
+#ball::before {
+  content: '';
+  position: absolute;
+  top: 14px; left: 4px; right: 4px;
+  height: 3px;
+  border-top: 2.5px solid rgba(0,0,0,0.35);
+  border-radius: 50%;
+}
+
+#ball::after {
+  content: '';
+  position: absolute;
+  left: 14px; top: 4px; bottom: 4px;
+  width: 3px;
+  border-left: 2.5px solid rgba(0,0,0,0.35);
+  border-radius: 50%;
+}
+
+#ball.dragging {
+  cursor: grabbing;
+  box-shadow: inset -6px -6px 14px rgba(0,0,0,0.5), inset 2px 2px 8px rgba(255,200,100,0.3), 0 16px 40px rgba(0,0,0,0.8);
+}
+
+/* Ball spin lines (rotated overlay) */
+#ball-inner {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  overflow: hidden;
+}
+
+/* === TRAJECTORY DOTS === */
+.traj-dot {
+  position: absolute;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.5);
+  pointer-events: none;
+  z-index: 15;
+}
+
+/* === SCORE POPUP === */
+.score-popup {
+  position: absolute;
+  font-family: 'Bebas Neue', cursive;
+  font-size: 48px;
+  color: var(--score-gold);
+  text-shadow: 0 0 20px rgba(255,215,0,0.8), 2px 2px 0 rgba(0,0,0,0.8);
+  pointer-events: none;
+  z-index: 50;
+  animation: scoreAnim 1.5s ease-out forwards;
+  white-space: nowrap;
+}
+
+@keyframes scoreAnim {
+  0%   { opacity: 0; transform: translateY(0) scale(0.5); }
+  20%  { opacity: 1; transform: translateY(-20px) scale(1.2); }
+  60%  { opacity: 1; transform: translateY(-60px) scale(1); }
+  100% { opacity: 0; transform: translateY(-100px) scale(0.8); }
+}
+
+/* === SWISH effect === */
+.swish-text {
+  position: absolute;
+  font-family: 'Bebas Neue', cursive;
+  font-size: 36px;
+  letter-spacing: 4px;
+  color: #fff;
+  text-shadow: 0 0 30px rgba(255,255,255,0.9);
+  pointer-events: none;
+  z-index: 50;
+  animation: swishAnim 1.8s ease-out forwards;
+}
+
+@keyframes swishAnim {
+  0%   { opacity: 0; transform: translate(-50%, 0) scale(0.3) rotate(-5deg); }
+  25%  { opacity: 1; transform: translate(-50%, -10px) scale(1.1) rotate(2deg); }
+  70%  { opacity: 0.8; transform: translate(-50%, -30px) scale(1) rotate(0); }
+  100% { opacity: 0; transform: translate(-50%, -60px) scale(0.8); }
+}
+
+/* === FLAME effect for streak === */
+.flame {
+  position: fixed;
+  pointer-events: none;
+  font-size: 30px;
+  z-index: 60;
+  animation: flameFloat 1s ease-out forwards;
+}
+@keyframes flameFloat {
+  from { opacity: 1; transform: translateY(0) scale(1); }
+  to   { opacity: 0; transform: translateY(-80px) scale(0.5); }
+}
+
+/* === SCOREBOARD HUD === */
+#hud {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  padding: 16px 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  z-index: 100;
+  pointer-events: none;
+}
+
+.score-panel {
+  background: rgba(0,0,0,0.7);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 12px;
+  padding: 10px 24px;
+  text-align: center;
+  backdrop-filter: blur(10px);
+}
+
+.score-label {
+  font-size: 11px;
+  letter-spacing: 3px;
+  color: rgba(255,255,255,0.5);
+  text-transform: uppercase;
+}
+
+.score-value {
+  font-family: 'Bebas Neue', cursive;
+  font-size: 52px;
+  color: white;
+  line-height: 1;
+  text-shadow: 0 0 20px rgba(244,99,30,0.6);
+}
+
+#streak-display {
+  font-family: 'Bebas Neue', cursive;
+  font-size: 22px;
+  color: var(--orange);
+  text-align: center;
+  padding-top: 4px;
+  min-height: 28px;
+}
+
+/* Timer ring */
+#timer-container {
+  position: relative;
+  width: 80px;
+  height: 80px;
+}
+
+#timer-svg {
+  transform: rotate(-90deg);
+}
+
+#timer-text {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Bebas Neue', cursive;
+  font-size: 28px;
+  color: white;
+}
+
+/* === POWER BAR === */
+#power-container {
+  position: fixed;
+  bottom: 30px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  opacity: 0;
+  transition: opacity 0.2s;
+  pointer-events: none;
+}
+
+#power-container.visible { opacity: 1; }
+
+#power-label {
+  font-family: 'Bebas Neue', cursive;
+  font-size: 14px;
+  letter-spacing: 3px;
+  color: rgba(255,255,255,0.6);
+}
+
+#power-track {
+  width: 200px;
+  height: 10px;
+  background: rgba(255,255,255,0.15);
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,0.2);
+}
+
+#power-fill {
+  height: 100%;
+  width: 0%;
+  border-radius: 6px;
+  background: linear-gradient(90deg, #4CAF50, #FFD700, #FF6B6B);
+  transition: width 0.05s;
+}
+
+/* === ARROW indicator === */
+#arrow-indicator {
+  position: absolute;
+  width: 60px;
+  height: 60px;
+  pointer-events: none;
+  z-index: 18;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+/* === GAME OVER === */
+#game-over {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.85);
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.6s;
+  backdrop-filter: blur(6px);
+}
+
+#game-over.show { opacity: 1; pointer-events: all; }
+
+#game-over h1 {
+  font-family: 'Bebas Neue', cursive;
+  font-size: 88px;
+  color: var(--orange);
+  text-shadow: 0 0 40px rgba(244,99,30,0.8);
+  letter-spacing: 4px;
+  animation: goShake 0.5s ease-out;
+}
+
+@keyframes goShake {
+  0%,100% { transform: translateX(0); }
+  20% { transform: translateX(-10px) rotate(-2deg); }
+  40% { transform: translateX(10px) rotate(2deg); }
+  60% { transform: translateX(-6px); }
+  80% { transform: translateX(6px); }
+}
+
+.go-stat {
+  font-size: 20px;
+  color: rgba(255,255,255,0.7);
+  letter-spacing: 2px;
+}
+
+.go-stat span {
+  font-family: 'Bebas Neue', cursive;
+  font-size: 32px;
+  color: white;
+  margin-left: 10px;
+}
+
+#play-again {
+  margin-top: 10px;
+  background: var(--orange);
+  color: white;
+  border: none;
+  padding: 16px 56px;
+  border-radius: 50px;
+  font-family: 'Bebas Neue', cursive;
+  font-size: 32px;
+  letter-spacing: 3px;
+  cursor: pointer;
+  box-shadow: 0 6px 0 var(--orange-dark), 0 0 40px rgba(244,99,30,0.4);
+  transition: transform 0.1s, box-shadow 0.1s;
+}
+#play-again:hover { transform: translateY(3px); box-shadow: 0 3px 0 var(--orange-dark); }
+
+/* === SPLASH === */
+#splash {
+  position: fixed;
+  inset: 0;
+  background: radial-gradient(ellipse at 50% 40%, #1a0530, #0a0a12);
+  z-index: 300;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  transition: opacity 0.8s;
+}
+
+#splash h1 {
+  font-family: 'Bebas Neue', cursive;
+  font-size: 96px;
+  color: var(--orange);
+  letter-spacing: 6px;
+  text-shadow: 0 0 60px rgba(244,99,30,0.7);
+  animation: splashPulse 2s ease-in-out infinite;
+}
+
+@keyframes splashPulse {
+  0%,100% { text-shadow: 0 0 60px rgba(244,99,30,0.7); }
+  50% { text-shadow: 0 0 100px rgba(244,99,30,1), 0 0 200px rgba(244,99,30,0.3); }
+}
+
+#splash .ball-big {
+  font-size: 100px;
+  animation: bigBallBounce 0.8s ease-in-out infinite alternate;
+}
+
+@keyframes bigBallBounce {
+  from { transform: translateY(-30px); }
+  to { transform: translateY(10px); }
+}
+
+#splash p { color: rgba(255,255,255,0.5); font-size: 16px; letter-spacing: 2px; }
+
+#start-btn {
+  background: var(--orange);
+  color: white;
+  border: none;
+  padding: 18px 60px;
+  border-radius: 50px;
+  font-family: 'Bebas Neue', cursive;
+  font-size: 36px;
+  letter-spacing: 4px;
+  cursor: pointer;
+  box-shadow: 0 6px 0 var(--orange-dark), 0 0 50px rgba(244,99,30,0.5);
+  transition: transform 0.1s;
+  margin-top: 10px;
+}
+#start-btn:hover { transform: translateY(3px) scale(0.98); }
+
+#instructions-txt {
+  color: rgba(255,255,255,0.35);
+  font-size: 13px;
+  letter-spacing: 1px;
+  text-align: center;
+  line-height: 2;
+}
+
+/* Net SVG lines */
+</style>
+</head>
+<body>
+
+<!-- SPLASH -->
+<div id="splash">
+  <div class="ball-big">🏀</div>
+  <h1>HOOPS</h1>
+  <p>STREET BASKETBALL CHALLENGE</p>
+  <button id="start-btn" onclick="startGame()">TAP TO PLAY</button>
+  <div id="instructions-txt">
+    DRAG the ball and RELEASE to shoot<br>
+    Aim for the hoop — 60 seconds on the clock
+  </div>
+</div>
+
+<!-- HUD -->
+<div id="hud">
+  <div class="score-panel">
+    <div class="score-label">Score</div>
+    <div class="score-value" id="score-val">0</div>
+    <div id="streak-display"></div>
+  </div>
+
+  <div class="score-panel" style="display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 20px;">
+    <div class="score-label">Time</div>
+    <div id="timer-container">
+      <svg id="timer-svg" width="80" height="80">
+        <circle cx="40" cy="40" r="32" fill="none" stroke="rgba(255,255,255,0.1)" stroke-width="5"/>
+        <circle id="timer-ring" cx="40" cy="40" r="32" fill="none" stroke="#F4631E" stroke-width="5"
+          stroke-dasharray="201" stroke-dashoffset="0" stroke-linecap="round"/>
+      </svg>
+      <div id="timer-text">60</div>
+    </div>
+  </div>
+
+  <div class="score-panel">
+    <div class="score-label">Best</div>
+    <div class="score-value" id="best-val">0</div>
+    <div id="makes-display" style="font-size:13px;color:rgba(255,255,255,0.4);letter-spacing:1px;margin-top:2px;">MAKES: 0</div>
+  </div>
+</div>
+
+<!-- Power bar -->
+<div id="power-container">
+  <div id="power-label">POWER</div>
+  <div id="power-track"><div id="power-fill"></div></div>
+</div>
+
+<!-- Game Over -->
+<div id="game-over">
+  <h1>GAME OVER</h1>
+  <div class="go-stat">FINAL SCORE <span id="final-score">0</span></div>
+  <div class="go-stat">BEST STREAK 🔥 <span id="final-streak">0</span></div>
+  <div class="go-stat">SHOTS MADE <span id="final-makes">0</span></div>
+  <button id="play-again" onclick="resetGame()">PLAY AGAIN</button>
+</div>
+
+<!-- Arena -->
+<div id="arena">
+  <div id="arena-bg"></div>
+
+  <!-- Spotlights -->
+  <div class="spotlight" style="left:15%;opacity:0.6;"></div>
+  <div class="spotlight" style="left:40%;opacity:0.4;"></div>
+  <div class="spotlight" style="left:65%;opacity:0.5;"></div>
+  <div class="spotlight" style="right:10%;opacity:0.5;"></div>
+
+  <!-- Court -->
+  <div id="court">
+    <div id="three-arc"></div>
+    <div id="paint"></div>
+    <div id="center-circle"></div>
+    <div class="court-line-h" style="top:0"></div>
+  </div>
+
+  <!-- Basket -->
+  <div id="basket-container">
+    <div id="pole"></div>
+    <div id="backboard">
+      <div id="backboard-inner"></div>
+    </div>
+    <div id="hoop-arm"></div>
+    <div id="hoop">
+      <!-- SVG Net -->
+      <svg id="net" viewBox="0 0 68 50" xmlns="http://www.w3.org/2000/svg">
+        <g stroke="rgba(255,255,255,0.7)" stroke-width="1.2" fill="none">
+          <!-- Vertical strings -->
+          <line x1="5"  y1="0" x2="2"  y2="50"/>
+          <line x1="14" y1="0" x2="12" y2="50"/>
+          <line x1="23" y1="0" x2="22" y2="50"/>
+          <line x1="32" y1="0" x2="33" y2="50"/>
+          <line x1="41" y1="0" x2="42" y2="50"/>
+          <line x1="50" y1="0" x2="52" y2="50"/>
+          <line x1="59" y1="0" x2="62" y2="50"/>
+          <!-- Horizontal strings -->
+          <path d="M2,12 Q34,16 66,12" stroke-width="1"/>
+          <path d="M2,24 Q34,28 66,24" stroke-width="1"/>
+          <path d="M3,36 Q34,40 65,36" stroke-width="1"/>
+          <path d="M5,46 Q34,50 63,46" stroke-width="1"/>
+        </g>
+      </svg>
+    </div>
+  </div>
+
+  <!-- Ball -->
+  <div id="ball">
+    <div id="ball-inner"></div>
+  </div>
+
+  <!-- Trajectory dots container -->
+  <div id="traj-container"></div>
+
+</div>
+
+<script>
+// ============ GAME CONFIG ============
+const CFG = {
+  gravity: 1200,       // px/s²
+  timeLimit: 60,
+  pointsSwish: 3,
+  points3pt: 3,
+  points2pt: 2,
+  hoopTolerance: 22,   // px radius for "in"
+};
+
+// ============ STATE ============
+let state = {
+  score: 0,
+  best: 0,
+  makes: 0,
+  streak: 0,
+  bestStreak: 0,
+  timeLeft: CFG.timeLimit,
+  running: false,
+  dragging: false,
+  dragStart: null,
+  ballX: 0, ballY: 0,
+  velX: 0, velY: 0,
+  inFlight: false,
+  lastT: 0,
+  timerInterval: null,
+  frameId: null,
+  hoopX: 0, hoopY: 0,
+  ballStartX: 0, ballStartY: 0,
+  ballOriginX: 0, ballOriginY: 0,
+};
+
+// ============ DOM ============
+const ball       = document.getElementById('ball');
+const arena      = document.getElementById('arena');
+const trajCont   = document.getElementById('traj-container');
+const powerCont  = document.getElementById('power-container');
+const powerFill  = document.getElementById('power-fill');
+const scoreVal   = document.getElementById('score-val');
+const bestVal    = document.getElementById('best-val');
+const makesDisp  = document.getElementById('makes-display');
+const streakDisp = document.getElementById('streak-display');
+const timerText  = document.getElementById('timer-text');
+const timerRing  = document.getElementById('timer-ring');
+const gameOver   = document.getElementById('game-over');
+
+// ============ INIT ============
+function startGame() {
+  document.getElementById('splash').style.opacity = '0';
+  setTimeout(() => document.getElementById('splash').style.display = 'none', 800);
+  resetGame();
+}
+
+function resetGame() {
+  gameOver.classList.remove('show');
+  state.score = 0;
+  state.makes = 0;
+  state.streak = 0;
+  state.bestStreak = 0;
+  state.timeLeft = CFG.timeLimit;
+  state.running = true;
+  state.inFlight = false;
+  updateHUD();
+  positionBall();
+  measureHoop();
+  startTimer();
+  if (state.frameId) cancelAnimationFrame(state.frameId);
+  state.lastT = performance.now();
+  state.frameId = requestAnimationFrame(loop);
+}
+
+function measureHoop() {
+  const hoopEl = document.getElementById('hoop');
+  const r = hoopEl.getBoundingClientRect();
+  state.hoopX = r.left + r.width / 2;
+  state.hoopY = r.top + r.height / 2;
+}
+
+function positionBall() {
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  // Place ball near bottom center with slight random offset
+  const bx = vw / 2 + (Math.random() - 0.5) * 120;
+  const by = vh * 0.75;
+  state.ballX = bx;
+  state.ballY = by;
+  state.ballOriginX = bx;
+  state.ballOriginY = by;
+  placeBall(bx, by);
+}
+
+function placeBall(x, y) {
+  ball.style.left = (x - 26) + 'px';
+  ball.style.top  = (y - 26) + 'px';
+}
+
+// ============ TIMER ============
+function startTimer() {
+  if (state.timerInterval) clearInterval(state.timerInterval);
+  state.timerInterval = setInterval(() => {
+    if (!state.running) return;
+    state.timeLeft--;
+    updateTimerDisplay();
+    if (state.timeLeft <= 0) endGame();
+  }, 1000);
+}
+
+function updateTimerDisplay() {
+  timerText.textContent = state.timeLeft;
+  const pct = state.timeLeft / CFG.timeLimit;
+  const circ = 2 * Math.PI * 32;
+  timerRing.style.strokeDashoffset = circ * (1 - pct);
+  timerRing.style.stroke = pct > 0.4 ? '#F4631E' : pct > 0.2 ? '#FFD700' : '#FF4444';
+}
+
+// ============ DRAG INPUT ============
+ball.addEventListener('mousedown', onDragStart);
+ball.addEventListener('touchstart', e => onDragStart(e.touches[0]), { passive: true });
+document.addEventListener('mousemove', onDragMove);
+document.addEventListener('touchmove', e => onDragMove(e.touches[0]), { passive: true });
+document.addEventListener('mouseup', onDragEnd);
+document.addEventListener('touchend', onDragEnd);
+
+function onDragStart(e) {
+  if (!state.running || state.inFlight) return;
+  state.dragging = true;
+  state.dragStart = { x: e.clientX, y: e.clientY };
+  ball.classList.add('dragging');
+  powerCont.classList.add('visible');
+  clearTrajectory();
+}
+
+function onDragMove(e) {
+  if (!state.dragging) return;
+  const dx = state.dragStart.x - e.clientX;
+  const dy = state.dragStart.y - e.clientY;
+  const dist = Math.sqrt(dx*dx + dy*dy);
+  const maxDist = 180;
+  const power = Math.min(dist / maxDist, 1);
+  powerFill.style.width = (power * 100) + '%';
+
+  // Move ball slightly in drag direction for feel
+  const followX = state.ballOriginX - dx * 0.15;
+  const followY = state.ballOriginY - dy * 0.15;
+  placeBall(followX, followY);
+  state.ballX = followX;
+  state.ballY = followY;
+
+  drawTrajectory(dx, dy, power);
+}
+
+function onDragEnd(e) {
+  if (!state.dragging) return;
+  state.dragging = false;
+  ball.classList.remove('dragging');
+  powerCont.classList.remove('visible');
+
+  const ex = e.clientX || (e.changedTouches && e.changedTouches[0].clientX) || state.dragStart.x;
+  const ey = e.clientY || (e.changedTouches && e.changedTouches[0].clientY) || state.dragStart.y;
+
+  const dx = state.dragStart.x - ex;
+  const dy = state.dragStart.y - ey;
+  const dist = Math.sqrt(dx*dx + dy*dy);
+  if (dist < 20) { positionBall(); clearTrajectory(); return; } // too small
+
+  const maxDist = 180;
+  const power = Math.min(dist / maxDist, 1);
+  const speed = power * 1400;
+
+  const angle = Math.atan2(dy, dx);
+  state.velX = Math.cos(angle) * speed;
+  state.velY = Math.sin(angle) * speed;
+  state.ballX = state.ballOriginX;
+  state.ballY = state.ballOriginY;
+  placeBall(state.ballX, state.ballY);
+
+  state.inFlight = true;
+  clearTrajectory();
+}
+
+// ============ TRAJECTORY PREVIEW ============
+function drawTrajectory(dx, dy, power) {
+  clearTrajectory();
+  const speed = Math.min(power, 1) * 1400;
+  const dist = Math.sqrt(dx*dx + dy*dy);
+  if (dist < 5) return;
+  const angle = Math.atan2(dy, dist > 0 ? dist : 1);
+  const vx = (dx / dist) * speed;
+  const vy = (dy / dist) * speed;
+
+  let tx = state.ballOriginX;
+  let ty = state.ballOriginY;
+  let tvx = vx, tvy = vy;
+  const dt = 0.04;
+  const dots = 12;
+
+  for (let i = 1; i <= dots; i++) {
+    tx += tvx * dt;
+    ty += tvy * dt;
+    tvy += CFG.gravity * dt;
+    const d = document.createElement('div');
+    d.className = 'traj-dot';
+    const size = Math.max(3, 10 - i * 0.6);
+    d.style.cssText = `
+      width:${size}px; height:${size}px;
+      left:${tx - size/2}px; top:${ty - size/2}px;
+      opacity:${0.8 - i * 0.06};
+    `;
+    trajCont.appendChild(d);
+  }
+}
+
+function clearTrajectory() {
+  trajCont.innerHTML = '';
+}
+
+// ============ PHYSICS LOOP ============
+function loop(ts) {
+  if (!state.running) return;
+  const dt = Math.min((ts - state.lastT) / 1000, 0.05);
+  state.lastT = ts;
+
+  if (state.inFlight) {
+    state.velY += CFG.gravity * dt;
+    state.ballX += state.velX * dt;
+    state.ballY += state.velY * dt;
+    placeBall(state.ballX, state.ballY);
+
+    // Add spin rotation
+    const spinDeg = parseFloat(ball.style.getPropertyValue('--spin') || 0) + state.velX * dt * 0.5;
+    ball.style.transform = `rotate(${spinDeg}deg)`;
+    ball.style.setProperty('--spin', spinDeg);
+
+    checkScore();
+    checkOutOfBounds();
+  }
+
+  state.frameId = requestAnimationFrame(loop);
+}
+
+// ============ SCORING ============
+let scored = false;
+
+function checkScore() {
+  const hx = state.hoopX;
+  const hy = state.hoopY;
+  const dx = state.ballX - hx;
+  const dy = state.ballY - hy;
+  const dist = Math.sqrt(dx*dx + dy*dy);
+
+  // Must be moving downward and pass through hoop zone
+  if (dist < CFG.hoopTolerance && state.velY > 0 && !scored) {
+    scored = true;
+    const is3pt = Math.abs(state.ballOriginX - hx) > window.innerWidth * 0.25;
+    const pts = is3pt ? CFG.points3pt : CFG.points2pt;
+    const isSwish = dist < CFG.hoopTolerance * 0.45;
+
+    state.score += pts;
+    state.makes++;
+    state.streak++;
+    if (state.streak > state.bestStreak) state.bestStreak = state.streak;
+    if (state.score > state.best) state.best = state.score;
+
+    updateHUD();
+    showScorePopup(state.ballX, state.ballY - 60, `+${pts}`, isSwish ? '#FFD700' : '#fff');
+    if (isSwish) showSwish(state.ballX, state.ballY - 90);
+    if (state.streak >= 3) spawnFlame(state.ballX, state.ballY);
+
+    // Net shake animation
+    document.getElementById('net').style.animation = 'none';
+    setTimeout(() => document.getElementById('net').style.animation = '', 10);
+
+    setTimeout(() => {
+      state.inFlight = false;
+      scored = false;
+      ball.style.transform = '';
+      positionBall();
+      measureHoop();
+    }, 400);
+  }
+}
+
+function checkOutOfBounds() {
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+
+  // Bounce off walls
+  if (state.ballX < 26) { state.ballX = 26; state.velX = Math.abs(state.velX) * 0.6; }
+  if (state.ballX > vw - 26) { state.ballX = vw - 26; state.velX = -Math.abs(state.velX) * 0.6; }
+
+  // Backboard bounce
+  const bb = document.getElementById('backboard').getBoundingClientRect();
+  if (state.ballY > bb.top && state.ballY < bb.bottom && state.ballX > bb.left - 10 && state.ballX < bb.right + 10) {
+    if (state.velY < 0) {
+      state.velY = Math.abs(state.velY) * 0.5;
+      state.velX *= 0.7;
+    }
+  }
+
+  // Out of bounds
+  if (state.ballY > vh + 80 || state.ballX < -100 || state.ballX > vw + 100) {
+    state.streak = 0;
+    updateHUD();
+    state.inFlight = false;
+    scored = false;
+    ball.style.transform = '';
+    positionBall();
+  }
+}
+
+// ============ HUD ============
+function updateHUD() {
+  scoreVal.textContent = state.score;
+  bestVal.textContent  = state.best;
+  makesDisp.textContent = `MAKES: ${state.makes}`;
+
+  if (state.streak >= 2) {
+    const flames = '🔥'.repeat(Math.min(state.streak, 5));
+    streakDisp.textContent = `${flames} ${state.streak}× STREAK`;
+  } else {
+    streakDisp.textContent = '';
+  }
+}
+
+// ============ EFFECTS ============
+function showScorePopup(x, y, text, color) {
+  const el = document.createElement('div');
+  el.className = 'score-popup';
+  el.textContent = text;
+  el.style.cssText = `left:${x}px; top:${y}px; color:${color};`;
+  arena.appendChild(el);
+  setTimeout(() => el.remove(), 1600);
+}
+
+function showSwish(x, y) {
+  const el = document.createElement('div');
+  el.className = 'swish-text';
+  el.textContent = 'SWISH!';
+  el.style.cssText = `left:${x}px; top:${y}px;`;
+  arena.appendChild(el);
+  setTimeout(() => el.remove(), 1900);
+}
+
+function spawnFlame(x, y) {
+  for (let i = 0; i < 3; i++) {
+    setTimeout(() => {
+      const el = document.createElement('div');
+      el.className = 'flame';
+      el.textContent = '🔥';
+      el.style.cssText = `left:${x + (Math.random()-0.5)*60}px; top:${y}px;`;
+      document.body.appendChild(el);
+      setTimeout(() => el.remove(), 1000);
+    }, i * 120);
+  }
+}
+
+// ============ GAME OVER ============
+function endGame() {
+  state.running = false;
+  clearInterval(state.timerInterval);
+  cancelAnimationFrame(state.frameId);
+  clearTrajectory();
+
+  document.getElementById('final-score').textContent  = state.score;
+  document.getElementById('final-streak').textContent = state.bestStreak;
+  document.getElementById('final-makes').textContent  = state.makes;
+  gameOver.classList.add('show');
+}
+
+// ============ RESIZE ============
+window.addEventListener('resize', () => {
+  measureHoop();
+  if (!state.inFlight) positionBall();
+});
+
+// Init timer display
+updateTimerDisplay();
+</script>
+</body>
+</html>
