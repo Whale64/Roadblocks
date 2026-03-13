@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gem Army & Hat Shop</title>
+    <style>
+        body { margin: 0; overflow: hidden; display: flex; justify-content: center; align-items: center; min-height: 100vh; background-color: #111; font-family: 'Arial', sans-serif; }
+        canvas { background-color: #222; border-left: 4px solid #444; border-right: 4px solid #444; }
+        #ui { position: absolute; top: 20px; text-align: center; pointer-events: none; width: 100%; color: white; z-index: 10; }
+        #count { font-size: 3.5em; font-weight: bold; }
+        #gemTotal { font-size: 1.5em; color: #f1c40f; }
+        #menu, #shop, #gameOver { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; background: rgba(0,0,0,0.95); z-index: 20; color: white; text-align: center; }
+        #shop, #gameOver { display: none; }
+        .skin-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin: 20px; }
+        .skin-opt { width: 55px; height: 55px; border-radius: 50%; cursor: pointer; border: 4px solid transparent; }
+        .skin-opt.selected { border-color: white; transform: scale(1.1); }
+        .btn { padding: 12px 30px; font-size: 1.2em; background: #2ecc71; border: none; color: white; border-radius: 30px; cursor: pointer; font-weight: bold; margin: 8px; transition: 0.2s; }
+        .btn:hover { transform: scale(1.05); }
+        .btn:disabled { background: #555; cursor: not-allowed; }
+    </style>
+</head>
+<body>
+    <div id="ui">
+        <div id="gemTotal">💎 Total Gems: 0</div>
+        <div id="count">1</div>
+    </div>
+
+    <!-- MAIN MENU -->
+    <div id="menu">
+        <h1 id="menuTitle">GEM RUNNER</h1>
+        <div class="skin-grid" id="skinGrid"></div>
+        <button id="startBtn" class="btn">START LEVEL 1</button>
+        <button id="openShopBtn" class="btn" style="background:#3498db">OPEN HAT STORE</button>
+    </div>
+
+    <!-- HAT STORE -->
+    <div id="shop">
+        <h1>HAT STORE</h1>
+        <p>Cost: 💎 10 Gems</p>
+        <div id="shopInfo" style="margin-bottom:20px;"></div>
+        <button id="buyHatBtn" class="btn" style="background:#f1c40f; color:#333">BUY TOP HAT</button>
+        <button id="closeShopBtn" class="btn" style="background:#e74c3c">BACK</button>
+    </div>
+
+    <!-- GAME OVER -->
+    <div id="gameOver">
+        <h1>GAME OVER</h1>
+        <button id="restartBtn" class="btn" style="background:#e74c3c">RESTART</button>
+    </div>
+
+    <canvas id="gameCanvas"></canvas>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const menu = document.getElementById('menu');
+        const shop = document.getElementById('shop');
+        const gameOver = document.getElementById('gameOver');
+        
+        canvas.width = Math.min(window.innerWidth, 500);
+        canvas.height = window.innerHeight;
+
+        const skinColors = ['#e67e22', '#3498db', '#9b59b6', '#f1c40f', '#e74c3c', '#1abc9c'];
+        let selectedSkin = skinColors[1];
+        let totalGems = 0;
+        let hasHat = false;
+        let gameStarted = false, armyCount = 1, level = 1, distance = 0;
+        let leaderX = canvas.width/2, leaderY = canvas.height-180;
+        let units = [], gates = [], keys = {};
+
+        // Setup Skins
+        skinColors.forEach(color => {
+            const b = document.createElement('div');
+            b.className = 'skin-opt' + (color === selectedSkin ? ' selected' : '');
+            b.style.background = color;
+            b.onclick = () => {
+                document.querySelectorAll('.skin-opt').forEach(e => e.classList.remove('selected'));
+                b.classList.add('selected'); selectedSkin = color; updateArmy();
+            };
+            document.getElementById('skinGrid').appendChild(b);
+        });
+
+        function lighten(hex, pct) {
+            const num = parseInt(hex.replace("#",""), 16);
+            const amt = Math.round(2.55 * pct);
+            const R = Math.min(255, (num >> 16) + amt), G = Math.min(255, (num >> 8 & 0xFF) + amt), B = Math.min(255, (num & 0xFF) + amt);
+            return "#" + (0x1000000 + R*0x10000 + G*0x100 + B).toString(16).slice(1);
+        }
+
+        window.addEventListener('keydown', e => keys[e.code] = true);
+        window.addEventListener('keyup', e => keys[e.code] = false);
+
+        // Buttons
+        document.getElementById('startBtn').onclick = () => { gameStarted = true; menu.style.display = 'none'; resetLevel(); };
+        document.getElementById('openShopBtn').onclick = () => { menu.style.display = 'none'; shop.style.display = 'flex'; updateShop(); };
+        document.getElementById('closeShopBtn').onclick = () => { shop.style.display = 'none'; menu.style.display = 'flex'; };
+        document.getElementById('restartBtn').onclick = () => location.reload();
+        
+        document.getElementById('buyHatBtn').onclick = () => {
+            if (totalGems >= 10) {
+                totalGems -= 10;
+                hasHat = true;
+                updateShop();
+                document.getElementById('gemTotal').textContent = `💎 Total Gems: ${totalGems}`;
+            }
+        };
+
+        function updateShop() {
+            const info = document.getElementById('shopInfo');
+            const buyBtn = document.getElementById('buyHatBtn');
+            info.textContent = hasHat ? "You are wearing the Top Hat!" : `You have 💎 ${totalGems} gems.`;
+            buyBtn.disabled = hasHat || totalGems < 10;
+            buyBtn.textContent = hasHat ? "OWNED" : "BUY TOP HAT";
+        }
+
+        function resetLevel() {
+            armyCount = 1; distance = 0; gates = []; updateArmy();
+        }
+
+        function spawnGate() {
+            const ops = ['+', '-', 'x', '/'];
+            const getGate = () => {
+                const op = ops[Math.floor(Math.random() * ops.length)];
+                let val = (op === 'x' || op === '/') ? 2 : Math.floor(Math.random() * 10) + 5;
+                return { op, val, text: op === 'x' ? 'x'+val : op === '/' ? '/'+val : op+val, color: (op==='+'||op==='x') ? '#3498db' : '#e74c3c' };
+            };
+            gates.push({ y: -100, left: getGate(), right: getGate(), hit: false });
+        }
+
+        function updateArmy() {
+            document.getElementById('count').textContent = armyCount;
+            const gemColor = lighten(selectedSkin, 35);
+            const newUnits = [];
+            for (let i = 0; i < armyCount; i++) {
+                const angle = i * 137.5 * (Math.PI / 180), r = Math.sqrt(i) * 15;
+                newUnits.push({ offX: Math.cos(angle)*r, offY: Math.sin(angle)*r, x: leaderX, y: leaderY, color: i === 0 ? selectedSkin : gemColor });
+            }
+            units = newUnits;
+            if (armyCount <= 0 && gameStarted) { gameStarted = false; gameOver.style.display = 'flex'; }
+        }
+
+        function update() {
+            if (!gameStarted) return;
+            distance += 5;
+            if (distance >= 2000) {
+                totalGems += armyCount;
+                document.getElementById('gemTotal').textContent = `💎 Total Gems: ${totalGems}`;
+                level++;
+                gameStarted = false;
+                menu.style.display = 'flex';
+                document.getElementById('startBtn').textContent = "START LEVEL " + level;
+                return;
+            }
+
+            if (keys['KeyA'] || keys['ArrowLeft']) leaderX -= 10;
+            if (keys['KeyD'] || keys['ArrowRight']) leaderX += 10;
+            leaderX = Math.max(30, Math.min(leaderX, canvas.width - 30));
+
+            units.forEach(u => {
+                u.x += (leaderX + u.offX - u.x) * 0.15;
+                u.y += (leaderY + u.offY - u.y) * 0.15;
+            });
+
+            if (gates.length === 0 || gates[gates.length - 1].y > 350) spawnGate();
+            gates.forEach((g, i) => {
+                g.y += (5 + level);
+                if (!g.hit && Math.abs(leaderY - g.y) < 25) {
+                    g.hit = true;
+                    const s = (leaderX < canvas.width/2) ? g.left : g.right;
+                    if (s.op==='+') armyCount+=s.val; else if (s.op==='-') armyCount-=s.val;
+                    else if (s.op==='x') armyCount*=s.val; else armyCount=Math.floor(armyCount/s.val);
+                    armyCount = Math.max(0, Math.floor(armyCount)); updateArmy();
+                }
+                if (g.y > canvas.height) gates.splice(i, 1);
+            });
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            gates.forEach(g => {
+                ctx.globalAlpha = 0.6;
+                ctx.fillStyle = g.left.color; ctx.fillRect(0, g.y, canvas.width/2-2, 60);
+                ctx.fillStyle = g.right.color; ctx.fillRect(canvas.width/2+2, g.y, canvas.width/2, 60);
+                ctx.globalAlpha = 1; ctx.fillStyle = 'white'; ctx.font = 'bold 24px Arial'; ctx.textAlign = 'center';
+                ctx.fillText(g.left.text, canvas.width*0.25, g.y+38); ctx.fillText(g.right.text, canvas.width*0.75, g.y+38);
+            });
+            units.forEach((u, i) => {
+                ctx.fillStyle = u.color;
+                // Draw gem shape
+                ctx.beginPath();
+                ctx.moveTo(u.x, u.y - 10); ctx.lineTo(u.x + 10, u.y); ctx.lineTo(u.x, u.y + 10); ctx.lineTo(u.x - 10, u.y);
+                ctx.closePath(); ctx.fill();
+                
+                // Draw Hat on leader
+                if (i === 0 && hasHat) {
+                    ctx.fillStyle = "black";
+                    ctx.fillRect(u.x - 12, u.y - 20, 24, 4); // Brim
+                    ctx.fillRect(u.x - 8, u.y - 35, 16, 15); // Top
+                }
+            });
+        }
+
+        function loop() { update(); draw(); requestAnimationFrame(loop); }
+        loop();
+    </script>
+</body>
+</html>
