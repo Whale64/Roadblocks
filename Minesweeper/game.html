@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Minesweeper Pro</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --header-bg: #1e293b;
+            --cell-bg: #1e293b;
+            --cell-revealed: #334155;
+            --cell-border: #0f172a;
+            --text-main: #f8fafc;
+            --text-muted: #64748b;
+            --accent: #3b82f6;
+        }
+
+        .light-mode {
+            --bg-color: #f1f5f9;
+            --header-bg: #ffffff;
+            --cell-bg: #cbd5e1;
+            --cell-revealed: #f8fafc;
+            --cell-border: #f1f5f9;
+            --text-main: #0f172a;
+            --text-muted: #64748b;
+            --accent: #2563eb;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            user-select: none;
+            touch-action: none;
+            font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
+            overflow: hidden;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+
+        .slide-container {
+            position: relative;
+            overflow: hidden;
+            width: 100%;
+            flex-grow: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #grid-mount {
+            transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .slide-out-left { transform: translateX(-100%) scale(0.9); opacity: 0; }
+        .slide-out-right { transform: translateX(100%) scale(0.9); opacity: 0; }
+        .slide-in-start { transform: scale(0.8); opacity: 0; }
+
+        .grid-container {
+            display: grid;
+            gap: 1.5px;
+            background-color: var(--cell-border);
+            border: 2px solid var(--cell-border);
+            border-radius: 12px;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.2);
+            padding: 2px;
+        }
+
+        .cell {
+            background-color: var(--cell-bg);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 800;
+            cursor: pointer;
+            transition: background-color 0.1s, transform 0.05s;
+            border-radius: 2px;
+            color: var(--text-main);
+        }
+
+        .cell:active { transform: scale(0.92); }
+
+        .cell.revealed {
+            background-color: var(--cell-revealed);
+            box-shadow: inset 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .cell.mine-hit {
+            background-color: #ef4444 !important;
+            animation: kaboom 0.2s ease-out;
+        }
+
+        @keyframes kaboom {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.4); }
+            100% { transform: scale(1); }
+        }
+
+        .diff-nav {
+            display: flex;
+            background: var(--header-bg);
+            padding: 4px;
+            border-radius: 14px;
+            gap: 4px;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
+            border: 1px solid rgba(0,0,0,0.05);
+        }
+
+        .diff-btn {
+            flex: 1;
+            padding: 10px 4px;
+            border-radius: 10px;
+            font-size: 0.7rem;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            color: var(--text-muted);
+        }
+
+        .diff-btn.active {
+            background: var(--accent);
+            color: white;
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+        }
+
+        /* Number Colors */
+        .n-1 { color: #3b82f6; }
+        .n-2 { color: #10b981; }
+        .n-3 { color: #ef4444; }
+        .n-4 { color: #8b5cf6; }
+        .n-5 { color: #f59e0b; }
+        .n-6 { color: #06b6d4; }
+
+        #explosion-canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            pointer-events: none;
+            z-index: 100;
+        }
+
+        /* Settings Drawer */
+        #settings-panel {
+            position: fixed;
+            bottom: -100%;
+            left: 0;
+            width: 100%;
+            background: var(--header-bg);
+            border-radius: 32px 32px 0 0;
+            transition: bottom 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            z-index: 300;
+            box-shadow: 0 -10px 40px rgba(0,0,0,0.3);
+            padding-bottom: env(safe-area-inset-bottom);
+        }
+
+        #settings-panel.open { bottom: 0; }
+
+        .overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.5);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s;
+            z-index: 299;
+        }
+        .overlay.active { opacity: 1; pointer-events: auto; }
+    </style>
+</head>
+<body class="p-4">
+
+    <canvas id="explosion-canvas"></canvas>
+    <div id="overlay" class="overlay" onclick="toggleSettings(false)"></div>
+
+    <!-- Header -->
+    <div class="w-full max-w-md mx-auto space-y-4 z-10">
+        <div class="flex items-center justify-between">
+            <div>
+                <h1 class="text-2xl font-black italic tracking-tighter text-blue-500 leading-none">BOMBS</h1>
+                <p class="text-[10px] font-bold text-slate-500 tracking-widest uppercase">Precision Tactical</p>
+            </div>
+            <div class="flex gap-2">
+                <div class="bg-slate-900/10 dark:bg-slate-900 px-3 py-1 rounded-xl border border-slate-400/20 dark:border-slate-800 text-center min-w-[60px]">
+                    <span class="text-[8px] block text-slate-500 font-black uppercase">Mines</span>
+                    <span id="mine-count" class="font-mono text-xl text-red-500 leading-none">000</span>
+                </div>
+                <div class="bg-slate-900/10 dark:bg-slate-900 px-3 py-1 rounded-xl border border-slate-400/20 dark:border-slate-800 text-center min-w-[60px]">
+                    <span class="text-[8px] block text-slate-500 font-black uppercase">Time</span>
+                    <span id="timer" class="font-mono text-xl text-emerald-500 leading-none">000</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="diff-nav">
+            <button onclick="changeDifficulty('easy')" id="btn-easy" class="diff-btn active">Easy</button>
+            <button onclick="changeDifficulty('medium')" id="btn-medium" class="diff-btn">Medium</button>
+            <button onclick="changeDifficulty('hard')" id="btn-hard" class="diff-btn">Expert</button>
+        </div>
+    </div>
+
+    <!-- Animated Game Container -->
+    <div class="slide-container">
+        <div id="grid-mount">
+            <div id="grid" class="grid-container"></div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="w-full max-w-md mx-auto flex justify-between items-center z-10">
+        <button id="reset-btn" class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-4 rounded-2xl shadow-xl active:scale-90 transition-transform">
+            <svg id="face-icon" viewBox="0 0 24 24" width="28" height="28" stroke="#3b82f6" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"></circle>
+                <path d="M8 14s1.5 2 4 2 4-2 4-2"></path>
+                <line x1="9" y1="9" x2="9.01" y2="9"></line>
+                <line x1="15" y1="9" x2="15.01" y2="9"></line>
+            </svg>
+        </button>
+
+        <button onclick="toggleSettings(true)" class="p-4 bg-slate-200 dark:bg-slate-800 rounded-2xl border border-slate-300 dark:border-slate-700">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-slate-500"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+        </button>
+    </div>
+
+    <!-- Settings Panel -->
+    <div id="settings-panel">
+        <div class="p-6 space-y-6">
+            <div class="flex justify-between items-center mb-2">
+                <h3 class="text-xl font-black uppercase tracking-tight">Settings</h3>
+                <button onclick="toggleSettings(false)" class="text-slate-500 font-bold">DONE</button>
+            </div>
+
+            <!-- Appearance -->
+            <div class="space-y-3">
+                <p class="text-[10px] font-black text-slate-500 uppercase tracking-widest">Appearance</p>
+                <div class="flex bg-slate-100 dark:bg-slate-900 p-1 rounded-xl">
+                    <button onclick="setTheme('dark')" id="theme-dark" class="flex-1 py-2 rounded-lg font-bold text-sm transition-all">Dark</button>
+                    <button onclick="setTheme('light')" id="theme-light" class="flex-1 py-2 rounded-lg font-bold text-sm transition-all">Light</button>
+                </div>
+            </div>
+
+            <!-- Sound -->
+            <div class="space-y-3">
+                <div class="flex justify-between items-end">
+                    <p class="text-[10px] font-black text-slate-500 uppercase tracking-widest">Acoustics</p>
+                    <span id="vol-label" class="text-xs font-mono text-blue-500">80%</span>
+                </div>
+                <input type="range" id="volume-slider" min="0" max="100" value="80" class="w-full h-2 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-blue-500">
+                <div class="flex justify-between items-center py-2">
+                    <span class="text-sm font-bold">Effects</span>
+                    <button id="toggle-sfx" onclick="toggleSFX()" class="w-12 h-6 bg-blue-500 rounded-full relative transition-colors">
+                        <div id="sfx-knob" class="absolute left-7 top-1 w-4 h-4 bg-white rounded-full transition-all"></div>
+                    </button>
+                </div>
+            </div>
+
+            <div class="pt-4 border-t border-slate-200 dark:border-slate-800 text-center">
+                <p class="text-[10px] text-slate-500 font-medium italic">Tactical Minesweeper Pro v2.1.0</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal -->
+    <div id="modal" class="hidden fixed inset-0 bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-8 z-[400]">
+        <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-3xl p-8 max-w-xs w-full text-center shadow-2xl">
+            <div id="modal-icon" class="text-5xl mb-4">💥</div>
+            <h2 id="modal-title" class="text-3xl font-black mb-1 text-slate-900 dark:text-white italic uppercase tracking-tighter">DEFEAT</h2>
+            <p id="modal-message" class="text-slate-500 mb-8 text-sm font-medium">Mine triggered at sector 7G</p>
+            <button onclick="closeModal()" class="w-full bg-blue-600 text-white font-black py-4 rounded-2xl shadow-lg shadow-blue-900/40 active:scale-95 transition-all">REDEPLOY</button>
+        </div>
+    </div>
+
+    <script>
+        // Core Audio Engine
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const soundSettings = {
+            enabled: true,
+            volume: 0.8
+        };
+
+        function playTone(freq, type, duration, volMod = 1) {
+            if (!soundSettings.enabled) return;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = type;
+            osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+            gain.gain.setValueAtTime(soundSettings.volume * volMod, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + duration);
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start();
+            osc.stop(audioCtx.currentTime + duration);
+        }
+
+        const sounds = {
+            reveal: () => playTone(400 + Math.random() * 100, 'sine', 0.1, 0.3),
+            flag: () => playTone(200, 'square', 0.05, 0.2),
+            boom: () => playTone(60, 'sawtooth', 0.8, 1),
+            win: () => {
+                playTone(523.25, 'sine', 0.2);
+                setTimeout(() => playTone(659.25, 'sine', 0.2), 150);
+                setTimeout(() => playTone(783.99, 'sine', 0.4), 300);
+            },
+            tick: () => playTone(800, 'sine', 0.01, 0.1)
+        };
+
+        // State Management
+        const gridElement = document.getElementById('grid');
+        const gridMount = document.getElementById('grid-mount');
+        const mineCountDisplay = document.getElementById('mine-count');
+        const timerDisplay = document.getElementById('timer');
+        const faceIcon = document.getElementById('face-icon');
+        const modal = document.getElementById('modal');
+        const canvas = document.getElementById('explosion-canvas');
+        const ctx = canvas.getContext('2d');
+        const settingsPanel = document.getElementById('settings-panel');
+        const overlay = document.getElementById('overlay');
+
+        const config = {
+            easy: { rows: 9, cols: 9, mines: 10, index: 0 },
+            medium: { rows: 15, cols: 13, mines: 30, index: 1 },
+            hard: { rows: 22, cols: 15, mines: 60, index: 2 }
+        };
+
+        let currentDifficulty = 'easy';
+        let board = [];
+        let timer = 0;
+        let timerInterval = null;
+        let gameActive = false;
+        let flagsUsed = 0;
+        let cellsRevealed = 0;
+        let particles = [];
+        let theme = 'dark';
+
+        // Particles
+        class Particle {
+            constructor(x, y) {
+                this.x = x; this.y = y;
+                this.color = ['#ef4444', '#f59e0b', '#3b82f6', '#ffffff'][Math.floor(Math.random() * 4)];
+                this.size = Math.random() * 4 + 2;
+                this.speedX = (Math.random() - 0.5) * 15;
+                this.speedY = (Math.random() - 0.5) * 15;
+                this.life = 1;
+            }
+            update() { this.x += this.speedX; this.y += this.speedY; this.speedY += 0.25; this.life -= 0.015; }
+            draw() { ctx.globalAlpha = this.life; ctx.fillStyle = this.color; ctx.beginPath(); ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2); ctx.fill(); }
+        }
+
+        function triggerExplosion(x, y) { for (let i = 0; i < 40; i++) particles.push(new Particle(x, y)); }
+        function animate() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            particles = particles.filter(p => p.life > 0);
+            particles.forEach(p => { p.update(); p.draw(); });
+            requestAnimationFrame(animate);
+        }
+
+        // Settings Logic
+        function toggleSettings(open) {
+            settingsPanel.classList.toggle('open', open);
+            overlay.classList.toggle('active', open);
+        }
+
+        function setTheme(t) {
+            theme = t;
+            document.body.classList.toggle('light-mode', t === 'light');
+            document.getElementById('theme-dark').className = `flex-1 py-2 rounded-lg font-bold text-sm ${t === 'dark' ? 'bg-blue-500 text-white shadow-lg' : 'text-slate-500'}`;
+            document.getElementById('theme-light').className = `flex-1 py-2 rounded-lg font-bold text-sm ${t === 'light' ? 'bg-blue-500 text-white shadow-lg' : 'text-slate-500'}`;
+            localStorage.setItem('minesweeper-theme', t);
+        }
+
+        function toggleSFX() {
+            soundSettings.enabled = !soundSettings.enabled;
+            const btn = document.getElementById('toggle-sfx');
+            const knob = document.getElementById('sfx-knob');
+            btn.className = `w-12 h-6 rounded-full relative transition-colors ${soundSettings.enabled ? 'bg-blue-500' : 'bg-slate-400'}`;
+            knob.style.left = soundSettings.enabled ? '1.75rem' : '0.25rem';
+        }
+
+        document.getElementById('volume-slider').oninput = (e) => {
+            soundSettings.volume = e.target.value / 100;
+            document.getElementById('vol-label').textContent = e.target.value + '%';
+        };
+
+        // Game Logic
+        function changeDifficulty(level) {
+            if (level === currentDifficulty) return;
+            const oldIndex = config[currentDifficulty].index;
+            const newIndex = config[level].index;
+            const directionClass = newIndex > oldIndex ? 'slide-out-left' : 'slide-out-right';
+            
+            gridMount.classList.add(directionClass);
+            
+            setTimeout(() => {
+                currentDifficulty = level;
+                initGame();
+                gridMount.classList.remove('slide-out-left', 'slide-out-right');
+                gridMount.classList.add('slide-in-start');
+                setTimeout(() => gridMount.classList.remove('slide-in-start'), 50);
+            }, 300);
+        }
+
+        function calculateCellSize() {
+            const { rows, cols } = config[currentDifficulty];
+            const containerWidth = window.innerWidth - 48;
+            const containerHeight = window.innerHeight - 300;
+            const sizeByWidth = Math.floor(containerWidth / cols);
+            const sizeByHeight = Math.floor(containerHeight / rows);
+            return Math.min(sizeByWidth, sizeByHeight, 42);
+        }
+
+        function initGame() {
+            const { rows, cols, mines } = config[currentDifficulty];
+            const cellSize = calculateCellSize();
+            
+            document.querySelectorAll('.diff-btn').forEach(btn => btn.classList.toggle('active', btn.id === `btn-${currentDifficulty}`));
+            
+            gridElement.style.gridTemplateColumns = `repeat(${cols}, ${cellSize}px)`;
+            gridElement.innerHTML = '';
+            board = [];
+            flagsUsed = 0;
+            cellsRevealed = 0;
+            timer = 0;
+            gameActive = true;
+            clearInterval(timerInterval);
+            timerInterval = null;
+            timerDisplay.textContent = '000';
+            updateMineCount();
+            setFace('happy');
+
+            for (let r = 0; r < rows; r++) {
+                board[r] = [];
+                for (let c = 0; c < cols; c++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'cell';
+                    cell.style.width = `${cellSize}px`;
+                    cell.style.height = `${cellSize}px`;
+                    cell.style.fontSize = `${cellSize * 0.5}px`;
+                    
+                    let touchTimer;
+                    cell.onpointerdown = (e) => { 
+                        if (audioCtx.state === 'suspended') audioCtx.resume();
+                        touchTimer = setTimeout(() => handleAction(r, c, true), 350); 
+                    };
+                    cell.onpointerup = (e) => { 
+                        clearTimeout(touchTimer); 
+                        if (Date.now() - (cell.lastAction || 0) > 100) handleAction(r, c, false);
+                    };
+
+                    gridElement.appendChild(cell);
+                    board[r][c] = { isMine: false, revealed: false, flagged: false, n: 0
