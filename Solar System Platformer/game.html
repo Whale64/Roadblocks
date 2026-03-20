@@ -1,0 +1,1068 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Solar System - Cosmic Journey</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #050510;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-family: 'Press Start 2P', cursive;
+            touch-action: none;
+            overflow: hidden;
+            color: white;
+        }
+
+        #game-container {
+            position: relative;
+            width: 100%;
+            max-width: 800px;
+            aspect-ratio: 800 / 480;
+            background: #000;
+            box-shadow: 0 0 20px rgba(0, 150, 255, 0.2);
+            border: 2px solid #333;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            image-rendering: pixelated;
+        }
+
+        #ui-layer, #menu-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            z-index: 10;
+        }
+
+        #menu-layer {
+            pointer-events: auto;
+            background: rgba(0, 0, 0, 0.85);
+            transition: opacity 0.3s;
+        }
+
+        h1 {
+            color: #4db8ff;
+            text-shadow: 0 0 10px #4db8ff;
+            font-size: 24px;
+            margin-bottom: 20px;
+            line-height: 1.5;
+        }
+
+        .btn {
+            padding: 15px 30px;
+            font-size: 16px;
+            font-family: inherit;
+            color: #fff;
+            background: transparent;
+            border: 2px solid #4db8ff;
+            box-shadow: 0 0 10px #4db8ff inset, 0 0 10px #4db8ff;
+            cursor: pointer;
+            border-radius: 5px;
+            text-transform: uppercase;
+            transition: all 0.2s;
+        }
+
+        .btn:hover, .btn:active {
+            background: #4db8ff;
+            color: #000;
+        }
+
+        #hud {
+            position: absolute;
+            top: 15px;
+            left: 20px;
+            right: 20px;
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            color: #fff;
+            text-shadow: 1px 1px 0 #000;
+            z-index: 5;
+        }
+
+        #level-indicator { color: #fff; }
+        #deaths-indicator { color: #ff4d4d; }
+
+        /* Mobile Controls */
+        #mobile-controls {
+            position: absolute;
+            bottom: 20px;
+            left: 0;
+            width: 100%;
+            height: 80px;
+            display: none;
+            pointer-events: none;
+            z-index: 20;
+        }
+
+        .ctrl-btn {
+            position: absolute;
+            width: 60px;
+            height: 60px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            pointer-events: auto;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 24px;
+            color: rgba(255,255,255,0.5);
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        .ctrl-btn:active { background: rgba(255, 255, 255, 0.3); }
+
+        #btn-left { left: 20px; bottom: 0; }
+        #btn-right { left: 90px; bottom: 0; }
+        #btn-jump { right: 20px; bottom: 0; width: 70px; height: 70px; }
+
+        @media (max-width: 768px) {
+            #mobile-controls { display: block; }
+            h1 { font-size: 18px; }
+            #game-container { border: none; }
+        }
+        
+        #message {
+            position: absolute;
+            top: 40%;
+            width: 100%;
+            text-align: center;
+            font-size: 14px;
+            color: #ffcc00;
+            opacity: 0;
+            transition: opacity 0.5s;
+        }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <div id="hud">
+        <span id="level-indicator">Level 1: Earth</span>
+        <span id="deaths-indicator">Deaths: 0</span>
+    </div>
+    
+    <div id="message"></div>
+
+    <canvas id="gameCanvas" width="800" height="480"></canvas>
+
+    <div id="menu-layer">
+        <h1>SOLAR SYSTEM<br>PLATFORMER</h1>
+        <p style="font-size: 10px; margin-bottom: 30px; line-height: 1.8; color: #ccc;">
+            Use <strong style="color:white">Arrow Keys</strong> or <strong style="color:white">A/D + W/Space</strong> to move.<br>
+            Reach the <strong style="color:#00ffff">Cyan Portal</strong> to warp.<br>
+            Avoid <strong style="color:#ff3333">Hazards</strong> and the abyss.
+        </p>
+        <button class="btn" id="start-btn">Start Journey</button>
+    </div>
+
+    <div id="mobile-controls">
+        <div class="ctrl-btn" id="btn-left">◀</div>
+        <div class="ctrl-btn" id="btn-right">▶</div>
+        <div class="ctrl-btn" id="btn-jump">▲</div>
+    </div>
+</div>
+
+<script>
+    /**
+     * Map Legend:
+     * . = Empty Space
+     * W = Wall / Platform
+     * S = Player Start
+     * G = Goal / Portal
+     * H = Hazard (Lava/Spikes)
+     */
+    const levelData = [
+        // 1. Earth (Intro)
+        {
+            name: "1. Earth", bg: "#001122", plat: "#228B22", haz: "#FF4500",
+            phys: { grav: 0.4, fric: 0.8, accel: 1, maxSpeed: 4.5, jump: -9 },
+            map: [
+                ".........................",
+                ".........................",
+                ".........................",
+                ".........................",
+                ".........................",
+                ".........................",
+                ".........................",
+                ".........................",
+                ".........................",
+                ".........................",
+                ".........................",
+                "S.......................G",
+                "WWWWWWWWW.......WWWWWWWWW",
+                "WWWWWWWWW.......WWWWWWWWW",
+                "WWWWWWWWW.......WWWWWWWWW"
+            ]
+        },
+        // 2. Earth (Gaps)
+        {
+            name: "2. Earth Orbit", bg: "#000a14", plat: "#1e7a1e", haz: "#FF4500",
+            phys: { grav: 0.4, fric: 0.8, accel: 1, maxSpeed: 4.5, jump: -9 },
+            map: [
+                ".........................",
+                ".........................",
+                ".........................",
+                ".........................",
+                ".........................",
+                ".........................",
+                ".........................",
+                ".........................",
+                ".........................",
+                ".........................",
+                "........................G",
+                "S.......WWW...WWW.....WWW",
+                "WWWW.....................",
+                "WWWW.....................",
+                "WWWW....................."
+            ]
+        },
+        // 3. Moon (Low Grav)
+        {
+            name: "3. The Moon", bg: "#111", plat: "#aaaaaa", haz: "#ff3333",
+            phys: { grav: 0.2, fric: 0.85, accel: 0.6, maxSpeed: 4, jump: -8 },
+            map: [
+                ".........................",
+                ".........................",
+                ".........................",
+                ".........................",
+                ".........................",
+                ".........................",
+                ".........................",
+                ".........................",
+                ".........................",
+                "........................G",
+                "......................WWW",
+                "S........................",
+                "WWWW........WWWW.........",
+                "WWWW........WWWW.........",
+                "WWWW........WWWW........."
+            ]
+        },
+        // 4. Moon (Hazards)
+        {
+            name: "4. Lunar Craters", bg: "#111", plat: "#999999", haz: "#ff3333",
+            phys: { grav: 0.2, fric: 0.85, accel: 0.6, maxSpeed: 4, jump: -8 },
+            map: [
+                ".........................",
+                ".........................",
+                ".........................",
+                ".........................",
+                ".........................",
+                ".........................",
+                ".......................G.",
+                "....................WWWWW",
+                ".........................",
+                ".........WWWW............",
+                ".........................",
+                "S........................",
+                "WWWW.HHHHHHHHHHHHHHHH..WW",
+                "WWWW.WWWWWWWWWWWWWWWW..WW",
+                "WWWW.WWWWWWWWWWWWWWWW..WW"
+            ]
+        },
+        // 5. Mars (Normal Grav, Lava)
+        {
+            name: "5. Mars", bg: "#3a0e0e", plat: "#cc4422", haz: "#ffaa00",
+            phys: { grav: 0.4, fric: 0.8, accel: 1, maxSpeed: 4.5, jump: -9.5 },
+            map: [
+                ".........................",
+                ".........................",
+                ".........................",
+                ".........................",
+                ".........................",
+                ".........................",
+                ".........................",
+                ".........................",
+                "........................G",
+                "......................WWW",
+                ".............WWW.........",
+                "S....WWW.................",
+                "WWWW.HHH.WWW.HHH.WWW.HHHH",
+                "WWWW.WWW.WWW.WWW.WWW.WWWW",
+                "WWWW.WWW.WWW.WWW.WWW.WWWW"
+            ]
+        },
+        // 6. Mars (Caves)
+        {
+            name: "6. Martian Caves", bg: "#2a0a0a", plat: "#b33c1e", haz: "#ffaa00",
+            phys: { grav: 0.4, fric: 0.8, accel: 1, maxSpeed: 4.5, jump: -9.5 },
+            map: [
+                "WWWWWWWWWWWWWWWWWWWWWWWWW",
+                "WWWWWWWWWWWWWWWWWWWWWWWWW",
+                "W.......................W",
+                "W.......................W",
+                "W...WWWWWWWWWWWWWWWWW...W",
+                "W.......................W",
+                "W.WW....................W",
+                "W.....................G.W",
+                "W.......WWW...WWW...WWWWW",
+                "W.......................W",
+                "S.....W.....W.....W.....W",
+                "WWW.HHHHHHHHHHHHHHHHHHHHW",
+                "WWWWWWWWWWWWWWWWWWWWWWWWW",
+                "WWWWWWWWWWWWWWWWWWWWWWWWW",
+                "WWWWWWWWWWWWWWWWWWWWWWWWW"
+            ]
+        },
+        // 7. Asteroid Belt (Fragmented)
+        {
+            name: "7. Asteroid Belt", bg: "#050505", plat: "#555555", haz: "#ff00ff",
+            phys: { grav: 0.35, fric: 0.85, accel: 0.8, maxSpeed: 4, jump: -9 },
+            map: [
+                ".........................",
+                ".........................",
+                ".........................",
+                ".........................",
+                ".........................",
+                ".........................",
+                ".......................G.",
+                "....................WWWWW",
+                ".........................",
+                "..............wWWW.......",
+                "........WWW..............",
+                "S.....W..................",
+                "WW.......................",
+                ".........................",
+                "........................."
+            ]
+        },
+        // 8. Asteroid Belt (Vertical)
+        {
+            name: "8. Ceres Approach", bg: "#020202", plat: "#666666", haz: "#ff00ff",
+            phys: { grav: 0.35, fric: 0.85, accel: 0.8, maxSpeed: 4, jump: -9 },
+            map: [
+                ".........................",
+                ".......................G.",
+                ".....................WWWW",
+                ".........................",
+                "................WW.......",
+                ".........................",
+                "..........WW.............",
+                ".........................",
+                "....WW...................",
+                "......WW.................",
+                ".........................",
+                "S......WWWW..............",
+                "WW....W..................",
+                ".........................",
+                "........................."
+            ]
+        },
+        // 9. Jupiter (High Grav)
+        {
+            name: "9. Jupiter", bg: "#4a2a10", plat: "#d4a373", haz: "#ffe6a7",
+            phys: { grav: 0.8, fric: 0.75, accel: 1.5, maxSpeed: 4.5, jump: -12 },
+            map: [
+                ".........................",
+                ".........................",
+                ".........................",
+                ".........................",
+                ".........................",
+                ".........................",
+                ".........................",
+                ".........................",
+                ".........................",
+                ".........................",
+                ".........................",
+                "S......W......W........G.",
+                "WWWW..WWWW...WWWW...WWWWW",
+                "WWWW..WWWW...WWWW...WWWWW",
+                "WWWW..WWWW...WWWW...WWWWW"
+            ]
+        },
+        // 10. Jupiter (Drops)
+        {
+            name: "10. Great Red Spot", bg: "#3d1e0a", plat: "#bd8959", haz: "#ffe6a7",
+            phys: { grav: 0.8, fric: 0.75, accel: 1.5, maxSpeed: 4.5, jump: -12 },
+            map: [
+                ".........................",
+                ".........................",
+                "S........................",
+                "WWWWW....................",
+                "W........................",
+                "W.......WWWWWW...........",
+                "W........................",
+                "W........................",
+                "W.............WWWW.......",
+                "W........................",
+                "W...................G....",
+                "W.HHHHHHHHHHHHHHHH..WW...",
+                "WWWWWWWWWWWWWWWWWWWWWW.HH",
+                "WWWWWWWWWWWWWWWWWWWWWWWWW",
+                "WWWWWWWWWWWWWWWWWWWWWWWWW"
+            ]
+        },
+        // 11. Saturn (Rings)
+        {
+            name: "11. Saturn's Rings", bg: "#2d2919", plat: "#e9c46a", haz: "#e76f51",
+            phys: { grav: 0.45, fric: 0.8, accel: 1.2, maxSpeed: 5, jump: -9.5 },
+            map: [
+                ".........................",
+                ".........................",
+                ".........................",
+                ".........................",
+                ".........................",
+                "........................G",
+                "......................WWW",
+                ".............WWW.........",
+                "....WWWW.................",
+                ".........................",
+                "...........H.............",
+                "S......WWWWWWW...........",
+                "WWWW...WWWWWWW...........",
+                "WWWW...WWWWWWW...........",
+                "WWWW...WWWWWWW..........."
+            ]
+        },
+        // 12. Saturn (Tight corridors)
+        {
+            name: "12. Titan Base", bg: "#1f1c0f", plat: "#d1ad54", haz: "#e76f51",
+            phys: { grav: 0.45, fric: 0.8, accel: 1.2, maxSpeed: 5, jump: -9.5 },
+            map: [
+                ".........................",
+                ".........................",
+                "....................G....",
+                "WWWWWWWWWWWWWWWWWWWWWW..W",
+                "W.......................W",
+                "W.WWWWWWWWWWWWWWWWWWWWWWW",
+                "W.......................W",
+                "WWWWWWWWWWWWWWWWWWWWWW..W",
+                "W.......................W",
+                "W.WWWWWWWWWWWWWWWWWWWWWWW",
+                "W........................",
+                "S...HHHHHHHHHHHHHHHH...WW",
+                "WWWWWWWWWWWWWWWWWWWWWWWWW",
+                "WWWWWWWWWWWWWWWWWWWWWWWWW",
+                "WWWWWWWWWWWWWWWWWWWWWWWWW"
+            ]
+        },
+        // 13. Uranus (Ice)
+        {
+            name: "13. Uranus", bg: "#0a2530", plat: "#a8dadc", haz: "#457b9d",
+            phys: { grav: 0.4, fric: 0.98, accel: 0.5, maxSpeed: 6, jump: -9 },
+            map: [
+                ".........................",
+                ".........................",
+                ".........................",
+                ".........................",
+                ".........................",
+                ".........................",
+                ".........................",
+                ".........................",
+                ".........................",
+                ".........................",
+                ".......................G.",
+                "S...........H........WWWW",
+                "WWWWWW...WWWWWW...WWWWWWW",
+                "WWWWWW...WWWWWW...WWWWWWW",
+                "WWWWWW...WWWWWW...WWWWWWW"
+            ]
+        },
+        // 14. Uranus (Slippery Gaps)
+        {
+            name: "14. Frozen Moons", bg: "#061a22", plat: "#90c6c8", haz: "#457b9d",
+            phys: { grav: 0.4, fric: 0.98, accel: 0.5, maxSpeed: 6, jump: -9 },
+            map: [
+                ".........................",
+                ".........................",
+                ".........................",
+                ".........................",
+                ".........................",
+                ".........................",
+                ".........................",
+                ".........................",
+                ".........................",
+                ".......W........W......G.",
+                ".......W........W....WWWW",
+                "S........................",
+                "WW...WW...WW...WW...W....",
+                "WW...WW...WW...WW...W....",
+                "WW...WW...WW...WW...W...."
+            ]
+        },
+        // 15. Neptune (Fast Wind)
+        {
+            name: "15. Neptune", bg: "#05103a", plat: "#1d3557", haz: "#e63946",
+            phys: { grav: 0.4, fric: 0.85, accel: 1.5, maxSpeed: 8, jump: -9 },
+            map: [
+                ".........................",
+                ".........................",
+                ".........................",
+                ".........................",
+                ".........................",
+                ".........................",
+                ".........................",
+                ".........................",
+                ".........................",
+                ".........................",
+                ".........................",
+                "S.......................G",
+                "WWW...W...W...W...W...WWW",
+                "WWW...W...W...W...W...WWW",
+                "WWW...W...W...W...W...WWW"
+            ]
+        },
+        // 16. Neptune (Storm)
+        {
+            name: "16. Triton Storm", bg: "#020a26", plat: "#152a47", haz: "#e63946",
+            phys: { grav: 0.4, fric: 0.85, accel: 1.5, maxSpeed: 8, jump: -9 },
+            map: [
+                ".........................",
+                ".........................",
+                ".........................",
+                ".........................",
+                ".........................",
+                ".........................",
+                "........................G",
+                "S.....................WWW",
+                "WWW......................",
+                ".....WWW...........W.....",
+                "..........WWW.....W......",
+                "...............WWW.......",
+                "W.H.W.H.W.H.W.H.W.H.W.H.W",
+                "WWWWWWWWWWWWWWWWWWWWWWWWW",
+                "WWWWWWWWWWWWWWWWWWWWWWWWW"
+            ]
+        },
+        // 17. Pluto (Micro Grav)
+        {
+            name: "17. Pluto", bg: "#10051a", plat: "#6a4c93", haz: "#ff99c2",
+            phys: { grav: 0.15, fric: 0.9, accel: 0.4, maxSpeed: 3.5, jump: -6 },
+            map: [
+                ".........................",
+                ".........................",
+                ".........................",
+                ".........................",
+                ".........................",
+                ".......................G.",
+                "......................WWW",
+                ".........................",
+                ".........................",
+                ".........................",
+                ".........................",
+                "S........................",
+                "WWWW.....................",
+                "WWWW.....................",
+                "WWWW....................."
+            ]
+        },
+        // 18. Pluto (Float Maze)
+        {
+            name: "18. Charon's Gate", bg: "#0a0212", plat: "#56387a", haz: "#ff99c2",
+            phys: { grav: 0.15, fric: 0.9, accel: 0.4, maxSpeed: 3.5, jump: -6 },
+            map: [
+                "WWWWWWWWWWWWWWWWWWWWWWWWW",
+                "W.S.....................W",
+                "WWWWWWWWWWWWWWWWWWWWWW..W",
+                "W.......................W",
+                "W..WWWWWWWWWWWWWWWWWWWWWW",
+                "W.......................W",
+                "WWWWWWWWWWWWWWWWWWWWWW..W",
+                "W.......................W",
+                "W..WWWWWWWWWWWWWWWWWWWWWW",
+                "W.......................W",
+                "W..H..H..H..H..H..H..H..W",
+                "W.......................G",
+                "WWWWWWWWWWWWWWWWWWWWWWWWW",
+                "WWWWWWWWWWWWWWWWWWWWWWWWW",
+                "WWWWWWWWWWWWWWWWWWWWWWWWW"
+            ]
+        },
+        // 19. Kuiper Belt
+        {
+            name: "19. Kuiper Belt", bg: "#000", plat: "#444", haz: "#fff",
+            phys: { grav: 0.3, fric: 0.8, accel: 1, maxSpeed: 4.5, jump: -8 },
+            map: [
+                ".........................",
+                ".........................",
+                ".......................G.",
+                ".......................W.",
+                ".........................",
+                "..................W......",
+                ".........................",
+                "............W............",
+                ".........................",
+                "......W..................",
+                ".........................",
+                "S........................",
+                "W........................",
+                ".........................",
+                "........................."
+            ]
+        },
+        // 20. The Sun (Final)
+        {
+            name: "20. The Sun Core", bg: "#330000", plat: "#ff0000", haz: "#ffff00",
+            phys: { grav: 0.5, fric: 0.8, accel: 1.2, maxSpeed: 5, jump: -10 },
+            map: [
+                "WWWWWWWWWWWWWWWWWWWWWWWWW",
+                "W......................GW",
+                "W.H.H.H.H.H.H.H.H.H.H.WWW",
+                "W.......................W",
+                "WWWWWWWWWWWWWWWWWWWWWW..W",
+                "W.......................W",
+                "W..WWWWWWWWWWWWWWWWWWWWWW",
+                "W.......................W",
+                "WWWWWWWWWWWWWWWWWWWWWW..W",
+                "W.......................W",
+                "W..WWWWWWWWWWWWWWWWWWWWWW",
+                "W.......................W",
+                "S...H...H...H...H...H...W",
+                "WWWWWWWWWWWWWWWWWWWWWWWWW",
+                "WWWWWWWWWWWWWWWWWWWWWWWWW"
+            ]
+        }
+    ];
+
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const hudLevel = document.getElementById('level-indicator');
+    const hudDeaths = document.getElementById('deaths-indicator');
+    const menuLayer = document.getElementById('menu-layer');
+    const startBtn = document.getElementById('start-btn');
+    const messageDiv = document.getElementById('message');
+
+    // Audio Context Setup
+    let audioCtx;
+    function initAudio() {
+        if (!audioCtx) {
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+    }
+
+    function playSound(type) {
+        if (!audioCtx) return;
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+
+        const now = audioCtx.currentTime;
+        if (type === 'jump') {
+            osc.type = 'square';
+            osc.frequency.setValueAtTime(150, now);
+            osc.frequency.exponentialRampToValueAtTime(300, now + 0.1);
+            gain.gain.setValueAtTime(0.05, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+            osc.start(now);
+            osc.stop(now + 0.1);
+        } else if (type === 'die') {
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(200, now);
+            osc.frequency.exponentialRampToValueAtTime(50, now + 0.3);
+            gain.gain.setValueAtTime(0.1, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+            osc.start(now);
+            osc.stop(now + 0.3);
+        } else if (type === 'goal') {
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(400, now);
+            osc.frequency.setValueAtTime(600, now + 0.1);
+            osc.frequency.setValueAtTime(800, now + 0.2);
+            gain.gain.setValueAtTime(0.1, now);
+            gain.gain.linearRampToValueAtTime(0, now + 0.4);
+            osc.start(now);
+            osc.stop(now + 0.4);
+        }
+    }
+
+    const TILE_SIZE = 32;
+    const COLS = 25;
+    const ROWS = 15;
+
+    let currentLevelIdx = 0;
+    let deaths = 0;
+    let isPlaying = false;
+    let frameId;
+
+    let keys = { left: false, right: false, up: false };
+
+    let player = {
+        x: 0, y: 0, w: 20, h: 28, vx: 0, vy: 0, grounded: false, facingRight: true
+    };
+
+    let particles = [];
+    let stars = [];
+
+    // Initialize stars
+    for (let i = 0; i < 100; i++) {
+        stars.push({
+            x: Math.random() * canvas.width,
+            y: Math.random() * canvas.height,
+            size: Math.random() * 2,
+            speed: Math.random() * 0.5 + 0.1
+        });
+    }
+
+    function createParticles(x, y, color, count) {
+        for (let i = 0; i < count; i++) {
+            particles.push({
+                x: x, y: y,
+                vx: (Math.random() - 0.5) * 5,
+                vy: (Math.random() - 0.5) * 5,
+                life: 1,
+                color: color
+            });
+        }
+    }
+
+    function showMessage(text, duration = 2000) {
+        messageDiv.innerText = text;
+        messageDiv.style.opacity = 1;
+        setTimeout(() => { messageDiv.style.opacity = 0; }, duration);
+    }
+
+    function loadLevel(idx) {
+        if (idx >= levelData.length) {
+            winGame();
+            return;
+        }
+        currentLevelIdx = idx;
+        const data = levelData[idx];
+        hudLevel.innerText = data.name;
+        
+        // Find Start
+        for (let r = 0; r < ROWS; r++) {
+            for (let c = 0; c < COLS; c++) {
+                if (data.map[r][c] === 'S') {
+                    player.x = c * TILE_SIZE + (TILE_SIZE - player.w) / 2;
+                    player.y = r * TILE_SIZE + (TILE_SIZE - player.h);
+                    player.vx = 0;
+                    player.vy = 0;
+                }
+            }
+        }
+        
+        particles = [];
+        if (idx > 0) showMessage(data.name);
+    }
+
+    function die() {
+        if (!isPlaying) return;
+        playSound('die');
+        createParticles(player.x + player.w/2, player.y + player.h/2, levelData[currentLevelIdx].haz, 30);
+        deaths++;
+        hudDeaths.innerText = `Deaths: ${deaths}`;
+        player.vy = 0; player.vx = 0;
+        // Temporarily move player offscreen during death animation
+        player.y = -1000; 
+        setTimeout(() => loadLevel(currentLevelIdx), 500);
+    }
+
+    function winGame() {
+        isPlaying = false;
+        menuLayer.style.display = 'flex';
+        menuLayer.style.opacity = 1;
+        menuLayer.innerHTML = `
+            <h1>JOURNEY COMPLETE!</h1>
+            <p style="color:#ccc; font-size:12px; line-height:2; margin-bottom: 20px;">
+                You survived the solar system!<br>
+                Total Deaths: <span style="color:#ff4d4d">${deaths}</span>
+            </p>
+            <button class="btn" onclick="location.reload()">Play Again</button>
+        `;
+    }
+
+    function getTile(c, r) {
+        if (c < 0 || c >= COLS || r < 0 || r >= ROWS) return 'W'; // Walls outside
+        return levelData[currentLevelIdx].map[r][c];
+    }
+
+    function update() {
+        if (!isPlaying) return;
+
+        const phys = levelData[currentLevelIdx].phys;
+
+        // Apply input
+        if (keys.left) {
+            player.vx -= phys.accel;
+            player.facingRight = false;
+        }
+        if (keys.right) {
+            player.vx += phys.accel;
+            player.facingRight = true;
+        }
+
+        // Apply friction & gravity
+        player.vx *= phys.fric;
+        player.vy += phys.grav;
+
+        // Clamp speed
+        player.vx = Math.max(-phys.maxSpeed, Math.min(phys.maxSpeed, player.vx));
+        if (player.vy > 12) player.vy = 12; // Terminal velocity
+
+        // Jump
+        if (keys.up && player.grounded) {
+            player.vy = phys.jump;
+            player.grounded = false;
+            playSound('jump');
+            createParticles(player.x + player.w/2, player.y + player.h, '#fff', 5);
+        }
+
+        // Collision Setup
+        player.grounded = false;
+        let pRight = player.x + player.w;
+        let pBottom = player.y + player.h;
+
+        // X Movement
+        player.x += player.vx;
+        
+        let cLeft = Math.floor((player.x + 2) / TILE_SIZE);
+        let cRight = Math.floor((player.x + player.w - 2) / TILE_SIZE);
+        let rTop = Math.floor((player.y + 2) / TILE_SIZE);
+        let rBottom = Math.floor((player.y + player.h - 2) / TILE_SIZE);
+
+        for (let r = rTop; r <= rBottom; r++) {
+            for (let c = cLeft; c <= cRight; c++) {
+                let t = getTile(c, r);
+                if (t === 'W') {
+                    if (player.vx > 0) {
+                        player.x = c * TILE_SIZE - player.w;
+                        player.vx = 0;
+                    } else if (player.vx < 0) {
+                        player.x = (c + 1) * TILE_SIZE;
+                        player.vx = 0;
+                    }
+                }
+            }
+        }
+
+        // Y Movement
+        player.y += player.vy;
+
+        cLeft = Math.floor((player.x + 2) / TILE_SIZE);
+        cRight = Math.floor((player.x + player.w - 2) / TILE_SIZE);
+        rTop = Math.floor((player.y) / TILE_SIZE);
+        rBottom = Math.floor((player.y + player.h) / TILE_SIZE);
+
+        for (let r = rTop; r <= rBottom; r++) {
+            for (let c = cLeft; c <= cRight; c++) {
+                let t = getTile(c, r);
+                if (t === 'W') {
+                    if (player.vy > 0) {
+                        player.y = r * TILE_SIZE - player.h;
+                        player.vy = 0;
+                        player.grounded = true;
+                    } else if (player.vy < 0) {
+                        player.y = (r + 1) * TILE_SIZE;
+                        player.vy = 0;
+                    }
+                }
+            }
+        }
+
+        // Hazard & Goal Detection (uses tighter bounding box)
+        let hcLeft = Math.floor((player.x + 6) / TILE_SIZE);
+        let hcRight = Math.floor((player.x + player.w - 6) / TILE_SIZE);
+        let hrTop = Math.floor((player.y + 6) / TILE_SIZE);
+        let hrBottom = Math.floor((player.y + player.h - 2) / TILE_SIZE);
+
+        for (let r = hrTop; r <= hrBottom; r++) {
+            for (let c = hcLeft; c <= hcRight; c++) {
+                let t = getTile(c, r);
+                if (t === 'H') {
+                    die();
+                    return;
+                } else if (t === 'G') {
+                    playSound('goal');
+                    createParticles(player.x + player.w/2, player.y + player.h/2, '#00ffff', 50);
+                    currentLevelIdx++;
+                    setTimeout(() => loadLevel(currentLevelIdx), 200);
+                    return;
+                }
+            }
+        }
+
+        // Fall to death
+        if (player.y > canvas.height + 50) die();
+
+        // Update Particles
+        for (let i = particles.length - 1; i >= 0; i--) {
+            let p = particles[i];
+            p.x += p.vx;
+            p.y += p.vy;
+            p.life -= 0.05;
+            if (p.life <= 0) particles.splice(i, 1);
+        }
+    }
+
+    function draw() {
+        const lvl = levelData[currentLevelIdx];
+        
+        // Background
+        ctx.fillStyle = lvl ? lvl.bg : '#000';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // Stars (Parallax)
+        ctx.fillStyle = '#fff';
+        stars.forEach(s => {
+            s.x -= s.speed * (lvl ? lvl.phys.maxSpeed / 4 : 1);
+            if (s.x < 0) s.x = canvas.width;
+            ctx.globalAlpha = Math.random() * 0.5 + 0.5;
+            ctx.fillRect(s.x, s.y, s.size, s.size);
+        });
+        ctx.globalAlpha = 1;
+
+        if (!isPlaying || !lvl) return;
+
+        // Draw Map
+        const time = Date.now() / 200;
+        for (let r = 0; r < ROWS; r++) {
+            for (let c = 0; c < COLS; c++) {
+                let t = lvl.map[r][c];
+                let tx = c * TILE_SIZE;
+                let ty = r * TILE_SIZE;
+
+                if (t === 'W') {
+                    ctx.fillStyle = lvl.plat;
+                    // Slightly rounded inner styling
+                    ctx.fillRect(tx, ty, TILE_SIZE, TILE_SIZE);
+                    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+                    ctx.fillRect(tx, ty + TILE_SIZE - 4, TILE_SIZE, 4);
+                    ctx.fillRect(tx + TILE_SIZE - 4, ty, 4, TILE_SIZE);
+                } else if (t === 'H') {
+                    // Animated Hazard (lava/plasma)
+                    ctx.fillStyle = lvl.haz;
+                    let yOffset = Math.sin(time + c) * 3;
+                    ctx.beginPath();
+                    ctx.moveTo(tx, ty + TILE_SIZE);
+                    ctx.lineTo(tx, ty + 10 + yOffset);
+                    ctx.lineTo(tx + TILE_SIZE/2, ty + 5 - yOffset);
+                    ctx.lineTo(tx + TILE_SIZE, ty + 10 + yOffset);
+                    ctx.lineTo(tx + TILE_SIZE, ty + TILE_SIZE);
+                    ctx.fill();
+                } else if (t === 'G') {
+                    // Animated Portal
+                    ctx.save();
+                    ctx.translate(tx + TILE_SIZE/2, ty + TILE_SIZE/2);
+                    ctx.rotate(time);
+                    ctx.strokeStyle = '#00ffff';
+                    ctx.lineWidth = 3;
+                    ctx.beginPath();
+                    ctx.arc(0, 0, 10 + Math.sin(time*2)*4, 0, Math.PI*2);
+                    ctx.stroke();
+                    ctx.strokeStyle = '#fff';
+                    ctx.beginPath();
+                    ctx.arc(0, 0, 4, 0, Math.PI*2);
+                    ctx.stroke();
+                    ctx.restore();
+                }
+            }
+        }
+
+        // Draw Player (Astronaut)
+        if (player.y > -100) {
+            ctx.save();
+            ctx.translate(player.x, player.y);
+            
+            // Suit (White)
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, player.w, player.h);
+            
+            // Visor (Cyan)
+            ctx.fillStyle = '#00ffff';
+            if (player.facingRight) {
+                ctx.fillRect(player.w / 2, 4, player.w / 2 + 2, 8);
+            } else {
+                ctx.fillRect(-2, 4, player.w / 2 + 2, 8);
+            }
+
+            // Backpack (Gray)
+            ctx.fillStyle = '#999999';
+            if (player.facingRight) {
+                ctx.fillRect(-6, 6, 6, 14);
+            } else {
+                ctx.fillRect(player.w, 6, 6, 14);
+            }
+            
+            // Thruster flame if jumping
+            if (!player.grounded) {
+                ctx.fillStyle = '#ffaa00';
+                ctx.fillRect(4, player.h, player.w - 8, Math.random() * 10 + 5);
+            }
+
+            ctx.restore();
+        }
+
+        // Particles
+        particles.forEach(p => {
+            ctx.fillStyle = p.color;
+            ctx.globalAlpha = p.life;
+            ctx.fillRect(p.x, p.y, 4, 4);
+        });
+        ctx.globalAlpha = 1;
+    }
+
+    function loop() {
+        update();
+        draw();
+        frameId = requestAnimationFrame(loop);
+    }
+
+    // Controls
+    window.addEventListener('keydown', e => {
+        if (e.code === 'ArrowLeft' || e.code === 'KeyA') keys.left = true;
+        if (e.code === 'ArrowRight' || e.code === 'KeyD') keys.right = true;
+        if (e.code === 'ArrowUp' || e.code === 'KeyW' || e.code === 'Space') keys.up = true;
+    });
+
+    window.addEventListener('keyup', e => {
+        if (e.code === 'ArrowLeft' || e.code === 'KeyA') keys.left = false;
+        if (e.code === 'ArrowRight' || e.code === 'KeyD') keys.right = false;
+        if (e.code === 'ArrowUp' || e.code === 'KeyW' || e.code === 'Space') keys.up = false;
+    });
+
+    // Touch controls
+    const bindTouch = (id, key) => {
+        const btn = document.getElementById(id);
+        btn.addEventListener('touchstart', (e) => { e.preventDefault(); keys[key] = true; initAudio(); });
+        btn.addEventListener('touchend', (e) => { e.preventDefault(); keys[key] = false; });
+    };
+    bindTouch('btn-left', 'left');
+    bindTouch('btn-right', 'right');
+    bindTouch('btn-jump', 'up');
+
+    // Start Game
+    startBtn.addEventListener('click', () => {
+        initAudio();
+        menuLayer.style.opacity = 0;
+        setTimeout(() => {
+            menuLayer.style.display = 'none';
+            isPlaying = true;
+            deaths = 0;
+            hudDeaths.innerText = `Deaths: 0`;
+            loadLevel(0);
+            if(!frameId) loop();
+        }, 300);
+    });
+
+    // Initial draw for background
+    draw();
+
+</script>
+</body>
+</html>
