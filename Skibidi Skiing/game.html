@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>16-Bit Alpine Skiing</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #e0f7fa;
+            font-family: 'Press Start 2P', monospace;
+            touch-action: none;
+        }
+
+        #gameCanvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            image-rendering: pixelated;
+        }
+
+        #ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+        }
+
+        .hidden { display: none !important; }
+
+        #score-hud {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            font-size: 16px;
+            color: #333;
+            text-shadow: 2px 2px 0px #fff;
+            text-align: right;
+            line-height: 1.5;
+            pointer-events: none;
+        }
+
+        .shop-item { margin: 5px 0; display: block; width: 100%; font-size: 10px; padding: 10px; border: 2px solid #333; }
+        .shop-category { font-size:12px; border-bottom:2px solid #333; margin-bottom: 10px; padding-bottom: 5px; }
+
+        .menu {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 25px;
+            border: 4px solid #333;
+            box-shadow: 8px 8px 0px rgba(0,0,0,0.2);
+            pointer-events: auto;
+            max-width: 90%;
+        }
+
+        h1 { color: #0277bd; font-size: 20px; margin-bottom: 15px; }
+        p { font-size: 10px; color: #555; line-height: 1.6; }
+
+        button {
+            background-color: #ff4081;
+            color: white;
+            font-family: 'Press Start 2P', monospace;
+            border: 4px solid #c2185b;
+            padding: 12px 15px;
+            font-size: 12px;
+            cursor: pointer;
+            margin-top: 10px;
+            width: 100%;
+        }
+
+        button:active { transform: translateY(2px); }
+    </style>
+</head>
+<body>
+
+    <div id="score-hud" class="hidden">
+        <div>Score: <span id="scoreVal">0</span></div>
+        <div>Level: <span id="levelVal">1</span></div>
+        <div>Coins: <span id="coinVal">0</span></div>
+    </div>
+    
+    <div id="ui-layer">
+        <div id="start-screen" class="menu">
+            <h1>ALPINE<br>DESCENT</h1>
+            <p>WASD or Arrows to move<br>Avoid trees & rocks</p>
+            <button id="start-btn">START GAME</button>
+            <button id="start-shop-btn" style="background:#2196F3; border-color:#0b7dda;">SHOP</button>
+        </div>
+
+        <div id="game-over-screen" class="menu hidden">
+            <h1 style="color: #d32f2f;">WIPEOUT!</h1>
+            <p id="death-message"></p>
+            <p>Score: <span id="final-score">0</span></p>
+            <button id="restart-btn">PLAY AGAIN</button>
+            <button id="game-over-shop-btn" style="background:#2196F3; border-color:#0b7dda;">SHOP</button>
+        </div>
+
+        <div id="level-complete-screen" class="menu hidden">
+            <h1 style="color: #388e3c;">LEVEL <span id="lc-level"></span><br>COMPLETE!</h1>
+            <button id="next-level-btn">NEXT LEVEL</button>
+            <button id="lc-shop-btn" style="background:#2196F3; border-color:#0b7dda;">SHOP</button>
+        </div>
+
+        <div id="shop-screen" class="menu hidden">
+            <h1 style="color:#2196F3;">SKI SHOP</h1>
+            <p>Coins: <span id="shop-coins">0</span></p>
+            <div style="display:flex; gap:10px; text-align:left; margin-bottom:15px;">
+                <div>
+                    <h3 class="shop-category">SKINS</h3>
+                    <button class="shop-item" data-type="skin" data-id="default" data-cost="0">Default</button>
+                    <button class="shop-item" data-type="skin" data-id="ninja" data-cost="5">Ninja</button>
+                    <button class="shop-item" data-type="skin" data-id="santa" data-cost="10">Santa</button>
+                </div>
+                <div>
+                    <h3 class="shop-category">SKIS</h3>
+                    <button class="shop-item" data-type="ski" data-id="default" data-cost="0">Default</button>
+                    <button class="shop-item" data-type="ski" data-id="gold" data-cost="5">Gold</button>
+                    <button class="shop-item" data-type="ski" data-id="neon" data-cost="10">Neon</button>
+                </div>
+            </div>
+            <button id="shop-close-btn" style="background:#555; border-color:#333;">BACK</button>
+        </div>
+    </div>
+
+    <canvas id="gameCanvas"></canvas>
+
+<script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+
+    const uiElements = {
+        start: document.getElementById('start-screen'),
+        gameOver: document.getElementById('game-over-screen'),
+        levelComplete: document.getElementById('level-complete-screen'),
+        shop: document.getElementById('shop-screen'),
+        hud: document.getElementById('score-hud'),
+        score: document.getElementById('scoreVal'),
+        level: document.getElementById('levelVal'),
+        coins: document.getElementById('coinVal'),
+        shopCoins: document.getElementById('shop-coins'),
+        lcLevel: document.getElementById('lc-level')
+    };
+
+    const PIXEL_SCALE = 4;
+    let loopId = null;
+    let gameState = 'START';
+    let score = 0;
+    let frames = 0;
+    let baseSpeed = 3;
+    let currentSpeed = 3;
+    let totalCoins = 0;
+    let currentLevel = 1;
+    let levelGoal = 1000;
+    
+    let inventory = {
+        skins: { 'default': true, 'ninja': false, 'santa': false },
+        skis: { 'default': true, 'gold': false, 'neon': false }
+    };
+    let equipped = { skin: 'default', ski: 'default' };
+
+    let player = {};
+    let obstacles = [];
+
+    const keys = { 
+        ArrowLeft: false, ArrowRight: false,
+        KeyA: false, KeyD: false
+    };
+
+    const sprites = {
+        skier_straight: [[0,0,1,1,0,0],[0,1,1,1,1,0],[0,0,2,2,0,0],[0,2,2,2,2,0],[3,0,4,4,0,3],[3,0,4,4,0,3],[5,0,0,0,0,5],[5,0,0,0,0,5]],
+        skier_left: [[0,1,1,0,0,0],[1,1,1,1,0,0],[0,0,2,2,0,0],[0,2,2,2,2,0],[3,3,4,4,0,0],[0,3,3,4,0,0],[5,0,5,0,0,0],[0,5,0,5,0,0]],
+        skier_right: [[0,0,0,1,1,0],[0,0,1,1,1,1],[0,0,2,2,0,0],[0,2,2,2,2,0],[0,0,4,4,3,3],[0,0,4,3,3,0],[0,0,0,5,0,5],[0,0,5,0,5,0]],
+        skier_crashed: [[0,5,0,0,0,0],[5,0,0,1,1,0],[0,0,1,2,2,3],[0,4,4,2,2,0],[0,4,0,1,1,0],[3,0,0,0,5,0],[0,0,0,5,0,0]],
+        tree: [[0,0,0,1,0,0,0],[0,0,1,2,1,0,0],[0,1,2,2,1,1,0],[0,0,1,2,1,0,0],[0,1,2,2,2,1,0],[1,1,2,2,2,1,1],[0,0,1,2,1,0,0],[1,2,2,2,2,2,1],[0,0,0,3,0,0,0],[0,0,0,3,0,0,0]],
+        tree2: [[0,0,0,1,0,0,0],[0,0,1,4,1,0,0],[0,1,1,4,1,1,0],[0,0,1,1,1,0,0],[0,1,4,1,4,1,0],[1,1,1,1,1,1,1],[0,0,0,3,0,0,0],[0,0,0,3,0,0,0]],
+        rock: [[0,0,1,1,0],[0,1,2,1,1],[1,2,2,2,1],[1,1,1,1,1]],
+        log: [[0,1,1,1,1,1,1,0],[1,2,1,2,1,1,2,1],[1,1,2,1,1,2,1,1],[0,1,1,1,1,1,1,0]],
+        jump: [[0,0,1,1,1,1,0,0],[0,1,2,2,2,2,1,0],[1,3,3,3,3,3,3,1],[1,1,1,1,1,1,1,1]],
+        coin: [[0,1,1,0],[1,2,3,1],[1,3,2,1],[0,1,1,0]]
+    };
+
+    const palette = {
+        tree: { 1: '#1B5E20', 2: '#4CAF50', 3: '#5D4037' },
+        tree2: { 1: '#004D40', 3: '#5D4037', 4: '#E0F2F1' },
+        rock: { 1: '#757575', 2: '#BDBDBD' },
+        log: { 1: '#795548', 2: '#5D4037' },
+        jump: { 1: '#E0F7FA', 2: '#B2EBF2', 3: '#80DEEA' },
+        coin: { 1: '#B8860B', 2: '#FFD700', 3: '#FFF8DC' }
+    };
+
+    const skinPalettes = {
+        'default': { 1: '#FF0055', 2: '#00AAFF', 3: '#222222', 4: '#FFCC00' },
+        'ninja': { 1: '#111111', 2: '#222222', 3: '#555555', 4: '#111111' },
+        'santa': { 1: '#FF0000', 2: '#FF0000', 3: '#FFFFFF', 4: '#FF0000' }
+    };
+    const skiPalettes = { 'default': '#999999', 'gold': '#FFD700', 'neon': '#00FF00' };
+
+    function resizeCanvas() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        ctx.imageSmoothingEnabled = false;
+    }
+
+    function drawSprite(spriteMap, paletteMap, x, y, scale = PIXEL_SCALE) {
+        if (!spriteMap || !paletteMap) return;
+        const h = spriteMap.length;
+        const w = spriteMap[0].length;
+        for (let r = 0; r < h; r++) {
+            for (let c = 0; c < w; c++) {
+                const colorCode = spriteMap[r][c];
+                if (colorCode !== 0) {
+                    ctx.fillStyle = paletteMap[colorCode];
+                    ctx.fillRect(Math.floor(x + (c * scale)), Math.floor(y + (r * scale)), scale, scale);
+                }
+            }
+        }
+    }
+
+    function getSpriteBounds(spriteMap, scale = PIXEL_SCALE) {
+        return { w: spriteMap[0].length * scale, h: spriteMap.length * scale };
+    }
+
+    function resetLevel(newLevel) {
+        currentLevel = newLevel;
+        levelGoal = currentLevel * 1000;
+        baseSpeed = 3 + (currentLevel * 0.5);
+        currentSpeed = baseSpeed;
+        score = (currentLevel - 1) * 1000;
+        frames = 0;
+        obstacles = [];
+
+        const pBounds = getSpriteBounds(sprites.skier_straight);
+        player = {
+            x: canvas.width / 2 - pBounds.w / 2,
+            y: canvas.height * 0.25,
+            w: pBounds.w,
+            h: pBounds.h,
+            vx: 0,
+            maxVx: 7,
+            accel: 0.8,
+            friction: 0.85,
+            state: 'straight',
+            hitboxRadius: pBounds.w / 2.5,
+            isJumping: false,
+            jumpZ: 0
+        };
+
+        if (uiElements.score) uiElements.score.innerText = score;
+        if (uiElements.level) uiElements.level.innerText = currentLevel;
+        if (uiElements.coins) uiElements.coins.innerText = totalCoins;
+    }
+
+    function initGame(level = 1) {
+        if (loopId) cancelAnimationFrame(loopId);
+        resizeCanvas();
+        resetLevel(level);
+
+        uiElements.hud.classList.remove('hidden');
+        uiElements.start.classList.add('hidden');
+        uiElements.gameOver.classList.add('hidden');
+        uiElements.levelComplete.classList.add('hidden');
+        uiElements.shop.classList.add('hidden');
+
+        gameState = 'PLAYING';
+        gameLoop();
+    }
+
+    function spawnObstacle() {
+        const spawnRate = Math.max(8, 30 - Math.floor(currentSpeed * 1.5));
+        if (frames % spawnRate === 0) {
+            const r = Math.random();
+            let type = 'tree';
+            if (r > 0.92) type = 'coin';
+            else if (r > 0.85) type = 'jump';
+            else if (r > 0.75) type = 'log';
+            else if (r > 0.60) type = 'rock';
+            else if (r > 0.35) type = 'tree2';
+            
+            const bounds = getSpriteBounds(sprites[type]);
+            obstacles.push({
+                type, 
+                x: Math.random() * (canvas.width - bounds.w),
+                y: canvas.height + 20, 
+                w: bounds.w, 
+                h: bounds.h,
+                hitboxRadius: bounds.w / 2.5
+            });
+        }
+    }
+
+    function update() {
+        if (gameState !== 'PLAYING') return;
+
+        // Player movement (Arrows or WASD)
+        const left = keys.ArrowLeft || keys.KeyA;
+        const right = keys.ArrowRight || keys.KeyD;
+
+        if (left) { player.vx -= player.accel; player.state = 'left'; }
+        else if (right) { player.vx += player.accel; player.state = 'right'; }
+        else { player.state = 'straight'; }
+
+        player.vx *= player.friction;
+        player.x += player.vx;
+        player.x = Math.max(0, Math.min(canvas.width - player.w, player.x));
+
+        if (player.isJumping) {
+            player.jumpZ += 0.08;
+            if (player.jumpZ >= Math.PI) { player.isJumping = false; player.jumpZ = 0; }
+        }
+
+        // Scroll speed increases slowly over time
+        currentSpeed = baseSpeed + (frames * 0.0002);
+        
+        spawnObstacle();
+
+        for (let i = obstacles.length - 1; i >= 0; i--) {
+            let obs = obstacles[i];
+            obs.y -= currentSpeed;
+
+            // Simple collision check
+            let dx = (player.x + player.w/2) - (obs.x + obs.w/2);
+            let dy = (player.y + player.h/2) - (obs.y + obs.h/2);
+            let dist = Math.sqrt(dx*dx + dy*dy);
+
+            if (dist < player.hitboxRadius + obs.hitboxRadius) {
+                if (obs.type === 'coin') {
+                    totalCoins++;
+                    obstacles.splice(i, 1);
+                    uiElements.coins.innerText = totalCoins;
+                    score += 20;
+                    continue;
+                } else if (obs.type === 'jump') {
+                    if (!player.isJumping) { player.isJumping = true; score += 50; }
+                } else if (!player.isJumping || obs.type.includes('tree')) {
+                    gameState = 'GAMEOVER';
+                    player.state = 'crashed';
+                    document.getElementById('death-message').innerText = "Crashed into " + obs.type;
+                    document.getElementById('final-score').innerText = Math.floor(score);
+                    setTimeout(() => { 
+                        uiElements.gameOver.classList.remove('hidden'); 
+                        uiElements.hud.classList.add('hidden'); 
+                    }, 800);
+                }
+            }
+            
+            // Remove off-screen obstacles
+            if (obs.y + obs.h < -50) { 
+                obstacles.splice(i, 1); 
+                score += 5; 
+            }
+        }
+
+        if (score >= levelGoal && gameState === 'PLAYING') {
+            gameState = 'LEVEL_COMPLETE';
+            if (uiElements.lcLevel) uiElements.lcLevel.innerText = currentLevel;
+            setTimeout(() => { 
+                uiElements.levelComplete.classList.remove('hidden'); 
+                uiElements.hud.classList.add('hidden'); 
+            }, 500);
+        }
+
+        frames++;
+        if (uiElements.score) uiElements.score.innerText = Math.floor(score);
+    }
+
+    function draw() {
+        ctx.fillStyle = '#e0f7fa';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // Draw obstacles
+        obstacles.forEach(obs => drawSprite(sprites[obs.type], palette[obs.type], obs.x, obs.y));
+
+        // Draw player
+        let sMap = sprites[`skier_${player.state}`] || sprites.skier_straight;
+        let pY = player.y - (player.isJumping ? Math.sin(player.jumpZ) * 40 : 0);
+        let pS = player.isJumping ? PIXEL_SCALE * 1.2 : PIXEL_SCALE;
+        let pPal = { ...skinPalettes[equipped.skin], 5: skiPalettes[equipped.ski] };
+        drawSprite(sMap, pPal, player.x, pY, pS);
+    }
+
+    function gameLoop() {
+        if (gameState === 'PLAYING' || gameState === 'GAMEOVER' || gameState === 'LEVEL_COMPLETE') {
+            update();
+            draw();
+            loopId = requestAnimationFrame(gameLoop);
+        }
+    }
+
+    // UI Events
+    document.getElementById('start-btn').onclick = () => initGame(1);
+    document.getElementById('restart-btn').onclick = () => initGame(1);
+    document.getElementById('next-level-btn').onclick = () => initGame(currentLevel + 1);
+    
+    const toggleShop = (show) => {
+        uiElements.shop.classList.toggle('hidden', !show);
+        if (show) uiElements.shopCoins.innerText = totalCoins;
+        updateShopButtons();
+    };
+
+    document.getElementById('start-shop-btn').onclick = () => toggleShop(true);
+    document.getElementById('game-over-shop-btn').onclick = () => toggleShop(true);
+    document.getElementById('lc-shop-btn').onclick = () => toggleShop(true);
+    document.getElementById('shop-close-btn').onclick = () => toggleShop(false);
+
+    function updateShopButtons() {
+        document.querySelectorAll('.shop-item').forEach(btn => {
+            const { type, id, cost } = btn.dataset;
+            const isOwned = inventory[type + 's'][id];
+            if (isOwned) {
+                btn.innerText = equipped[type] === id ? "EQUIPPED" : "EQUIP";
+                btn.style.background = equipped[type] === id ? "#4CAF50" : "#2196F3";
+            } else {
+                btn.innerText = `BUY ${cost}`;
+                btn.style.background = totalCoins >= cost ? "#ff4081" : "#999";
+            }
+        });
+    }
+
+    document.querySelectorAll('.shop-item').forEach(btn => {
+        btn.onclick = () => {
+            const { type, id, cost } = btn.dataset;
+            const price = parseInt(cost);
+            if (inventory[type + 's'][id]) {
+                equipped[type] = id;
+            } else if (totalCoins >= price) {
+                totalCoins -= price;
+                inventory[type + 's'][id] = true;
+                equipped[type] = id;
+                uiElements.shopCoins.innerText = totalCoins;
+            }
+            updateShopButtons();
+        };
+    });
+
+    window.addEventListener('keydown', e => { 
+        if (keys.hasOwnProperty(e.code)) keys[e.code] = true; 
+    });
+    window.addEventListener('keyup', e => { 
+        if (keys.hasOwnProperty(e.code)) keys[e.code] = false; 
+    });
+    
+    window.addEventListener('touchstart', e => {
+        const x = e.touches[0].clientX;
+        if (x < window.innerWidth / 2) { keys.KeyA = true; keys.ArrowLeft = true; }
+        else { keys.KeyD = true; keys.ArrowRight = true; }
+    });
+    window.addEventListener('touchend', () => { 
+        keys.ArrowLeft = false; keys.ArrowRight = false; 
+        keys.KeyA = false; keys.KeyD = false;
+    });
+
+    window.onload = () => {
+        resizeCanvas();
+        ctx.fillStyle = '#e0f7fa';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        // Draw initial skier on start screen
+        drawSprite(sprites.skier_straight, skinPalettes.default, canvas.width/2 - 12, canvas.height/2 - 50, 6);
+    };
+
+    window.addEventListener('resize', resizeCanvas);
+</script>
+</body>
+</html>
