@@ -1,475 +1,925 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>16-Bit Alpine Skiing</title>
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
-
-        body, html {
-            margin: 0;
-            padding: 0;
-            width: 100%;
-            height: 100%;
-            overflow: hidden;
-            background-color: #e0f7fa;
-            font-family: 'Press Start 2P', monospace;
-            touch-action: none;
-        }
-
-        #gameCanvas {
-            display: block;
-            width: 100%;
-            height: 100%;
-            image-rendering: pixelated;
-        }
-
-        #ui-layer {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            pointer-events: none;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            text-align: center;
-        }
-
-        .hidden { display: none !important; }
-
-        #score-hud {
-            position: absolute;
-            top: 20px;
-            right: 20px;
-            font-size: 16px;
-            color: #333;
-            text-shadow: 2px 2px 0px #fff;
-            text-align: right;
-            line-height: 1.5;
-            pointer-events: none;
-        }
-
-        .shop-item { margin: 5px 0; display: block; width: 100%; font-size: 10px; padding: 10px; border: 2px solid #333; }
-        .shop-category { font-size:12px; border-bottom:2px solid #333; margin-bottom: 10px; padding-bottom: 5px; }
-
-        .menu {
-            background: rgba(255, 255, 255, 0.95);
-            padding: 25px;
-            border: 4px solid #333;
-            box-shadow: 8px 8px 0px rgba(0,0,0,0.2);
-            pointer-events: auto;
-            max-width: 90%;
-        }
-
-        h1 { color: #0277bd; font-size: 20px; margin-bottom: 15px; }
-        p { font-size: 10px; color: #555; line-height: 1.6; }
-
-        button {
-            background-color: #ff4081;
-            color: white;
-            font-family: 'Press Start 2P', monospace;
-            border: 4px solid #c2185b;
-            padding: 12px 15px;
-            font-size: 12px;
-            cursor: pointer;
-            margin-top: 10px;
-            width: 100%;
-        }
-
-        button:active { transform: translateY(2px); }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>POWDER RIDGE — Open World Skiing</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { overflow:hidden; background:#0a0a1a; font-family:'Segoe UI',sans-serif; }
+canvas { display:block; }
+#hud { position:fixed; top:20px; left:20px; color:white; pointer-events:none; z-index:10; }
+#speed-label { font-size:11px; font-weight:700; letter-spacing:3px; color:#a8d8ff; text-transform:uppercase; }
+#speed-val { font-size:40px; font-weight:900; color:white; line-height:1.1; }
+#speed-unit { font-size:11px; color:#7ab8e8; margin-bottom:10px; }
+#coins-display { background:rgba(0,0,0,0.5); border:1px solid rgba(255,215,0,0.35); border-radius:10px; padding:7px 14px; display:inline-block; backdrop-filter:blur(8px); }
+#coins-val { font-size:20px; font-weight:800; color:#FFD700; }
+#coins-label { font-size:9px; color:#c8a800; letter-spacing:2px; }
+#trick-display { position:fixed; top:42%; left:50%; transform:translate(-50%,-50%); text-align:center; pointer-events:none; z-index:10; }
+#trick-name { font-size:44px; font-weight:900; color:#fff; text-shadow:0 0 30px rgba(100,200,255,0.9),0 2px 0 rgba(0,0,0,0.6); letter-spacing:2px; opacity:0; transition:opacity 0.25s; }
+#trick-pts { font-size:22px; font-weight:700; color:#FFD700; text-shadow:0 0 15px rgba(255,215,0,0.8); opacity:0; transition:opacity 0.25s; }
+#run-banner { position:fixed; top:20px; left:50%; transform:translateX(-50%); background:rgba(0,0,0,0.55); border:1px solid rgba(255,255,255,0.15); border-radius:10px; padding:8px 20px; backdrop-filter:blur(8px); text-align:center; pointer-events:none; z-index:10; }
+#run-name { font-size:17px; font-weight:800; color:white; }
+#run-diff { font-size:10px; letter-spacing:2px; color:rgba(255,255,255,0.5); }
+#location-display { position:fixed; top:20px; right:20px; background:rgba(0,0,0,0.5); border:1px solid rgba(255,255,255,0.15); border-radius:10px; padding:10px 16px; backdrop-filter:blur(8px); text-align:right; color:white; z-index:10; }
+#location-name { font-size:15px; font-weight:700; }
+#location-sub { font-size:10px; color:rgba(255,255,255,0.45); letter-spacing:2px; }
+#minimap { position:fixed; bottom:20px; right:20px; width:160px; height:160px; background:rgba(0,0,0,0.6); border:1px solid rgba(255,255,255,0.18); border-radius:12px; backdrop-filter:blur(8px); overflow:hidden; z-index:10; }
+#minimap canvas { width:100%; height:100%; }
+#minimap-label { position:absolute; bottom:5px; left:0; right:0; text-align:center; font-size:9px; color:rgba(255,255,255,0.4); letter-spacing:2px; text-transform:uppercase; }
+#lift-indicator { position:fixed; bottom:190px; right:20px; background:rgba(0,60,160,0.8); border:1px solid rgba(100,160,255,0.45); border-radius:10px; padding:9px 14px; backdrop-filter:blur(8px); color:white; font-size:12px; font-weight:600; display:none; pointer-events:all; cursor:pointer; z-index:10; }
+#controls-hint { position:fixed; bottom:190px; left:20px; background:rgba(0,0,0,0.5); border:1px solid rgba(255,255,255,0.1); border-radius:10px; padding:10px 14px; backdrop-filter:blur(8px); color:rgba(255,255,255,0.55); font-size:10px; line-height:1.9; pointer-events:none; z-index:10; letter-spacing:1px; }
+#controls-hint span { color:rgba(255,255,255,0.9); font-weight:700; }
+#shop-btn { position:fixed; bottom:20px; left:20px; background:linear-gradient(135deg,#1a3a6e,#0d1f40); border:1px solid rgba(100,160,255,0.35); border-radius:12px; padding:10px 18px; color:white; font-size:13px; font-weight:700; letter-spacing:2px; cursor:pointer; pointer-events:all; transition:all 0.2s; text-transform:uppercase; box-shadow:0 4px 15px rgba(0,50,150,0.4); z-index:10; }
+#shop-btn:hover { background:linear-gradient(135deg,#254fa0,#1a3060); transform:translateY(-2px); }
+#shop-overlay { position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); backdrop-filter:blur(8px); display:none; pointer-events:all; z-index:100; justify-content:center; align-items:center; }
+#shop-overlay.open { display:flex; }
+#shop-panel { background:linear-gradient(160deg,#0d1f40,#060e1f); border:1px solid rgba(100,160,255,0.25); border-radius:20px; padding:30px; width:640px; max-width:95vw; max-height:88vh; overflow-y:auto; box-shadow:0 20px 60px rgba(0,0,100,0.6); }
+#shop-panel h2 { font-size:26px; font-weight:900; color:white; letter-spacing:4px; text-transform:uppercase; margin-bottom:3px; }
+.shop-sub { color:rgba(255,255,255,0.35); font-size:11px; letter-spacing:2px; margin-bottom:22px; }
+.shop-section { margin-bottom:26px; }
+.shop-section h3 { font-size:10px; letter-spacing:3px; color:rgba(255,255,255,0.4); text-transform:uppercase; margin-bottom:12px; border-bottom:1px solid rgba(255,255,255,0.07); padding-bottom:7px; }
+.shop-items { display:grid; grid-template-columns:repeat(auto-fill,minmax(155px,1fr)); gap:11px; }
+.shop-item { background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.1); border-radius:12px; padding:13px; cursor:pointer; transition:all 0.2s; }
+.shop-item:hover { background:rgba(100,160,255,0.1); border-color:rgba(100,160,255,0.3); transform:translateY(-2px); }
+.shop-item.owned { border-color:rgba(0,200,100,0.4); background:rgba(0,200,100,0.05); }
+.shop-item.equipped { border-color:rgba(100,200,255,0.6); background:rgba(100,200,255,0.09); }
+.shop-item-icon { font-size:28px; margin-bottom:7px; }
+.shop-item-name { font-size:13px; font-weight:700; color:white; margin-bottom:3px; }
+.shop-item-desc { font-size:10px; color:rgba(255,255,255,0.4); margin-bottom:9px; line-height:1.4; }
+.shop-item-price { font-size:12px; font-weight:700; color:#FFD700; background:rgba(255,215,0,0.1); border-radius:5px; padding:2px 7px; display:inline-block; }
+.shop-item-price.owned-label { color:#00cc66; background:rgba(0,200,100,0.1); }
+.shop-item-price.equipped-label { color:#64c8ff; background:rgba(100,200,255,0.1); }
+#shop-coins { font-size:18px; font-weight:800; color:#FFD700; margin-bottom:18px; }
+#shop-close { float:right; background:rgba(255,255,255,0.08); border:none; color:white; font-size:18px; width:34px; height:34px; border-radius:8px; cursor:pointer; }
+#shop-close:hover { background:rgba(255,255,255,0.15); }
+#score-popup { position:fixed; top:130px; left:50%; transform:translateX(-50%); pointer-events:none; text-align:center; z-index:20; }
+.score-float { font-size:22px; font-weight:900; color:#FFD700; text-shadow:0 0 10px rgba(255,215,0,0.6); animation:floatUp 1.4s ease-out forwards; display:block; }
+@keyframes floatUp { 0%{opacity:1;transform:translateY(0)} 100%{opacity:0;transform:translateY(-55px)} }
+#lift-msg { position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); background:rgba(0,30,80,0.92); border:1px solid rgba(100,160,255,0.4); border-radius:14px; padding:18px 30px; color:white; font-size:14px; font-weight:700; text-align:center; pointer-events:none; display:none; backdrop-filter:blur(10px); letter-spacing:1px; z-index:20; }
+#start-screen { position:fixed; top:0; left:0; width:100%; height:100%; background:linear-gradient(160deg,#060e20,#0a1830); display:flex; flex-direction:column; align-items:center; justify-content:center; z-index:200; pointer-events:all; }
+#start-screen h1 { font-size:clamp(48px,8vw,96px); font-weight:900; color:white; letter-spacing:8px; text-transform:uppercase; text-shadow:0 0 60px rgba(100,180,255,0.4); margin-bottom:6px; }
+.tagline { font-size:13px; color:rgba(255,255,255,0.35); letter-spacing:6px; text-transform:uppercase; margin-bottom:48px; }
+#start-btn { background:linear-gradient(135deg,#1a4a9e,#0d2456); border:1px solid rgba(100,160,255,0.4); border-radius:14px; padding:16px 44px; color:white; font-size:16px; font-weight:800; letter-spacing:4px; text-transform:uppercase; cursor:pointer; transition:all 0.2s; box-shadow:0 8px 30px rgba(0,50,200,0.4); }
+#start-btn:hover { transform:translateY(-3px); box-shadow:0 12px 40px rgba(0,80,255,0.5); }
+.start-controls { margin-top:38px; color:rgba(255,255,255,0.32); font-size:12px; line-height:2.1; text-align:center; }
+.snowflakes { position:absolute; top:0; left:0; width:100%; height:100%; overflow:hidden; pointer-events:none; }
+.sf { position:absolute; color:white; animation:fall linear infinite; opacity:0.25; }
+@keyframes fall { 0%{top:-20px} 100%{top:110%} }
+#map-overlay { position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(4,10,22,0.97); backdrop-filter:blur(12px); display:none; z-index:150; pointer-events:all; flex-direction:column; align-items:center; justify-content:center; }
+#map-overlay.open { display:flex; }
+#map-header { display:flex; align-items:center; justify-content:space-between; width:min(820px,94vw); margin-bottom:14px; }
+#map-header h2 { font-size:22px; font-weight:900; color:white; letter-spacing:5px; text-transform:uppercase; }
+#map-header .map-close-hint { font-size:11px; color:rgba(255,255,255,0.35); letter-spacing:2px; }
+#map-canvas-wrap { position:relative; width:min(820px,94vw); height:min(820px,82vh); border:1px solid rgba(255,255,255,0.12); border-radius:16px; overflow:hidden; }
+#map-canvas-big { width:100%; height:100%; display:block; }
+#map-legend { display:flex; gap:18px; flex-wrap:wrap; justify-content:center; width:min(820px,94vw); margin-top:14px; }
+.map-legend-item { display:flex; align-items:center; gap:7px; font-size:11px; color:rgba(255,255,255,0.65); }
+.map-legend-swatch { width:14px; height:14px; border-radius:3px; flex-shrink:0; }
+.map-legend-line { width:22px; height:3px; border-radius:2px; flex-shrink:0; }
+#crosshair { position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); pointer-events:none; z-index:11; opacity:0; transition:opacity 0.3s; }
+#crosshair.visible { opacity:0.55; }
+#lock-prompt { position:fixed; bottom:75px; left:50%; transform:translateX(-50%); background:rgba(0,0,0,0.6); border:1px solid rgba(255,255,255,0.15); border-radius:10px; padding:8px 18px; color:rgba(255,255,255,0.6); font-size:11px; letter-spacing:2px; pointer-events:none; z-index:11; transition:opacity 0.4s; }
+#lock-prompt.hidden { opacity:0; }
+</style>
 </head>
 <body>
 
-    <div id="score-hud" class="hidden">
-        <div>Score: <span id="scoreVal">0</span></div>
-        <div>Level: <span id="levelVal">1</span></div>
-        <div>Coins: <span id="coinVal">0</span></div>
-    </div>
-    
-    <div id="ui-layer">
-        <div id="start-screen" class="menu">
-            <h1>ALPINE<br>DESCENT</h1>
-            <p>WASD or Arrows to move<br>Avoid trees & rocks</p>
-            <button id="start-btn">START GAME</button>
-            <button id="start-shop-btn" style="background:#2196F3; border-color:#0b7dda;">SHOP</button>
-        </div>
+<div id="start-screen">
+  <div class="snowflakes" id="snowflakes"></div>
+  <h1>POWDER RIDGE</h1>
+  <div class="tagline">Open World Alpine Experience</div>
+  <button id="start-btn">DROP IN</button>
+  <div class="start-controls">
+    <b>A / D  or  ← / →</b> — Turn &nbsp;|&nbsp; <b>S / ↓</b> — Brake &nbsp;|&nbsp; <b>SPACE</b> — Jump / Trick<br>
+    <b>SHIFT</b> — Boost &nbsp;|&nbsp; <b>E</b> — Use Lift &nbsp;|&nbsp; <b>Click + drag</b> — Look around<br>
+    <b>M</b> — Full Map &nbsp;|&nbsp; <b>TAB</b> — Overhead view &nbsp;|&nbsp; Collect <b>⭐ coins</b> for the Shop!
+  </div>
+</div>
 
-        <div id="game-over-screen" class="menu hidden">
-            <h1 style="color: #d32f2f;">WIPEOUT!</h1>
-            <p id="death-message"></p>
-            <p>Score: <span id="final-score">0</span></p>
-            <button id="restart-btn">PLAY AGAIN</button>
-            <button id="game-over-shop-btn" style="background:#2196F3; border-color:#0b7dda;">SHOP</button>
-        </div>
+<div id="lift-msg"></div>
 
-        <div id="level-complete-screen" class="menu hidden">
-            <h1 style="color: #388e3c;">LEVEL <span id="lc-level"></span><br>COMPLETE!</h1>
-            <button id="next-level-btn">NEXT LEVEL</button>
-            <button id="lc-shop-btn" style="background:#2196F3; border-color:#0b7dda;">SHOP</button>
-        </div>
+<div id="map-overlay">
+  <div id="map-header">
+    <h2>🗺️ Powder Ridge — Trail Map</h2>
+    <span class="map-close-hint">Press M or ESC to close</span>
+  </div>
+  <div id="map-canvas-wrap"><canvas id="map-canvas-big"></canvas></div>
+  <div id="map-legend">
+    <div class="map-legend-item"><div class="map-legend-swatch" style="background:#44cc44"></div>Bunny</div>
+    <div class="map-legend-item"><div class="map-legend-swatch" style="background:#4499ff"></div>Easy</div>
+    <div class="map-legend-item"><div class="map-legend-swatch" style="background:#888"></div>Expert</div>
+    <div class="map-legend-item"><div class="map-legend-swatch" style="background:#ff7700"></div>Park</div>
+    <div class="map-legend-item"><div class="map-legend-swatch" style="background:#1a5c18"></div>Glades</div>
+    <div class="map-legend-item"><div class="map-legend-line" style="background:#ff5500"></div>Main Gondola</div>
+    <div class="map-legend-item"><div class="map-legend-line" style="background:#2288ff"></div>East Express</div>
+    <div class="map-legend-item"><div class="map-legend-line" style="background:#00bb44"></div>West Chair</div>
+    <div class="map-legend-item"><div class="map-legend-line" style="background:#ff99cc"></div>Bunny Lift</div>
+    <div class="map-legend-item"><div class="map-legend-line" style="background:#cc6600"></div>Park Chair</div>
+    <div class="map-legend-item"><div class="map-legend-swatch" style="background:#c8a070"></div>Chalet</div>
+    <div class="map-legend-item"><span style="color:#FFD700;font-size:12px">●</span>&nbsp;Coins</div>
+    <div class="map-legend-item"><span style="color:#ff2222;font-size:12px">▲</span>&nbsp;You</div>
+  </div>
+</div>
 
-        <div id="shop-screen" class="menu hidden">
-            <h1 style="color:#2196F3;">SKI SHOP</h1>
-            <p>Coins: <span id="shop-coins">0</span></p>
-            <div style="display:flex; gap:10px; text-align:left; margin-bottom:15px;">
-                <div>
-                    <h3 class="shop-category">SKINS</h3>
-                    <button class="shop-item" data-type="skin" data-id="default" data-cost="0">Default</button>
-                    <button class="shop-item" data-type="skin" data-id="ninja" data-cost="5">Ninja</button>
-                    <button class="shop-item" data-type="skin" data-id="santa" data-cost="10">Santa</button>
-                </div>
-                <div>
-                    <h3 class="shop-category">SKIS</h3>
-                    <button class="shop-item" data-type="ski" data-id="default" data-cost="0">Default</button>
-                    <button class="shop-item" data-type="ski" data-id="gold" data-cost="5">Gold</button>
-                    <button class="shop-item" data-type="ski" data-id="neon" data-cost="10">Neon</button>
-                </div>
-            </div>
-            <button id="shop-close-btn" style="background:#555; border-color:#333;">BACK</button>
-        </div>
-    </div>
+<div id="crosshair">
+  <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+    <line x1="11" y1="2" x2="11" y2="8" stroke="white" stroke-width="1.5" stroke-linecap="round"/>
+    <line x1="11" y1="14" x2="11" y2="20" stroke="white" stroke-width="1.5" stroke-linecap="round"/>
+    <line x1="2" y1="11" x2="8" y2="11" stroke="white" stroke-width="1.5" stroke-linecap="round"/>
+    <line x1="14" y1="11" x2="20" y2="11" stroke="white" stroke-width="1.5" stroke-linecap="round"/>
+    <circle cx="11" cy="11" r="1.5" fill="white"/>
+  </svg>
+</div>
+<div id="lock-prompt">🖱️ CLICK TO LOOK AROUND</div>
 
-    <canvas id="gameCanvas"></canvas>
+<div id="hud">
+  <div id="speed-label">Speed</div>
+  <div id="speed-val">0</div>
+  <div id="speed-unit">km/h</div>
+  <div id="coins-display">
+    <div id="coins-val">⭐ 100</div>
+    <div id="coins-label">COINS</div>
+  </div>
+</div>
+<div id="trick-display"><div id="trick-name"></div><div id="trick-pts"></div></div>
+<div id="run-banner"><div id="run-name">Summit</div><div id="run-diff">ELEVATION 4200m</div></div>
+<div id="location-display"><div id="location-name">Summit Peak</div><div id="location-sub">POWDER RIDGE</div></div>
+<div id="minimap"><canvas id="minimap-canvas" width="160" height="160"></canvas><div id="minimap-label">POWDER RIDGE</div></div>
+<div id="lift-indicator">🚡 Press E — Take Lift</div>
+<div id="controls-hint">
+  <span>A / D  or  ← / →</span> Turn<br>
+  <span>S / ↓</span> Brake<br>
+  <span>SPACE</span> Jump + Trick<br>
+  <span>SHIFT</span> Boost<br>
+  <span>E</span> Use Lift<br>
+  <span>Click + drag</span> Look around<br>
+  <span>M</span> Full map<br>
+  <span>TAB</span> Overhead view
+</div>
+<div id="score-popup"></div>
+<button id="shop-btn">🏪 SHOP</button>
+<div id="shop-overlay">
+  <div id="shop-panel">
+    <button id="shop-close">✕</button>
+    <h2>⛷️ Powder Shop</h2>
+    <div class="shop-sub">GEAR UP FOR THE MOUNTAIN</div>
+    <div id="shop-coins"></div>
+    <div id="shop-content"></div>
+  </div>
+</div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
-    const canvas = document.getElementById('gameCanvas');
-    const ctx = canvas.getContext('2d');
+'use strict';
 
-    const uiElements = {
-        start: document.getElementById('start-screen'),
-        gameOver: document.getElementById('game-over-screen'),
-        levelComplete: document.getElementById('level-complete-screen'),
-        shop: document.getElementById('shop-screen'),
-        hud: document.getElementById('score-hud'),
-        score: document.getElementById('scoreVal'),
-        level: document.getElementById('levelVal'),
-        coins: document.getElementById('coinVal'),
-        shopCoins: document.getElementById('shop-coins'),
-        lcLevel: document.getElementById('lc-level')
-    };
+// ── Snowflakes ────────────────────────────────────────────────────────────────
+(()=>{
+  const c=document.getElementById('snowflakes');
+  for(let i=0;i<45;i++){
+    const s=document.createElement('div');s.className='sf';s.textContent='❄';
+    s.style.left=Math.random()*100+'%';
+    s.style.fontSize=(8+Math.random()*14)+'px';
+    s.style.animationDuration=(5+Math.random()*9)+'s';
+    s.style.animationDelay=(-Math.random()*12)+'s';
+    c.appendChild(s);
+  }
+})();
+document.getElementById('start-btn').onclick=()=>{
+  document.getElementById('start-screen').style.display='none';
+  init();
+};
 
-    const PIXEL_SCALE = 4;
-    let loopId = null;
-    let gameState = 'START';
-    let score = 0;
-    let frames = 0;
-    let baseSpeed = 3;
-    let currentSpeed = 3;
-    let totalCoins = 0;
-    let currentLevel = 1;
-    let levelGoal = 1000;
-    
-    let inventory = {
-        skins: { 'default': true, 'ninja': false, 'santa': false },
-        skis: { 'default': true, 'gold': false, 'neon': false }
-    };
-    let equipped = { skin: 'default', ski: 'default' };
+// ── Shop data ─────────────────────────────────────────────────────────────────
+let coins=100,equippedSkis='classic',equippedSuit='blue';
+let ownedItems=new Set(['classic','blue']),upgrades=new Set();
+let skiColor=0xff3333,suitColor=0x1a4aaa;
+const SHOP_ITEMS={
+  skis:[
+    {id:'classic',name:'Classic Planks',desc:'Reliable all-mountain.',price:0,icon:'🎿',stat:'Standard',color:0xff3333},
+    {id:'turbo',name:'Turbo Carvers',desc:'+20% top speed.',price:80,icon:'⚡',stat:'Speed +20%',color:0x00ccff},
+    {id:'powder',name:'Fat Powder Skis',desc:'Float on deep snow.',price:120,icon:'🌨️',stat:'Control +15%',color:0xffaa00},
+    {id:'racing',name:'Race Blades',desc:'Maximum speed.',price:200,icon:'🏆',stat:'Speed +35%',color:0xff0000},
+  ],
+  suits:[
+    {id:'blue',name:'Bluebird Suit',desc:'Classic blue.',price:0,icon:'🥶',stat:'Standard',color:0x1a4aaa},
+    {id:'neon',name:'Neon Shredder',desc:'Glow on slopes.',price:60,icon:'🌈',stat:'Style +100',color:0x00cc66},
+    {id:'stealth',name:'Stealth Black',desc:'Stay mysterious.',price:90,icon:'🕶️',stat:'Style ++',color:0x222233},
+    {id:'gold',name:'Gold Champion',desc:'Champions only.',price:300,icon:'👑',stat:'Prestige',color:0xffd700},
+  ],
+  upgrades:[
+    {id:'boost1',name:'Turbo Wax',desc:'Boost lasts 50% longer.',price:50,icon:'🧴',stat:'Boost +50%'},
+    {id:'airtime1',name:'Jump Springs',desc:'Jump 30% higher.',price:70,icon:'🦘',stat:'Air +30%'},
+    {id:'magnet',name:'Coin Magnet',desc:'Attract coins further.',price:100,icon:'🧲',stat:'Range ×2'},
+  ]
+};
 
-    let player = {};
-    let obstacles = [];
+// ── Three.js ──────────────────────────────────────────────────────────────────
+let scene,camera,renderer;
+let skier,skierParts={};
+let velocity=new THREE.Vector3();
+let skierAngle=0,vertVel=0;
+let airborne=false,jumpTimer=0,trickDone=false;
+let nearLift=null,onLift=false,liftProgress=0,currentLiftData=null;
+let overheadView=false,boostCooldown=0;
+let keys={};
+let coins3d=[],liftCars=[],liftDefs=[];
+let treeColls=[],chaletColls=[],jumpRamps=[];
+let snowParticles,snowPos,trickTimeout;
+const GRAVITY=-22;
 
-    const keys = { 
-        ArrowLeft: false, ArrowRight: false,
-        KeyA: false, KeyD: false
-    };
+// ── Camera ────────────────────────────────────────────────────────────────────
+// camYaw always = skierAngle + camMouseDX (behind the skier, no decoupling).
+// Mouse drag temporarily swings the view; it snaps back automatically.
+let camPitch=0.22,camMouseDX=0,mapOpen=false;
 
-    const sprites = {
-        skier_straight: [[0,0,1,1,0,0],[0,1,1,1,1,0],[0,0,2,2,0,0],[0,2,2,2,2,0],[3,0,4,4,0,3],[3,0,4,4,0,3],[5,0,0,0,0,5],[5,0,0,0,0,5]],
-        skier_left: [[0,1,1,0,0,0],[1,1,1,1,0,0],[0,0,2,2,0,0],[0,2,2,2,2,0],[3,3,4,4,0,0],[0,3,3,4,0,0],[5,0,5,0,0,0],[0,5,0,5,0,0]],
-        skier_right: [[0,0,0,1,1,0],[0,0,1,1,1,1],[0,0,2,2,0,0],[0,2,2,2,2,0],[0,0,4,4,3,3],[0,0,4,3,3,0],[0,0,0,5,0,5],[0,0,5,0,5,0]],
-        skier_crashed: [[0,5,0,0,0,0],[5,0,0,1,1,0],[0,0,1,2,2,3],[0,4,4,2,2,0],[0,4,0,1,1,0],[3,0,0,0,5,0],[0,0,0,5,0,0]],
-        tree: [[0,0,0,1,0,0,0],[0,0,1,2,1,0,0],[0,1,2,2,1,1,0],[0,0,1,2,1,0,0],[0,1,2,2,2,1,0],[1,1,2,2,2,1,1],[0,0,1,2,1,0,0],[1,2,2,2,2,2,1],[0,0,0,3,0,0,0],[0,0,0,3,0,0,0]],
-        tree2: [[0,0,0,1,0,0,0],[0,0,1,4,1,0,0],[0,1,1,4,1,1,0],[0,0,1,1,1,0,0],[0,1,4,1,4,1,0],[1,1,1,1,1,1,1],[0,0,0,3,0,0,0],[0,0,0,3,0,0,0]],
-        rock: [[0,0,1,1,0],[0,1,2,1,1],[1,2,2,2,1],[1,1,1,1,1]],
-        log: [[0,1,1,1,1,1,1,0],[1,2,1,2,1,1,2,1],[1,1,2,1,1,2,1,1],[0,1,1,1,1,1,1,0]],
-        jump: [[0,0,1,1,1,1,0,0],[0,1,2,2,2,2,1,0],[1,3,3,3,3,3,3,1],[1,1,1,1,1,1,1,1]],
-        coin: [[0,1,1,0],[1,2,3,1],[1,3,2,1],[0,1,1,0]]
-    };
+// ── World data ────────────────────────────────────────────────────────────────
+const RUNS=[
+  {name:'Bunny Hill',    diff:'GREEN ● EASY',   color:'#44cc44',cx:0,   cz:190},
+  {name:'Easy Cruiser',  diff:'BLUE ● EASY',    color:'#4488ff',cx:65,  cz:80},
+  {name:'Black Diamond', diff:'BLACK ◆ EXPERT', color:'#dddddd',cx:-85, cz:10},
+  {name:'Trick Park',    diff:'TERRAIN PARK ★', color:'#ff8800',cx:10,  cz:-55},
+  {name:'East Glade',    diff:'BLUE ● GLADE',   color:'#66ccff',cx:145, cz:30},
+  {name:'West Glade',    diff:'BLUE ● GLADE',   color:'#66ccff',cx:-145,cz:30},
+];
+const CHALET_DEFS=[
+  {x:5,   z:235,label:'Base Lodge',    color:0xff4400},
+  {x:5,   z:0,  label:'Summit Café',   color:0xffffff},
+  {x:170, z:55, label:'East Chalet',   color:0x0066ff},
+  {x:-170,z:55, label:'West Ridge Hut',color:0x00aa44},
+  {x:10,  z:-115,label:'Trick Park Hut',color:0xff8800},
+  {x:75,  z:235,label:'Bunny Shack',   color:0xff88cc},
+  {x:35,  z:115, label:'Park Chair Base',color:0xcc6600},
+];
+const LIFT_DEFS_RAW=[
+  {name:'Main Gondola',from:{x:5,   z:225},to:{x:5,   z:-10},color:0xff4400},
+  {name:'East Express', from:{x:150, z:105},to:{x:170, z:35}, color:0x0066ff},
+  {name:'West Chair',   from:{x:-150,z:105},to:{x:-170,z:30}, color:0x00aa44},
+  {name:'Bunny Lift',   from:{x:60,  z:230},to:{x:40,  z:165},color:0xff88cc},
+  {name:'Park Chair',   from:{x:35,  z:115},to:{x:15,  z:-110},color:0xcc6600},
+];
+const flatPads=[];
+function regPad(cx,cz,r){flatPads.push({cx,cz,r,flatY:rawH(cx,cz)});}
 
-    const palette = {
-        tree: { 1: '#1B5E20', 2: '#4CAF50', 3: '#5D4037' },
-        tree2: { 1: '#004D40', 3: '#5D4037', 4: '#E0F2F1' },
-        rock: { 1: '#757575', 2: '#BDBDBD' },
-        log: { 1: '#795548', 2: '#5D4037' },
-        jump: { 1: '#E0F7FA', 2: '#B2EBF2', 3: '#80DEEA' },
-        coin: { 1: '#B8860B', 2: '#FFD700', 3: '#FFF8DC' }
-    };
+// ── Terrain ───────────────────────────────────────────────────────────────────
+function rawH(x,z){
+  const nx=x/90,nz=z/90;
+  let h=85*Math.exp(-(nx*nx+nz*nz)/0.75);
+  h+=60*Math.exp(-((nx+1.9)**2+(nz+0.2)**2)/0.5);
+  h+=42*Math.exp(-((nx-1.7)**2+(nz-0.3)**2)/0.55);
+  h+=38*Math.exp(-((nx+0.95)**2*1.5+nz*nz)/0.35);
+  h+=14*Math.exp(-(nx*nx+(nz-2.2)**2)/0.22);
+  h+=2.2*Math.sin(x*0.038)*Math.cos(z*0.032);
+  h+=1.2*Math.sin(x*0.088+1.1)*Math.sin(z*0.068);
+  h+=0.5*Math.sin(x*0.17)*Math.cos(z*0.13+0.6);
+  return Math.max(h,0.1);
+}
+function getH(x,z){
+  for(const p of flatPads){
+    const d=Math.sqrt((x-p.cx)**2+(z-p.cz)**2);
+    if(d<p.r) return p.flatY;
+    if(d<p.r+6){const t=(d-p.r)/6;return p.flatY*(1-t)+rawH(x,z)*t;}
+  }
+  return rawH(x,z);
+}
 
-    const skinPalettes = {
-        'default': { 1: '#FF0055', 2: '#00AAFF', 3: '#222222', 4: '#FFCC00' },
-        'ninja': { 1: '#111111', 2: '#222222', 3: '#555555', 4: '#111111' },
-        'santa': { 1: '#FF0000', 2: '#FF0000', 3: '#FFFFFF', 4: '#FF0000' }
-    };
-    const skiPalettes = { 'default': '#999999', 'gold': '#FFD700', 'neon': '#00FF00' };
+// ── Init ──────────────────────────────────────────────────────────────────────
+function init(){
+  CHALET_DEFS.forEach(c=>regPad(c.x,c.z,15));
+  LIFT_DEFS_RAW.forEach(l=>{regPad(l.from.x,l.from.z,11);regPad(l.to.x,l.to.z,11);});
 
-    function resizeCanvas() {
-        canvas.width = window.innerWidth;
-        canvas.height = window.innerHeight;
-        ctx.imageSmoothingEnabled = false;
+  scene=new THREE.Scene();
+  scene.background=new THREE.Color(0x8ec8f0);
+  scene.fog=new THREE.FogExp2(0xc0ddf5,0.0025);
+
+  renderer=new THREE.WebGLRenderer({antialias:true});
+  renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+  renderer.setSize(innerWidth,innerHeight);
+  renderer.shadowMap.enabled=true;
+  renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+  document.body.appendChild(renderer.domElement);
+
+  camera=new THREE.PerspectiveCamera(68,innerWidth/innerHeight,0.5,1400);
+  scene.add(new THREE.AmbientLight(0xffffff,0.5));
+  const sun=new THREE.DirectionalLight(0xfff5e0,1.3);
+  sun.position.set(180,300,120);sun.castShadow=true;
+  sun.shadow.mapSize.set(2048,2048);
+  const sc=sun.shadow.camera;
+  sc.left=-500;sc.right=500;sc.top=500;sc.bottom=-500;sc.far=1000;
+  scene.add(sun);
+  const fill=new THREE.DirectionalLight(0xb8d0f8,0.3);
+  fill.position.set(-100,80,-120);scene.add(fill);
+
+  buildTerrain();buildRunMarkers();buildSkier();buildTrees();
+  buildChalets();buildLifts();buildTrickPark();buildCoins();buildSnow();buildPeaks();
+
+  window.addEventListener('keydown',e=>{
+    keys[e.code]=true;
+    if(e.code==='Tab'){e.preventDefault();overheadView=!overheadView;}
+    if(e.code==='KeyM'){e.preventDefault();toggleMap();}
+    if(e.code==='Escape'){closeMap();}
+  });
+  window.addEventListener('keyup',e=>{keys[e.code]=false;});
+  window.addEventListener('resize',()=>{
+    camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);
+  });
+  document.getElementById('shop-btn').onclick=openShop;
+  document.getElementById('shop-close').onclick=closeShop;
+  document.getElementById('lift-indicator').onclick=useLift;
+
+  renderer.domElement.addEventListener('click',()=>{
+    if(!mapOpen&&!document.getElementById('shop-overlay').classList.contains('open'))
+      renderer.domElement.requestPointerLock();
+  });
+  document.addEventListener('pointerlockchange',()=>{
+    const locked=document.pointerLockElement===renderer.domElement;
+    document.getElementById('crosshair').classList.toggle('visible',locked);
+    document.getElementById('lock-prompt').classList.toggle('hidden',locked);
+  });
+  document.addEventListener('mousemove',e=>{
+    if(document.pointerLockElement!==renderer.domElement) return;
+    camMouseDX-=e.movementX*0.003;
+    camPitch+=e.movementY*0.002;
+    camPitch=Math.max(-0.1,Math.min(0.55,camPitch));
+  });
+
+  animate();
+}
+
+// ── Build functions ───────────────────────────────────────────────────────────
+function buildTerrain(){
+  const W=520,SEG=200;
+  const geo=new THREE.PlaneGeometry(W,W,SEG,SEG);
+  geo.rotateX(-Math.PI/2);
+  const pos=geo.attributes.position;
+  for(let i=0;i<pos.count;i++) pos.setY(i,getH(pos.getX(i),pos.getZ(i)));
+  pos.needsUpdate=true;geo.computeVertexNormals();
+  const col=new Float32Array(pos.count*3);
+  for(let i=0;i<pos.count;i++){
+    const h=pos.getY(i);
+    let r,g,b;
+    if(h>72){r=1;g=1;b=1;}
+    else if(h>52){r=.94;g=.96;b=1;}
+    else if(h>30){r=.88;g=.92;b=.97;}
+    else if(h>14){r=.84;g=.90;b=.96;}
+    else{r=.80;g=.87;b=.94;}
+    col[i*3]=r;col[i*3+1]=g;col[i*3+2]=b;
+  }
+  geo.setAttribute('color',new THREE.BufferAttribute(col,3));
+  const mesh=new THREE.Mesh(geo,new THREE.MeshLambertMaterial({vertexColors:true}));
+  mesh.receiveShadow=true;scene.add(mesh);
+}
+
+function buildRunMarkers(){
+  RUNS.forEach(r=>{
+    const h=getH(r.cx,r.cz),col=parseInt(r.color.replace('#',''),16);
+    const post=new THREE.Mesh(new THREE.CylinderGeometry(.13,.13,3.5,6),new THREE.MeshLambertMaterial({color:0xcccccc}));
+    post.position.set(r.cx,h+1.75,r.cz);scene.add(post);
+    const sign=new THREE.Mesh(new THREE.BoxGeometry(4.5,1.5,.18),new THREE.MeshLambertMaterial({color:col}));
+    sign.position.set(r.cx,h+3.8,r.cz);scene.add(sign);
+  });
+}
+
+function buildSkier(){
+  skier=new THREE.Group();
+  const M=(geo,col,py,fn)=>{
+    const m=new THREE.Mesh(geo,new THREE.MeshLambertMaterial({color:col}));
+    m.position.y=py;m.castShadow=true;if(fn)fn(m);skier.add(m);return m;
+  };
+  skierParts.body=M(new THREE.CylinderGeometry(.28,.22,.7,8),suitColor,.6);
+  M(new THREE.SphereGeometry(.22,8,8),0xffd5a8,1.12);
+  M(new THREE.SphereGeometry(.245,8,6,[0,Math.PI*2,0,Math.PI*.58]),0xff4400,1.18);
+  for(const s of[-1,1]){
+    const arm=M(new THREE.CylinderGeometry(.08,.07,.5,6),suitColor,.62,m=>{m.position.x=s*.42;m.position.z=.05;m.rotation.z=s*.5;m.rotation.x=.3;});
+    if(s<0)skierParts.armL=arm;else skierParts.armR=arm;
+    M(new THREE.CylinderGeometry(.025,.02,1.1,4),0x888888,.2,m=>{m.position.x=s*.55;m.position.z=.1;m.rotation.z=s*.15;m.rotation.x=.25;});
+    M(new THREE.CylinderGeometry(.1,.09,.55,6),0x1a1a3a,.14,m=>{m.position.x=s*.15;});
+    const ski=M(new THREE.BoxGeometry(.13,.06,1.35),skiColor,-.17,m=>{m.position.x=s*.15;m.position.z=.1;});
+    if(s<0)skierParts.skiL=ski;else skierParts.skiR=ski;
+  }
+  skier.position.set(5,getH(5,225)+.5,225);
+  scene.add(skier);
+}
+function applyColors(){
+  skierParts.body.material.color.setHex(suitColor);
+  skierParts.armL.material.color.setHex(suitColor);
+  skierParts.armR.material.color.setHex(suitColor);
+  skierParts.skiL.material.color.setHex(skiColor);
+  skierParts.skiR.material.color.setHex(skiColor);
+}
+
+function onRunClear(x,z){
+  if(Math.abs(x)<50&&z>140&&z<245) return true;
+  if(Math.abs(x-65)<32&&z>-70&&z<160) return true;
+  if(Math.abs(x+85)<38&&z>-100&&z<80) return true;
+  if(Math.abs(x-10)<32&&z>-130&&z<-20) return true;
+  if(Math.abs(x-5)<16&&z>-30&&z<230) return true;
+  return false;
+}
+function buildTrees(){
+  const R=Math.random.bind(Math);
+  for(let i=0;i<700;i++){
+    const x=(R()-.5)*480,z=(R()-.5)*480,h=rawH(x,z);
+    if(h<1||h>76||onRunClear(x,z)) continue;
+    let op=false;
+    for(const p of flatPads){if(Math.sqrt((x-p.cx)**2+(z-p.cz)**2)<p.r+10){op=true;break;}}
+    if(op) continue;
+    const sc=.5+R()*1.2,tg=new THREE.Group(),trH=.8*sc;
+    const trunk=new THREE.Mesh(new THREE.CylinderGeometry(.12*sc,.18*sc,trH,6),new THREE.MeshLambertMaterial({color:0x4a2e10}));
+    trunk.position.y=trH/2;trunk.castShadow=true;tg.add(trunk);
+    const layers=2+Math.floor(R()*2);
+    for(let l=0;l<layers;l++){
+      const cone=new THREE.Mesh(new THREE.ConeGeometry((layers-l)*.52*sc,1.0*sc,7),new THREE.MeshLambertMaterial({color:0x1a4a1e}));
+      cone.position.y=trH+l*.6*sc+.3*sc;cone.castShadow=true;tg.add(cone);
     }
+    const cap=new THREE.Mesh(new THREE.SphereGeometry(.26*sc,6,4,[0,Math.PI*2,0,Math.PI*.5]),new THREE.MeshLambertMaterial({color:0xeef2ff}));
+    cap.position.y=trH+layers*.6*sc+.6*sc;tg.add(cap);
+    tg.position.set(x,getH(x,z),z);scene.add(tg);
+    treeColls.push({x,z,r:.65*sc});
+  }
+}
 
-    function drawSprite(spriteMap, paletteMap, x, y, scale = PIXEL_SCALE) {
-        if (!spriteMap || !paletteMap) return;
-        const h = spriteMap.length;
-        const w = spriteMap[0].length;
-        for (let r = 0; r < h; r++) {
-            for (let c = 0; c < w; c++) {
-                const colorCode = spriteMap[r][c];
-                if (colorCode !== 0) {
-                    ctx.fillStyle = paletteMap[colorCode];
-                    ctx.fillRect(Math.floor(x + (c * scale)), Math.floor(y + (r * scale)), scale, scale);
-                }
-            }
-        }
+function buildChalet(x,z,color){
+  const h=getH(x,z),g=new THREE.Group();
+  const mk=(geo,col,py,fn)=>{const m=new THREE.Mesh(geo,new THREE.MeshLambertMaterial({color:col}));m.position.y=py;m.castShadow=true;if(fn)fn(m);g.add(m);};
+  mk(new THREE.BoxGeometry(11,.6,10),0xd0c8b8,.3,m=>{m.receiveShadow=true;});
+  mk(new THREE.BoxGeometry(10,3.8,9),0xc8a070,2.2,m=>{m.receiveShadow=true;});
+  mk(new THREE.CylinderGeometry(0,7,3.8,4),0x7a3210,5.7,m=>{m.rotation.y=Math.PI/4;});
+  mk(new THREE.CylinderGeometry(0,7.2,.7,4),0xeef2ff,7.2,m=>{m.rotation.y=Math.PI/4;});
+  for(const wx of[-3,3]){const w=new THREE.Mesh(new THREE.BoxGeometry(1.3,1.2,.15),new THREE.MeshLambertMaterial({color:0xaaddff,emissive:0x113344}));w.position.set(wx,2.4,4.6);g.add(w);}
+  mk(new THREE.BoxGeometry(1.6,2.6,.15),0x5c3010,1.3,m=>{m.position.z=4.6;});
+  mk(new THREE.BoxGeometry(.9,4.5,.9),0x8a6040,5.5,m=>{m.position.x=2.8;m.position.z=1;});
+  mk(new THREE.BoxGeometry(10,.28,3.5),0xa07840,.5,m=>{m.position.z=7.0;});
+  mk(new THREE.CylinderGeometry(.07,.07,3.5,4),0xaaaaaa,9,m=>{m.position.x=-5.5;});
+  mk(new THREE.BoxGeometry(2.2,1.1,.09),color,10.7,m=>{m.position.x=-4.4;});
+  g.position.set(x,h,z);scene.add(g);chaletColls.push({x,z,r:7});
+}
+function buildChalets(){CHALET_DEFS.forEach(c=>buildChalet(c.x,c.z,c.color));}
+
+function buildLifts(){
+  liftDefs=LIFT_DEFS_RAW;
+  const STEPS=16,CLR=8;
+  liftDefs.forEach((ld,li)=>{
+    const dx=ld.to.x-ld.from.x,dz=ld.to.z-ld.from.z;
+    const cableY=Array.from({length:STEPS+1},(_,s)=>getH(ld.from.x+dx*(s/STEPS),ld.from.z+dz*(s/STEPS))+CLR);
+    for(let s=0;s<=STEPS;s++){
+      const t=s/STEPS,tx=ld.from.x+dx*t,tz=ld.from.z+dz*t;
+      const ground=getH(tx,tz),tH=cableY[s]-ground;
+      const col=new THREE.Mesh(new THREE.BoxGeometry(.45,tH,.45),new THREE.MeshLambertMaterial({color:0x888888}));
+      col.position.set(tx,ground+tH/2,tz);scene.add(col);
+      const arm=new THREE.Mesh(new THREE.BoxGeometry(3.5,.22,.22),new THREE.MeshLambertMaterial({color:0x777777}));
+      arm.position.set(tx,cableY[s]+.1,tz);scene.add(arm);
     }
-
-    function getSpriteBounds(spriteMap, scale = PIXEL_SCALE) {
-        return { w: spriteMap[0].length * scale, h: spriteMap.length * scale };
+    for(let s=0;s<STEPS;s++){
+      const t0=s/STEPS,t1=(s+1)/STEPS;
+      const x0=ld.from.x+dx*t0,z0=ld.from.z+dz*t0,y0=cableY[s];
+      const x1=ld.from.x+dx*t1,z1=ld.from.z+dz*t1,y1=cableY[s+1];
+      const L=Math.sqrt((x1-x0)**2+(y1-y0)**2+(z1-z0)**2);
+      const cab=new THREE.Mesh(new THREE.CylinderGeometry(.055,.055,L,4),new THREE.MeshLambertMaterial({color:0x333333}));
+      cab.position.set((x0+x1)/2,(y0+y1)/2,(z0+z1)/2);
+      cab.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),new THREE.Vector3(x1-x0,y1-y0,z1-z0).normalize());
+      scene.add(cab);
     }
-
-    function resetLevel(newLevel) {
-        currentLevel = newLevel;
-        levelGoal = currentLevel * 1000;
-        baseSpeed = 3 + (currentLevel * 0.5);
-        currentSpeed = baseSpeed;
-        score = (currentLevel - 1) * 1000;
-        frames = 0;
-        obstacles = [];
-
-        const pBounds = getSpriteBounds(sprites.skier_straight);
-        player = {
-            x: canvas.width / 2 - pBounds.w / 2,
-            y: canvas.height * 0.25,
-            w: pBounds.w,
-            h: pBounds.h,
-            vx: 0,
-            maxVx: 7,
-            accel: 0.8,
-            friction: 0.85,
-            state: 'straight',
-            hitboxRadius: pBounds.w / 2.5,
-            isJumping: false,
-            jumpZ: 0
-        };
-
-        if (uiElements.score) uiElements.score.innerText = score;
-        if (uiElements.level) uiElements.level.innerText = currentLevel;
-        if (uiElements.coins) uiElements.coins.innerText = totalCoins;
+    for(let c=0;c<4;c++){
+      const car=new THREE.Mesh(new THREE.BoxGeometry(1.5,1.2,1.1),new THREE.MeshLambertMaterial({color:ld.color}));
+      car.castShadow=true;scene.add(car);
+      liftCars.push({mesh:car,liftIdx:li,progress:c/4,cableY});
     }
-
-    function initGame(level = 1) {
-        if (loopId) cancelAnimationFrame(loopId);
-        resizeCanvas();
-        resetLevel(level);
-
-        uiElements.hud.classList.remove('hidden');
-        uiElements.start.classList.add('hidden');
-        uiElements.gameOver.classList.add('hidden');
-        uiElements.levelComplete.classList.add('hidden');
-        uiElements.shop.classList.add('hidden');
-
-        gameState = 'PLAYING';
-        gameLoop();
-    }
-
-    function spawnObstacle() {
-        const spawnRate = Math.max(8, 30 - Math.floor(currentSpeed * 1.5));
-        if (frames % spawnRate === 0) {
-            const r = Math.random();
-            let type = 'tree';
-            if (r > 0.92) type = 'coin';
-            else if (r > 0.85) type = 'jump';
-            else if (r > 0.75) type = 'log';
-            else if (r > 0.60) type = 'rock';
-            else if (r > 0.35) type = 'tree2';
-            
-            const bounds = getSpriteBounds(sprites[type]);
-            obstacles.push({
-                type, 
-                x: Math.random() * (canvas.width - bounds.w),
-                y: canvas.height + 20, 
-                w: bounds.w, 
-                h: bounds.h,
-                hitboxRadius: bounds.w / 2.5
-            });
-        }
-    }
-
-    function update() {
-        if (gameState !== 'PLAYING') return;
-
-        // Player movement (Arrows or WASD)
-        const left = keys.ArrowLeft || keys.KeyA;
-        const right = keys.ArrowRight || keys.KeyD;
-
-        if (left) { player.vx -= player.accel; player.state = 'left'; }
-        else if (right) { player.vx += player.accel; player.state = 'right'; }
-        else { player.state = 'straight'; }
-
-        player.vx *= player.friction;
-        player.x += player.vx;
-        player.x = Math.max(0, Math.min(canvas.width - player.w, player.x));
-
-        if (player.isJumping) {
-            player.jumpZ += 0.08;
-            if (player.jumpZ >= Math.PI) { player.isJumping = false; player.jumpZ = 0; }
-        }
-
-        // Scroll speed increases slowly over time
-        currentSpeed = baseSpeed + (frames * 0.0002);
-        
-        spawnObstacle();
-
-        for (let i = obstacles.length - 1; i >= 0; i--) {
-            let obs = obstacles[i];
-            obs.y -= currentSpeed;
-
-            // Simple collision check
-            let dx = (player.x + player.w/2) - (obs.x + obs.w/2);
-            let dy = (player.y + player.h/2) - (obs.y + obs.h/2);
-            let dist = Math.sqrt(dx*dx + dy*dy);
-
-            if (dist < player.hitboxRadius + obs.hitboxRadius) {
-                if (obs.type === 'coin') {
-                    totalCoins++;
-                    obstacles.splice(i, 1);
-                    uiElements.coins.innerText = totalCoins;
-                    score += 20;
-                    continue;
-                } else if (obs.type === 'jump') {
-                    if (!player.isJumping) { player.isJumping = true; score += 50; }
-                } else if (!player.isJumping || obs.type.includes('tree')) {
-                    gameState = 'GAMEOVER';
-                    player.state = 'crashed';
-                    document.getElementById('death-message').innerText = "Crashed into " + obs.type;
-                    document.getElementById('final-score').innerText = Math.floor(score);
-                    setTimeout(() => { 
-                        uiElements.gameOver.classList.remove('hidden'); 
-                        uiElements.hud.classList.add('hidden'); 
-                    }, 800);
-                }
-            }
-            
-            // Remove off-screen obstacles
-            if (obs.y + obs.h < -50) { 
-                obstacles.splice(i, 1); 
-                score += 5; 
-            }
-        }
-
-        if (score >= levelGoal && gameState === 'PLAYING') {
-            gameState = 'LEVEL_COMPLETE';
-            if (uiElements.lcLevel) uiElements.lcLevel.innerText = currentLevel;
-            setTimeout(() => { 
-                uiElements.levelComplete.classList.remove('hidden'); 
-                uiElements.hud.classList.add('hidden'); 
-            }, 500);
-        }
-
-        frames++;
-        if (uiElements.score) uiElements.score.innerText = Math.floor(score);
-    }
-
-    function draw() {
-        ctx.fillStyle = '#e0f7fa';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-        // Draw obstacles
-        obstacles.forEach(obs => drawSprite(sprites[obs.type], palette[obs.type], obs.x, obs.y));
-
-        // Draw player
-        let sMap = sprites[`skier_${player.state}`] || sprites.skier_straight;
-        let pY = player.y - (player.isJumping ? Math.sin(player.jumpZ) * 40 : 0);
-        let pS = player.isJumping ? PIXEL_SCALE * 1.2 : PIXEL_SCALE;
-        let pPal = { ...skinPalettes[equipped.skin], 5: skiPalettes[equipped.ski] };
-        drawSprite(sMap, pPal, player.x, pY, pS);
-    }
-
-    function gameLoop() {
-        if (gameState === 'PLAYING' || gameState === 'GAMEOVER' || gameState === 'LEVEL_COMPLETE') {
-            update();
-            draw();
-            loopId = requestAnimationFrame(gameLoop);
-        }
-    }
-
-    // UI Events
-    document.getElementById('start-btn').onclick = () => initGame(1);
-    document.getElementById('restart-btn').onclick = () => initGame(1);
-    document.getElementById('next-level-btn').onclick = () => initGame(currentLevel + 1);
-    
-    const toggleShop = (show) => {
-        uiElements.shop.classList.toggle('hidden', !show);
-        if (show) uiElements.shopCoins.innerText = totalCoins;
-        updateShopButtons();
-    };
-
-    document.getElementById('start-shop-btn').onclick = () => toggleShop(true);
-    document.getElementById('game-over-shop-btn').onclick = () => toggleShop(true);
-    document.getElementById('lc-shop-btn').onclick = () => toggleShop(true);
-    document.getElementById('shop-close-btn').onclick = () => toggleShop(false);
-
-    function updateShopButtons() {
-        document.querySelectorAll('.shop-item').forEach(btn => {
-            const { type, id, cost } = btn.dataset;
-            const isOwned = inventory[type + 's'][id];
-            if (isOwned) {
-                btn.innerText = equipped[type] === id ? "EQUIPPED" : "EQUIP";
-                btn.style.background = equipped[type] === id ? "#4CAF50" : "#2196F3";
-            } else {
-                btn.innerText = `BUY ${cost}`;
-                btn.style.background = totalCoins >= cost ? "#ff4081" : "#999";
-            }
-        });
-    }
-
-    document.querySelectorAll('.shop-item').forEach(btn => {
-        btn.onclick = () => {
-            const { type, id, cost } = btn.dataset;
-            const price = parseInt(cost);
-            if (inventory[type + 's'][id]) {
-                equipped[type] = id;
-            } else if (totalCoins >= price) {
-                totalCoins -= price;
-                inventory[type + 's'][id] = true;
-                equipped[type] = id;
-                uiElements.shopCoins.innerText = totalCoins;
-            }
-            updateShopButtons();
-        };
+    [ld.from,ld.to].forEach(pt=>{
+      const ph=getH(pt.x,pt.z),b=new THREE.Group();
+      [new THREE.Mesh(new THREE.BoxGeometry(7,.5,7),new THREE.MeshLambertMaterial({color:0xc8b898})),
+       new THREE.Mesh(new THREE.BoxGeometry(6,3.5,6),new THREE.MeshLambertMaterial({color:0xd4a870}))
+      ].forEach((m,i)=>{m.position.y=i?2:.25;m.castShadow=!!i;b.add(m);});
+      const rof=new THREE.Mesh(new THREE.CylinderGeometry(0,4.5,2.5,4),new THREE.MeshLambertMaterial({color:ld.color}));
+      rof.position.y=5;rof.rotation.y=Math.PI/4;rof.castShadow=true;b.add(rof);
+      b.position.set(pt.x,ph,pt.z);scene.add(b);
     });
+  });
+}
 
-    window.addEventListener('keydown', e => { 
-        if (keys.hasOwnProperty(e.code)) keys[e.code] = true; 
-    });
-    window.addEventListener('keyup', e => { 
-        if (keys.hasOwnProperty(e.code)) keys[e.code] = false; 
-    });
-    
-    window.addEventListener('touchstart', e => {
-        const x = e.touches[0].clientX;
-        if (x < window.innerWidth / 2) { keys.KeyA = true; keys.ArrowLeft = true; }
-        else { keys.KeyD = true; keys.ArrowRight = true; }
-    });
-    window.addEventListener('touchend', () => { 
-        keys.ArrowLeft = false; keys.ArrowRight = false; 
-        keys.KeyA = false; keys.KeyD = false;
-    });
+function buildTrickPark(){
+  const feats=[
+    {x:0,z:-55,type:'k',sc:1},{x:12,z:-65,type:'k',sc:1.2},{x:-8,z:-78,type:'k',sc:1.5},
+    {x:20,z:-52,type:'b'},{x:-14,z:-62,type:'r'},{x:4,z:-95,type:'k',sc:1.8},{x:-5,z:-100,type:'b'},
+  ];
+  feats.forEach(f=>{
+    const h=getH(f.x,f.z);
+    if(f.type==='k'){
+      const sc=f.sc||1;
+      const ramp=new THREE.Mesh(new THREE.BoxGeometry(4.5*sc,.8*sc,3*sc),new THREE.MeshLambertMaterial({color:0xe8eeff}));
+      ramp.position.set(f.x,h+.4*sc,f.z);ramp.rotation.x=-.28;ramp.castShadow=true;scene.add(ramp);
+      jumpRamps.push({x:f.x,z:f.z,big:sc>=1.5});
+    } else if(f.type==='b'){
+      const box=new THREE.Mesh(new THREE.BoxGeometry(1.3,.45,4.5),new THREE.MeshLambertMaterial({color:0xddaa44}));
+      box.position.set(f.x,h+.9,f.z);scene.add(box);
+    } else {
+      const rail=new THREE.Mesh(new THREE.CylinderGeometry(.1,.1,5.5,6),new THREE.MeshLambertMaterial({color:0xaaaaaa}));
+      rail.position.set(f.x,h+1.1,f.z);rail.rotation.x=Math.PI/2;scene.add(rail);
+      for(const pz of[-2.2,0,2.2]){
+        const post=new THREE.Mesh(new THREE.CylinderGeometry(.08,.08,1.1,4),new THREE.MeshLambertMaterial({color:0x777777}));
+        post.position.set(f.x,h+.55,f.z+pz);scene.add(post);
+      }
+    }
+  });
+  for(const s of[-1,1]){
+    const wx=10+s*14,wh=getH(wx,-75);
+    const wall=new THREE.Mesh(new THREE.BoxGeometry(2,4,36),new THREE.MeshLambertMaterial({color:0xddeeff}));
+    wall.position.set(wx,wh+2,-75);wall.castShadow=true;scene.add(wall);
+  }
+  const sp=new THREE.Mesh(new THREE.CylinderGeometry(.15,.15,5,6),new THREE.MeshLambertMaterial({color:0xdddddd}));
+  sp.position.set(10,getH(10,-38)+2.5,-38);scene.add(sp);
+  const sb=new THREE.Mesh(new THREE.BoxGeometry(7,2,.22),new THREE.MeshLambertMaterial({color:0xff6600}));
+  sb.position.set(10,getH(10,-38)+6,-38);scene.add(sb);
+}
 
-    window.onload = () => {
-        resizeCanvas();
-        ctx.fillStyle = '#e0f7fa';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        // Draw initial skier on start screen
-        drawSprite(sprites.skier_straight, skinPalettes.default, canvas.width/2 - 12, canvas.height/2 - 50, 6);
-    };
+function buildCoins(){
+  const pl=[
+    ...Array.from({length:14},(_,i)=>({x:60+Math.sin(i)*15,z:160-i*18,v:1})),
+    ...Array.from({length:10},(_,i)=>({x:-80+i*4,z:50-i*15,v:3})),
+    ...Array.from({length:9}, (_,i)=>({x:5+i*4,z:-50-i*6,v:2})),
+    ...Array.from({length:8}, (_,i)=>({x:i*6-24,z:215-i*9,v:1})),
+    ...Array.from({length:10},(_,i)=>({x:125+i*7,z:70-i*13,v:2})),
+    ...Array.from({length:10},(_,i)=>({x:-125-i*6,z:70-i*13,v:2})),
+    ...Array.from({length:30},()=>({x:(Math.random()-.5)*400,z:(Math.random()-.5)*400,v:1})),
+  ];
+  pl.forEach(p=>{
+    if(Math.abs(p.x)>250||Math.abs(p.z)>250) return;
+    const h=getH(p.x,p.z);
+    const m=new THREE.Mesh(new THREE.CylinderGeometry(.4,.4,.14,10),new THREE.MeshLambertMaterial({color:0xFFD700,emissive:0x886600}));
+    m.position.set(p.x,h+1.1,p.z);m.rotation.x=Math.PI/2;scene.add(m);
+    coins3d.push({mesh:m,x:p.x,z:p.z,val:p.v,active:true});
+  });
+}
 
-    window.addEventListener('resize', resizeCanvas);
+function buildSnow(){
+  const N=1100,geo=new THREE.BufferGeometry();
+  snowPos=new Float32Array(N*3);
+  for(let i=0;i<N;i++){snowPos[i*3]=(Math.random()-.5)*80;snowPos[i*3+1]=Math.random()*32;snowPos[i*3+2]=(Math.random()-.5)*80;}
+  geo.setAttribute('position',new THREE.BufferAttribute(snowPos,3));
+  snowParticles=new THREE.Points(geo,new THREE.PointsMaterial({color:0xffffff,size:.22,transparent:true,opacity:.7}));
+  scene.add(snowParticles);
+}
+
+function buildPeaks(){
+  for(let i=0;i<18;i++){
+    const a=(i/18)*Math.PI*2,r=500+Math.random()*100;
+    const w=70+Math.random()*90,hh=100+Math.random()*150;
+    const cone=new THREE.Mesh(new THREE.ConeGeometry(w,hh,5),new THREE.MeshLambertMaterial({color:0xc0d4ec}));
+    cone.position.set(Math.cos(a)*r,hh/2-15,Math.sin(a)*r);scene.add(cone);
+    const cap=new THREE.Mesh(new THREE.ConeGeometry(w*.28,hh*.28,5),new THREE.MeshLambertMaterial({color:0xf0f5ff}));
+    cap.position.set(Math.cos(a)*r,hh-15,Math.sin(a)*r);scene.add(cap);
+  }
+}
+
+// ── Game logic ────────────────────────────────────────────────────────────────
+const TRICKS=[
+  ['Method Grab',100],['360 Spin',200],['Backflip!',350],['Butter',80],
+  ['Spread Eagle',130],['Iron Cross',160],['Mute Grab',120],['Stalefish',140],
+  ['Rodeo 540!',320],['Cork 720!!',500],['Switch Ollie',90],['Nose Grab',110],
+];
+function doTrick(big){
+  const pool=big?TRICKS.filter(t=>t[1]>=200):TRICKS;
+  const t=pool[Math.floor(Math.random()*pool.length)];
+  const tn=document.getElementById('trick-name'),tp=document.getElementById('trick-pts');
+  tn.textContent=t[0];tn.style.opacity='1';
+  tp.textContent='+'+t[1]+' pts';tp.style.opacity='1';
+  clearTimeout(trickTimeout);
+  trickTimeout=setTimeout(()=>{tn.style.opacity='0';tp.style.opacity='0';},1700);
+  addCoins(Math.floor(t[1]/25));
+}
+function addCoins(n){
+  coins+=n;document.getElementById('coins-val').textContent='⭐ '+coins;
+  const p=document.getElementById('score-popup');
+  const s=document.createElement('span');s.className='score-float';s.textContent='+'+n;
+  p.appendChild(s);setTimeout(()=>s.remove(),1500);
+}
+function useLift(){
+  if(!nearLift||onLift) return;
+  onLift=true;liftProgress=0;currentLiftData=nearLift;velocity.set(0,0,0);
+  document.getElementById('lift-msg').textContent='🚡 Riding '+nearLift.name+'...';
+  document.getElementById('lift-msg').style.display='block';
+}
+
+// ── Shop ──────────────────────────────────────────────────────────────────────
+function openShop(){document.getElementById('shop-overlay').classList.add('open');renderShop();}
+function closeShop(){document.getElementById('shop-overlay').classList.remove('open');}
+function renderShop(){
+  document.getElementById('shop-coins').innerHTML='⭐ '+coins+' <span style="color:rgba(255,255,255,0.4);font-size:13px;font-weight:400">coins</span>';
+  let html='';
+  ['skis','suits','upgrades'].forEach(cat=>{
+    html+=`<div class="shop-section"><h3>${{skis:'Skis',suits:'Suits',upgrades:'Upgrades'}[cat]}</h3><div class="shop-items">`;
+    SHOP_ITEMS[cat].forEach(item=>{
+      const owned=ownedItems.has(item.id)||upgrades.has(item.id);
+      const equipped=(cat==='skis'&&equippedSkis===item.id)||(cat==='suits'&&equippedSuit===item.id);
+      let ph='',cls='';
+      if(equipped){ph=`<span class="shop-item-price equipped-label">✓ EQUIPPED</span>`;cls='equipped';}
+      else if(owned){ph=`<span class="shop-item-price owned-label">✓ OWNED</span><br><small style="color:rgba(255,255,255,0.4)">Click to equip</small>`;cls='owned';}
+      else ph=`<span class="shop-item-price">⭐ ${item.price}</span>`;
+      html+=`<div class="shop-item ${cls}" onclick="shopAction('${cat}','${item.id}',${item.price})">
+        <div class="shop-item-icon">${item.icon}</div>
+        <div class="shop-item-name">${item.name}</div>
+        <div class="shop-item-desc">${item.desc}<br><em style="color:rgba(100,200,255,0.65)">${item.stat}</em></div>
+        ${ph}</div>`;
+    });
+    html+='</div></div>';
+  });
+  document.getElementById('shop-content').innerHTML=html;
+}
+function shopAction(cat,id,price){
+  const owned=ownedItems.has(id)||upgrades.has(id);
+  if(!owned){if(coins<price)return;coins-=price;ownedItems.add(id);upgrades.add(id);}
+  if(cat==='skis'){equippedSkis=id;skiColor=SHOP_ITEMS.skis.find(s=>s.id===id).color;}
+  else if(cat==='suits'){equippedSuit=id;suitColor=SHOP_ITEMS.suits.find(s=>s.id===id).color;}
+  applyColors();renderShop();
+}
+
+// ── Minimap ───────────────────────────────────────────────────────────────────
+function drawMinimap(){
+  const cv=document.getElementById('minimap-canvas'),ctx=cv.getContext('2d');
+  const W=160,H=160,S=.26;
+  ctx.fillStyle='#0a1428';ctx.fillRect(0,0,W,H);
+  const m=(x,z)=>({mx:W/2+x*S,my:H/2+z*S});
+  ctx.fillStyle='rgba(30,80,30,0.5)';
+  treeColls.forEach(t=>{const{mx,my}=m(t.x,t.z);ctx.fillRect(mx-1,my-1,2,2);});
+  RUNS.forEach(r=>{const{mx,my}=m(r.cx,r.cz);ctx.fillStyle=r.color;ctx.fillRect(mx-3,my-3,6,6);});
+  CHALET_DEFS.forEach(c=>{const{mx,my}=m(c.x,c.z);ctx.fillStyle='#c8a070';ctx.fillRect(mx-3,my-3,6,6);});
+  const lc=['#ff4400','#0066ff','#00aa44','#ff88cc','#cc6600'];
+  liftDefs.forEach((ld,i)=>{
+    const f=m(ld.from.x,ld.from.z),t=m(ld.to.x,ld.to.z);
+    ctx.strokeStyle=lc[i];ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(f.mx,f.my);ctx.lineTo(t.mx,t.my);ctx.stroke();
+  });
+  coins3d.filter(c=>c.active).forEach(c=>{const{mx,my}=m(c.x,c.z);ctx.fillStyle='#FFD700';ctx.beginPath();ctx.arc(mx,my,1.5,0,Math.PI*2);ctx.fill();});
+  const{mx,my}=m(skier.position.x,skier.position.z);
+  ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(mx,my,5,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='#ff3333';ctx.beginPath();ctx.arc(mx,my,3,0,Math.PI*2);ctx.fill();
+}
+
+function detectRun(x,z){
+  if(Math.abs(x)<55&&z>140&&z<250) return RUNS[0];
+  if(Math.abs(x-65)<38&&z>-60&&z<155) return RUNS[1];
+  if(Math.abs(x+85)<42&&z>-110&&z<85) return RUNS[2];
+  if(Math.abs(x-10)<38&&z>-135&&z<-25) return RUNS[3];
+  if(x>95&&x<220&&Math.abs(z)<140) return RUNS[4];
+  if(x<-95&&x>-220&&Math.abs(z)<140) return RUNS[5];
+  return getH(x,z)>60?{name:'Summit Peak',diff:'ELEVATION 4200m'}:{name:'Open Mountain',diff:'FREE SKIING'};
+}
+
+// ── Main loop ─────────────────────────────────────────────────────────────────
+const clock=new THREE.Clock();
+function animate(){
+  requestAnimationFrame(animate);
+  const dt=Math.min(clock.getDelta(),.05);
+  if(!skier){renderer.render(scene,camera);return;}
+  if(onLift)updateLift(dt);else updateSkier(dt);
+  updateLiftCars(dt);updateCoins();updateSnow(dt);updateCamera();drawMinimap();
+  const run=detectRun(skier.position.x,skier.position.z);
+  document.getElementById('run-name').textContent=run.name;
+  document.getElementById('run-diff').textContent=run.diff;
+  document.getElementById('location-name').textContent=run.name;
+  renderer.render(scene,camera);
+}
+
+function updateSkier(dt){
+  const sp=skier.position,th=getH(sp.x,sp.z);
+
+  // ── Turning ──────────────────────────────────────────────────────────────
+  const ts=2.2*(airborne?.35:1);
+  if(keys['ArrowLeft'] ||keys['KeyA']) skierAngle+=ts*dt;
+  if(keys['ArrowRight']||keys['KeyD']) skierAngle-=ts*dt;
+
+  const fwdX=-Math.sin(skierAngle),fwdZ=-Math.cos(skierAngle);
+
+  // ── Acceleration ─────────────────────────────────────────────────────────
+  const sx=getH(sp.x+.7,sp.z)-getH(sp.x-.7,sp.z);
+  const sz=getH(sp.x,sp.z+.7)-getH(sp.x,sp.z-.7);
+  const slope=(-fwdX*sx-fwdZ*sz)*18;
+  // Base push of 14 so flat/gentle terrain is skiable.
+  // Downhill slope adds on top; uphill slope subtracts (but floored at 0 push).
+  const accel=14+Math.max(-14,slope);
+
+  const braking=keys['ArrowDown']||keys['KeyS'];
+  const boosting=(keys['ShiftLeft']||keys['ShiftRight'])&&boostCooldown<=0;
+  const bm=boosting?1.95:1;
+  if(boosting)boostCooldown=upgrades.has('boost1')?4.5:3;
+  if(boostCooldown>0)boostCooldown-=dt;
+
+  const friction=braking?9:(airborne?.08:1.5);
+  velocity.x+=fwdX*accel*dt*bm;
+  velocity.z+=fwdZ*accel*dt*bm;
+  velocity.x-=velocity.x*friction*dt;
+  velocity.z-=velocity.z*friction*dt;
+
+  const skiMul=equippedSkis==='racing'?1.35:equippedSkis==='turbo'?1.2:equippedSkis==='powder'?1.1:1;
+  const maxSpd=33*skiMul*bm;
+  const spd=Math.sqrt(velocity.x**2+velocity.z**2);
+  if(spd>maxSpd){velocity.x=velocity.x/spd*maxSpd;velocity.z=velocity.z/spd*maxSpd;}
+
+  // ── Jump ──────────────────────────────────────────────────────────────────
+  if(keys['Space']&&!airborne){vertVel=upgrades.has('airtime1')?10:7;airborne=true;jumpTimer=0;trickDone=false;}
+  jumpRamps.forEach(r=>{
+    const dx=sp.x-r.x,dz=sp.z-r.z;
+    if(Math.sqrt(dx*dx+dz*dz)<3.5&&!airborne){vertVel=r.big?13:8.5;airborne=true;jumpTimer=0;trickDone=false;}
+  });
+  if(airborne){
+    vertVel+=GRAVITY*dt;sp.y+=vertVel*dt;jumpTimer+=dt;
+    if(jumpTimer>.35&&!trickDone){
+      doTrick(jumpRamps.some(r=>{const dx=sp.x-r.x,dz=sp.z-r.z;return Math.sqrt(dx*dx+dz*dz)<18&&r.big;}));
+      trickDone=true;
+    }
+    if(sp.y<=th+.45){sp.y=th+.45;vertVel=0;airborne=false;}
+  }else sp.y=th+.45;
+
+  sp.x+=velocity.x*dt;sp.z+=velocity.z*dt;
+  sp.x=Math.max(-255,Math.min(255,sp.x));sp.z=Math.max(-255,Math.min(255,sp.z));
+
+  const mv=Math.sqrt(velocity.x**2+velocity.z**2);
+  if(mv>.5)skier.rotation.y=Math.atan2(-velocity.x,-velocity.z);
+  skier.rotation.z=(keys['ArrowLeft']||keys['KeyA']?-.18:0)+(keys['ArrowRight']||keys['KeyD']?.18:0);
+  document.getElementById('speed-val').textContent=Math.round(mv*3.6);
+
+  nearLift=null;
+  liftDefs.forEach(ld=>{const dx=sp.x-ld.from.x,dz=sp.z-ld.from.z;if(Math.sqrt(dx*dx+dz*dz)<12)nearLift=ld;});
+  const li=document.getElementById('lift-indicator');
+  if(nearLift){li.style.display='block';li.textContent='🚡 Press E — '+nearLift.name;}else li.style.display='none';
+  if(keys['KeyE']&&nearLift){keys['KeyE']=false;useLift();}
+
+  treeColls.forEach(t=>{const dx=sp.x-t.x,dz=sp.z-t.z;if(Math.sqrt(dx*dx+dz*dz)<t.r+.5){velocity.x*=-.25;velocity.z*=-.25;}});
+  chaletColls.forEach(c=>{const dx=sp.x-c.x,dz=sp.z-c.z;if(Math.sqrt(dx*dx+dz*dz)<c.r){velocity.x*=-.2;velocity.z*=-.2;}});
+}
+
+function updateLift(dt){
+  liftProgress+=dt*.13;
+  if(liftProgress>=1){
+    onLift=false;liftProgress=0;
+    const ld=currentLiftData;
+    skier.position.set(ld.to.x,getH(ld.to.x,ld.to.z)+.5,ld.to.z);
+    velocity.set(0,0,0);currentLiftData=null;
+    document.getElementById('lift-msg').style.display='none';
+    return;
+  }
+  const ld=currentLiftData,t=liftProgress;
+  const x=ld.from.x+(ld.to.x-ld.from.x)*t,z=ld.from.z+(ld.to.z-ld.from.z)*t;
+  const fy=getH(ld.from.x,ld.from.z)+8,ty=getH(ld.to.x,ld.to.z)+8;
+  skier.position.set(x,fy+(ty-fy)*t,z);
+}
+
+function updateLiftCars(dt){
+  liftCars.forEach(lc=>{
+    lc.progress=(lc.progress+dt*.09)%1;
+    const ld=liftDefs[lc.liftIdx],t=lc.progress;
+    const x=ld.from.x+(ld.to.x-ld.from.x)*t,z=ld.from.z+(ld.to.z-ld.from.z)*t;
+    const steps=lc.cableY.length-1,si=Math.min(Math.floor(t*steps),steps-1),ft=t*steps-si;
+    const y=lc.cableY[si]*(1-ft)+lc.cableY[Math.min(si+1,steps)]*ft-.75;
+    lc.mesh.position.set(x,y,z);
+    lc.mesh.rotation.y=Math.atan2(ld.to.x-ld.from.x,ld.to.z-ld.from.z);
+  });
+}
+
+function updateCoins(){
+  const sp=skier.position,range=upgrades.has('magnet')?5:2.5;
+  coins3d.forEach(c=>{
+    if(!c.active)return;
+    c.mesh.rotation.y+=.04;
+    c.mesh.position.y=getH(c.x,c.z)+1.1+Math.sin(Date.now()*.003+c.x)*.15;
+    if(Math.sqrt((sp.x-c.x)**2+(sp.z-c.z)**2)<range){c.active=false;c.mesh.visible=false;addCoins(c.val);}
+  });
+}
+
+function updateSnow(dt){
+  const sp=skier.position;
+  for(let i=0;i<snowPos.length/3;i++){
+    snowPos[i*3+1]-=dt*4;
+    if(snowPos[i*3+1]<sp.y-3){
+      snowPos[i*3]=sp.x+(Math.random()-.5)*70;
+      snowPos[i*3+1]=sp.y+28+Math.random()*14;
+      snowPos[i*3+2]=sp.z+(Math.random()-.5)*70;
+    }
+  }
+  snowParticles.geometry.attributes.position.needsUpdate=true;
+}
+
+function updateCamera(){
+  const sp=skier.position;
+  if(overheadView){
+    camera.position.lerp(new THREE.Vector3(sp.x,sp.y+90,sp.z),.1);
+    camera.lookAt(sp.x,sp.y,sp.z);
+    return;
+  }
+  // Camera behind skier. Mouse drag offsets angle temporarily then snaps back.
+  camMouseDX*=.88;
+  const yaw=skierAngle+camMouseDX;
+  const dist=16;
+  const tx=sp.x+Math.sin(yaw)*dist*Math.cos(camPitch);
+  const ty=sp.y+Math.sin(camPitch)*dist+2;
+  const tz=sp.z+Math.cos(yaw)*dist*Math.cos(camPitch);
+  camera.position.lerp(new THREE.Vector3(tx,ty,tz),.12);
+  camera.lookAt(sp.x,sp.y+1.2,sp.z);
+}
+
+// ── Full map ──────────────────────────────────────────────────────────────────
+function toggleMap(){mapOpen?closeMap():openMap();}
+function openMap(){
+  mapOpen=true;
+  document.getElementById('map-overlay').classList.add('open');
+  if(document.pointerLockElement)document.exitPointerLock();
+  drawFullMap();
+}
+function closeMap(){mapOpen=false;document.getElementById('map-overlay').classList.remove('open');}
+
+function drawFullMap(){
+  const wrap=document.getElementById('map-canvas-wrap');
+  const cv=document.getElementById('map-canvas-big');
+  cv.width=wrap.clientWidth;cv.height=wrap.clientHeight;
+  const W=cv.width,H=cv.height,ctx=cv.getContext('2d');
+  const HALF=255,scale=Math.min(W,H)*.9/(HALF*2),ox=W/2,oy=H/2;
+  const px=(x,z)=>({x:ox+x*scale,y:oy+z*scale});
+
+  ctx.fillStyle='#08111f';ctx.fillRect(0,0,W,H);
+
+  // Elevation grid
+  const CELLS=120,cw=(HALF*2)/CELLS,cpx=cw*scale;
+  for(let ci=0;ci<=CELLS;ci++){
+    for(let cj=0;cj<=CELLS;cj++){
+      const wx=-HALF+ci*cw,wz=-HALF+cj*cw,h=rawH(wx+cw*.5,wz+cw*.5);
+      let r,g,b;
+      if(h>72){r=245;g=250;b=255;}else if(h>55){r=210;g=228;b=248;}
+      else if(h>38){r=175;g=205;b=238;}else if(h>22){r=145;g=185;b=225;}
+      else if(h>8){r=120;g=162;b=210;}else{r=100;g=140;b=195;}
+      const p=px(wx,wz);
+      ctx.fillStyle=`rgb(${r},${g},${b})`;ctx.fillRect(p.x,p.y,cpx+.5,cpx+.5);
+    }
+  }
+
+  // Zone overlays
+  const fz=(x0,z0,x1,z1,col,a)=>{const a0=px(x0,z0),b=px(x1,z1);ctx.globalAlpha=a;ctx.fillStyle=col;ctx.fillRect(a0.x,a0.y,b.x-a0.x,b.y-a0.y);ctx.globalAlpha=1;};
+  fz(95,-150,225,150,'#1a5c18',.35);fz(-225,-150,-95,150,'#1a5c18',.35);
+  [[-50,135,50,255,'#44cc44',.28],[30,-75,100,160,'#3377ee',.22],
+   [-125,-120,-45,90,'#555',.32],[-28,-140,48,-20,'#cc5500',.28]
+  ].forEach(a=>fz(...a));
+
+  // Trees
+  ctx.fillStyle='#2a6628';
+  treeColls.forEach(t=>{const p=px(t.x,t.z);ctx.beginPath();ctx.arc(p.x,p.y,1.8,0,Math.PI*2);ctx.fill();});
+
+  // Lifts
+  const lp=['#ff5500','#2288ff','#00bb44','#ff99cc','#cc6600'];
+  liftDefs.forEach((ld,i)=>{
+    const f=px(ld.from.x,ld.from.z),t=px(ld.to.x,ld.to.z),col=lp[i];
+    ctx.strokeStyle='rgba(0,0,0,.45)';ctx.lineWidth=5;ctx.setLineDash([]);
+    ctx.beginPath();ctx.moveTo(f.x+1,f.y+1);ctx.lineTo(t.x+1,t.y+1);ctx.stroke();
+    ctx.strokeStyle=col;ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(f.x,f.y);ctx.lineTo(t.x,t.y);ctx.stroke();
+    [f,t].forEach(pt=>{ctx.beginPath();ctx.arc(pt.x,pt.y,6,0,Math.PI*2);ctx.fillStyle=col;ctx.fill();ctx.strokeStyle='white';ctx.lineWidth=1.5;ctx.stroke();});
+    const mx=(f.x+t.x)/2,my=(f.y+t.y)/2;
+    ctx.font='bold 10px Segoe UI';ctx.textAlign='center';ctx.textBaseline='middle';
+    const tw=ctx.measureText(ld.name).width;
+    ctx.fillStyle='rgba(0,0,0,.65)';ctx.fillRect(mx-tw/2-4,my-8,tw+8,16);
+    ctx.fillStyle=col;ctx.fillText(ld.name,mx,my);
+  });
+  ctx.setLineDash([]);
+
+  // Run labels
+  const rlc={Bunny:'#44cc44','Easy Cruiser':'#4499ff',Black:'#ccc','Trick Park':'#ff7700','East Glade':'#55ccaa','West Glade':'#55ccaa'};
+  RUNS.forEach(r=>{
+    const p=px(r.cx,r.cz),col=rlc[r.name.split(' ')[0]]||rlc[r.name]||'#fff';
+    ctx.font='bold 12px Segoe UI';ctx.textAlign='center';ctx.textBaseline='middle';
+    const tw=ctx.measureText(r.name).width,pw=tw+16,ph=18;
+    ctx.fillStyle='rgba(0,0,0,.72)';ctx.beginPath();ctx.ellipse(p.x,p.y,pw/2,ph/2,0,0,Math.PI*2);ctx.fill();
+    ctx.strokeStyle=col;ctx.lineWidth=1.5;ctx.stroke();
+    ctx.fillStyle=col;ctx.fillText(r.name,p.x,p.y);
+    ctx.font='9px Segoe UI';ctx.fillStyle='rgba(255,255,255,.5)';ctx.fillText(r.diff,p.x,p.y+16);
+  });
+
+  // Chalets
+  CHALET_DEFS.forEach(cd=>{
+    const p=px(cd.x,cd.z);
+    ctx.fillStyle='#c8a070';ctx.strokeStyle='rgba(255,255,255,.6)';ctx.lineWidth=1;
+    ctx.fillRect(p.x-5,p.y-3,10,8);ctx.strokeRect(p.x-5,p.y-3,10,8);
+    ctx.fillStyle='#a06030';ctx.beginPath();ctx.moveTo(p.x-7,p.y-3);ctx.lineTo(p.x,p.y-9);ctx.lineTo(p.x+7,p.y-3);ctx.closePath();ctx.fill();ctx.stroke();
+    ctx.font='9px Segoe UI';ctx.textAlign='center';ctx.textBaseline='top';
+    ctx.fillStyle='rgba(255,255,255,.75)';ctx.fillText(cd.label,p.x,p.y+7);
+  });
+
+  // Coins
+  coins3d.filter(c=>c.active).forEach(c=>{const p=px(c.x,c.z);ctx.fillStyle='#FFD700';ctx.beginPath();ctx.arc(p.x,p.y,2.5,0,Math.PI*2);ctx.fill();});
+
+  // Player
+  const pp=px(skier.position.x,skier.position.z);
+  ctx.save();ctx.translate(pp.x,pp.y);ctx.rotate(skierAngle);
+  const as=11;
+  ctx.fillStyle='#ff2222';ctx.strokeStyle='white';ctx.lineWidth=2;
+  ctx.beginPath();ctx.moveTo(0,-as);ctx.lineTo(-as*.55,as*.65);ctx.lineTo(0,as*.25);ctx.lineTo(as*.55,as*.65);ctx.closePath();
+  ctx.fill();ctx.stroke();ctx.restore();
+
+  // Compass
+  const cxc=W-38,cyc=38,cr=26;
+  ctx.fillStyle='rgba(0,0,0,.5)';ctx.beginPath();ctx.arc(cxc,cyc,cr+4,0,Math.PI*2);ctx.fill();
+  ctx.strokeStyle='rgba(255,255,255,.25)';ctx.lineWidth=1;ctx.beginPath();ctx.arc(cxc,cyc,cr+4,0,Math.PI*2);ctx.stroke();
+  [['N',0,'#ff5533'],['E',Math.PI/2,'#aaa'],['S',Math.PI,'#aaa'],['W',-Math.PI/2,'#aaa']].forEach(([l,a,col])=>{
+    ctx.font=l==='N'?'bold 13px Segoe UI':'11px Segoe UI';ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillStyle=col;ctx.fillText(l,cxc+Math.sin(a)*cr*.72,cyc-Math.cos(a)*cr*.72);
+  });
+  ctx.strokeStyle='rgba(255,255,255,.1)';ctx.lineWidth=1;ctx.strokeRect(0,0,W,H);
+}
 </script>
 </body>
 </html>
