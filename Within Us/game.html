@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Within Us - Advanced Systems</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #020617; touch-action: none; font-family: ui-sans-serif, system-ui, sans-serif; }
+        canvas { display: block; }
+        #joystick-area { position: absolute; bottom: 40px; left: 40px; width: 120px; height: 120px; background: rgba(255, 255, 255, 0.05); border-radius: 50%; border: 2px solid rgba(255, 255, 255, 0.1); z-index: 100; }
+        #joystick-knob { position: absolute; top: 50%; left: 50%; width: 50px; height: 50px; background: rgba(255, 255, 255, 0.3); border-radius: 50%; transform: translate(-50%, -50%); pointer-events: none; }
+        .overlay { background: rgba(0,0,0,0.92); backdrop-filter: blur(12px); }
+        .cooldown-active { filter: grayscale(1); opacity: 0.5; cursor: not-allowed; }
+        
+        @keyframes pulse-red { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+        .emergency-alert { animation: pulse-red 1s infinite; }
+
+        /* Kill Animation Styles */
+        @keyframes knife-slash {
+            0% { transform: translate(-50%, -50%) rotate(-45deg) scale(0); opacity: 0; }
+            30% { transform: translate(-50%, -50%) rotate(10deg) scale(1.4); opacity: 1; }
+            100% { transform: translate(-50%, -50%) rotate(0deg) scale(1.2); opacity: 1; }
+        }
+        @keyframes screen-shake {
+            0%, 100% { transform: translate(0, 0); }
+            10% { transform: translate(-8px, -8px); }
+            20% { transform: translate(8px, 8px); }
+            30% { transform: translate(-8px, 8px); }
+            40% { transform: translate(8px, -8px); }
+        }
+        .animate-shake { animation: screen-shake 0.15s infinite; }
+        .knife-svg { animation: knife-slash 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+        
+        /* Task Station Glow */
+        .task-glow { filter: drop-shadow(0 0 8px rgba(14, 165, 233, 0.8)); }
+        .emergency-glow { filter: drop-shadow(0 0 12px rgba(244, 63, 94, 0.8)); }
+    </style>
+</head>
+<body class="text-white select-none">
+
+    <canvas id="gameCanvas"></canvas>
+
+    <!-- UI Overlay -->
+    <div class="absolute inset-0 z-20 pointer-events-none p-6">
+        <div class="flex justify-between items-start">
+            <!-- Vessel Systems Task Bar -->
+            <div class="bg-slate-900/90 p-4 rounded-2xl border border-slate-700 w-72 pointer-events-auto shadow-2xl">
+                <div class="flex justify-between items-end mb-1">
+                    <span class="text-[10px] font-black text-emerald-400 uppercase tracking-widest italic">Vessel Systems</span>
+                    <span id="task-percent" class="text-xs font-mono">0%</span>
+                </div>
+                <div class="w-full bg-slate-800 h-3 rounded-full overflow-hidden border border-slate-700">
+                    <div id="task-bar" class="bg-gradient-to-r from-emerald-600 to-emerald-400 h-full w-0 transition-all duration-500"></div>
+                </div>
+            </div>
+            
+            <div class="flex flex-col items-end gap-3">
+                <button id="btn-report" class="bg-orange-600 border-2 border-orange-400 p-4 px-8 rounded-xl font-black text-xs pointer-events-auto hidden animate-bounce shadow-xl">REPORT BODY</button>
+            </div>
+        </div>
+
+        <!-- USE Button -->
+        <div class="absolute bottom-10 right-10 flex flex-col items-center gap-6">
+            <button id="btn-use" class="w-32 h-32 rounded-full bg-sky-600 border-4 border-sky-300 text-white font-black text-xl pointer-events-auto shadow-2xl active:scale-90 transition-all flex flex-col items-center justify-center">
+                <span id="use-text">USE</span>
+                <span id="use-timer" class="text-sm font-mono hidden">10s</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- KILL ANIMATION SCREEN -->
+    <div id="screen-kill" class="absolute inset-0 z-[150] bg-black hidden flex items-center justify-center">
+        <div id="kill-container" class="relative w-full h-full flex items-center justify-center overflow-hidden">
+            <div class="absolute inset-0 bg-red-950/40 animate-pulse"></div>
+            <div class="relative z-10 w-full h-full flex items-center justify-center">
+                <svg class="knife-svg w-64 h-64 text-white absolute top-1/2 left-1/2" style="filter: drop-shadow(0 0 20px rgba(255,255,255,0.4));" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M19.37 2.47c-.39-.39-1.02-.39-1.41 0L13.12 7.31l1.41 1.41 4.84-4.84c.39-.39.39-1.03 0-1.41zM11.71 8.72l-1.41-1.41-6.83 6.83c-.39.39-.39 1.02 0 1.41l2.12 2.12c.39.39 1.02.39 1.41 0l6.83-6.83-2.12-2.12zM5.12 18.46L2.47 21.11c-.39.39-.39 1.02 0 1.41s1.02.39 1.41 0l2.65-2.65-1.41-1.41z"/>
+                </svg>
+            </div>
+            <div class="absolute bottom-24 text-6xl font-black italic tracking-tighter text-red-600 uppercase drop-shadow-[0_0_15px_rgba(220,38,38,0.5)]">Eliminated</div>
+        </div>
+    </div>
+
+    <!-- Modals and Screens (Task, Meeting, Start, GameOver) -->
+    <div id="modal-task" class="absolute inset-0 z-40 overlay hidden flex items-center justify-center pointer-events-auto">
+        <div class="bg-slate-900 border-2 border-slate-700 p-8 rounded-[2.5rem] max-w-md w-full shadow-2xl relative overflow-hidden">
+            <div class="absolute top-0 left-0 w-full h-1 bg-sky-500 shadow-[0_0_15px_rgba(14,165,233,0.5)]"></div>
+            <h2 id="task-title" class="text-xl font-black text-center mb-6 text-sky-400 tracking-tighter uppercase">Station Access</h2>
+            <div id="minigame-container" class="min-h-[250px] flex flex-col items-center justify-center gap-6"></div>
+            <button onclick="closeModal('modal-task')" class="mt-8 w-full py-3 text-slate-500 text-[10px] font-black uppercase tracking-[0.3em] hover:text-slate-300 transition-colors">Abort Sequence</button>
+        </div>
+    </div>
+
+    <div id="modal-meeting" class="absolute inset-0 z-50 overlay hidden flex flex-col items-center justify-center p-6 pointer-events-auto">
+        <div class="text-center mb-12">
+            <h1 class="text-6xl font-black italic text-rose-500 emergency-alert uppercase tracking-tighter">Emergency Meeting</h1>
+            <p class="text-slate-400 uppercase tracking-widest text-xs mt-2">Identify the threat among the crew</p>
+        </div>
+        <div id="vote-grid" class="grid grid-cols-2 md:grid-cols-4 gap-4 max-w-5xl w-full"></div>
+        <div class="mt-10 flex gap-4">
+            <button id="btn-skip" class="bg-slate-800 hover:bg-slate-700 px-12 py-4 rounded-xl font-black text-xs uppercase tracking-widest border border-slate-600 transition-all">Skip Vote</button>
+        </div>
+    </div>
+
+    <div id="screen-eject" class="absolute inset-0 z-[60] bg-black hidden flex flex-col items-center justify-center p-10 text-center">
+        <h2 id="eject-text" class="text-4xl font-black italic mb-4">Red was ejected.</h2>
+        <p id="eject-sub" class="text-xl text-slate-400 font-bold uppercase tracking-widest">He was the Impostor.</p>
+        <button id="btn-proceed" class="mt-12 bg-white text-black font-black px-12 py-4 rounded-xl uppercase italic">Proceed</button>
+    </div>
+
+    <div id="screen-start" class="absolute inset-0 z-[100] bg-slate-950 flex items-center justify-center p-6 text-center">
+        <div>
+            <h1 class="text-8xl font-black mb-2 italic tracking-tighter">WITHIN <span class="text-sky-500">US</span></h1>
+            <p class="text-slate-500 mb-12 text-[10px] tracking-[0.5em] uppercase">V4.1 Advanced Systems Protocol</p>
+            <button id="btn-start" class="bg-sky-500 hover:bg-sky-400 hover:scale-105 px-20 py-6 rounded-2xl font-black text-2xl shadow-2xl transition-all uppercase italic">Launch Mission</button>
+        </div>
+    </div>
+
+    <div id="screen-gameover" class="absolute inset-0 z-[200] bg-slate-950 flex items-center justify-center hidden text-center p-6">
+        <div>
+            <h1 id="end-title" class="text-9xl font-black mb-4 italic tracking-tighter">DEFEAT</h1>
+            <p id="end-desc" class="text-xl text-slate-400 mb-12 uppercase tracking-[0.2em]">The mission has failed.</p>
+            <div id="survivor-list" class="mb-12 flex flex-wrap justify-center gap-4"></div>
+            <button onclick="location.reload()" class="bg-white text-black font-black py-5 px-16 rounded-2xl text-xl hover:bg-slate-200 transition-all uppercase italic">New Mission</button>
+        </div>
+    </div>
+
+    <div id="joystick-area" class="hidden"><div id="joystick-knob"></div></div>
+
+    <script>
+        const TILE_SIZE = 140;
+        const SPEED = 6.4;
+        const HITBOX = 28;
+        const TASK_LIMIT = 1200;
+        const COOLDOWN_MS = 10000;
+        const EMERGENCY_COOLDOWN_MS = 60000; // 1 minute cooldown
+
+        const map = [
+            "11111111111111111111",
+            "1D00000100M0010000P1",
+            "10111101011101011101",
+            "10100000010100000101",
+            "10101111110111110101",
+            "1000000000E000000001",
+            "10101111110111110101",
+            "10100000010100000101",
+            "10111101011101011101",
+            "1P00000100D0010000M1",
+            "11111111111111111111"
+        ];
+
+        const MAP_W = map[0].length * TILE_SIZE;
+        const MAP_H = map.length * TILE_SIZE;
+
+        let canvas, ctx, player, bots = [], tasks = [];
+        let state = 'MENU', progress = 0, camera = { x: 0, y: 0 };
+        let keys = {}, joy = { active: false, x: 0, y: 0 };
+        let lastTask = 0;
+        let lastMeeting = 0;
+
+        const COLORS = [
+            { name: 'RED', main: '#f43f5e', dark: '#9f1239' },
+            { name: 'BLUE', main: '#3b82f6', dark: '#1d4ed8' },
+            { name: 'GREEN', main: '#22c55e', dark: '#15803d' },
+            { name: 'PINK', main: '#ec4899', dark: '#be185d' },
+            { name: 'ORANGE', main: '#f97316', dark: '#c2410c' },
+            { name: 'YELLOW', main: '#eab308', dark: '#a16207' },
+            { name: 'PURPLE', main: '#a855f7', dark: '#7e22ce' },
+            { name: 'CYAN', main: '#06b6d4', dark: '#0e7490' },
+            { name: 'WHITE', main: '#f8fafc', dark: '#94a3b8' },
+            { name: 'BLACK', main: '#334155', dark: '#0f172a' }
+        ];
+
+        function isWall(x, y) {
+            let cx = Math.floor(x / TILE_SIZE);
+            let cy = Math.floor(y / TILE_SIZE);
+            if (cy < 0 || cy >= map.length || cx < 0 || cx >= map[0].length) return true;
+            return map[cy][cx] === '1';
+        }
+
+        function checkCollision(x, y) {
+            return isWall(x - HITBOX, y - HITBOX) || 
+                   isWall(x + HITBOX, y - HITBOX) || 
+                   isWall(x - HITBOX, y + HITBOX) || 
+                   isWall(x + HITBOX, y + HITBOX);
+        }
+
+        function getRandomSafePos() {
+            let x, y, px, py;
+            do {
+                x = Math.floor(Math.random() * map[0].length);
+                y = Math.floor(Math.random() * map.length);
+                px = x * TILE_SIZE + TILE_SIZE/2;
+                py = y * TILE_SIZE + TILE_SIZE/2;
+            } while (map[y][x] === '1' || checkCollision(px, py));
+            return { x: px, y: py };
+        }
+
+        class Entity {
+            constructor(x, y, colorData) {
+                this.x = x; this.y = y; this.colorData = colorData;
+                this.isDead = false; this.facing = 1; this.moving = false;
+            }
+
+            draw() {
+                ctx.save();
+                ctx.translate(this.x, this.y);
+                if (this.facing === -1) ctx.scale(-1, 1);
+                
+                if (this.isDead) {
+                    ctx.fillStyle = this.colorData.dark; ctx.beginPath(); ctx.ellipse(0, 10, 26, 14, 0, 0, Math.PI, true); ctx.fill();
+                    ctx.fillStyle = "white"; ctx.beginPath(); ctx.roundRect(-4, -8, 8, 20, 4); ctx.fill();
+                } else {
+                    ctx.fillStyle = this.colorData.dark; ctx.beginPath(); ctx.roundRect(-26, -15, 12, 35, 6); ctx.fill();
+                    ctx.fillStyle = this.colorData.main; ctx.beginPath(); ctx.roundRect(-22, -35, 44, 60, 16); ctx.fill();
+                    let bounce = this.moving ? Math.sin(Date.now() / 80) * 12 : 0;
+                    ctx.fillStyle = this.colorData.dark; 
+                    ctx.beginPath(); ctx.roundRect(-18, 20 + bounce, 16, 16, 6); ctx.fill();
+                    ctx.beginPath(); ctx.roundRect(2, 20 - bounce, 16, 16, 6); ctx.fill();
+                    ctx.fillStyle = "#1e293b"; ctx.beginPath(); ctx.roundRect(4, -25, 26, 22, 10); ctx.fill();
+                    ctx.fillStyle = "#64748b"; ctx.beginPath(); ctx.roundRect(10, -21, 16, 14, 6); ctx.fill();
+                }
+                ctx.restore();
+                if (!this.isDead) {
+                    ctx.fillStyle = "white";
+                    ctx.font = "bold 14px sans-serif";
+                    ctx.textAlign = "center";
+                    ctx.fillText(this.colorData.name, this.x, this.y - 50);
+                }
+            }
+
+            move(dx, dy) {
+                if (dx === 0 && dy === 0) { this.moving = false; return; }
+                this.moving = true;
+                if (!checkCollision(this.x + dx, this.y)) this.x += dx;
+                if (!checkCollision(this.x, this.y + dy)) this.y += dy;
+                if (Math.abs(dx) > 0.1) this.facing = dx > 0 ? 1 : -1;
+            }
+        }
+
+        class Player extends Entity {
+            update() {
+                if (this.isDead || state !== 'PLAYING') return;
+                let dx = 0, dy = 0;
+                if (keys['w']) dy--; if (keys['s']) dy++; if (keys['a']) dx--; if (keys['d']) dx++;
+                if (joy.active) { dx = joy.x; dy = joy.y; }
+                if (dx || dy) {
+                    let m = Math.hypot(dx, dy);
+                    this.move((dx/m) * SPEED, (dy/m) * SPEED);
+                } else { this.moving = false; }
+
+                const nearBody = bots.find(b => b.isDead && Math.hypot(b.x - this.x, b.y - this.y) < 140);
+                document.getElementById('btn-report').classList.toggle('hidden', !nearBody);
+                
+                const taskBtn = document.getElementById('btn-use');
+                const timerText = document.getElementById('use-timer');
+                const useText = document.getElementById('use-text');
+                const isOffCooldon = Date.now() - lastTask > COOLDOWN_MS;
+                const isEmergencyOffCooldown = Date.now() - lastMeeting > EMERGENCY_COOLDOWN_MS;
+                
+                const nearT = tasks.find(t => Math.hypot(t.x - this.x, t.y - this.y) < 130);
+                
+                if (nearT && nearT.type === 'E') {
+                    useText.innerText = "REPORT";
+                    taskBtn.classList.toggle('cooldown-active', !isEmergencyOffCooldown);
+                    timerText.classList.toggle('hidden', isEmergencyOffCooldown);
+                    if (!isEmergencyOffCooldown) {
+                        timerText.innerText = Math.ceil((EMERGENCY_COOLDOWN_MS - (Date.now() - lastMeeting))/1000) + 's';
+                    }
+                } else {
+                    useText.innerText = "USE";
+                    taskBtn.classList.toggle('cooldown-active', !isOffCooldon && nearT);
+                    timerText.classList.toggle('hidden', isOffCooldon || !nearT);
+                    if (!isOffCooldon && nearT) {
+                        timerText.innerText = Math.ceil((COOLDOWN_MS - (Date.now() - lastTask))/1000) + 's';
+                    }
+                }
+            }
+        }
+
+        class Bot extends Entity {
+            constructor(x, y, color, imp) {
+                super(x, y, color);
+                this.isImp = imp;
+                this.target = getRandomSafePos();
+                this.wait = 0;
+                this.killCheckTimer = 0;
+            }
+            update() {
+                if (this.isDead || state !== 'PLAYING') return;
+
+                if (this.isImp) {
+                    this.killCheckTimer++;
+                    if (this.killCheckTimer >= 1800) {
+                        this.killCheckTimer = 0;
+                        if (Math.random() < 0.33) {
+                            let targets = [player, ...bots].filter(e => !e.isDead && e !== this && !e.isImp);
+                            let closest = null, minDist = 400;
+                            for (let t of targets) {
+                                let d = Math.hypot(t.x - this.x, t.y - this.y);
+                                if (d < minDist) { minDist = d; closest = t; }
+                            }
+                            if (closest) {
+                                if (closest === player) triggerKillAnimation();
+                                else closest.isDead = true; 
+                                checkEndCondition();
+                            }
+                        }
+                    }
+                }
+
+                if (this.wait > 0) {
+                    this.wait--; this.moving = false;
+                    if (!this.isImp && this.wait % 200 === 0) updateProgress(1);
+                    return;
+                }
+
+                let dx = this.target.x - this.x, dy = this.target.y - this.y;
+                let d = Math.hypot(dx, dy);
+                if (d < 30) {
+                    this.target = getRandomSafePos();
+                    this.wait = 100 + Math.random() * 200;
+                } else {
+                    let oldX = this.x, oldY = this.y;
+                    this.move((dx/d) * (SPEED * 0.7), (dy/d) * (SPEED * 0.7));
+                    if (Math.hypot(this.x - oldX, this.y - oldY) < 0.1) {
+                        this.target = getRandomSafePos();
+                    }
+                }
+            }
+        }
+
+        function triggerKillAnimation() {
+            state = 'KILL_ANIM';
+            player.isDead = true;
+            const killScreen = document.getElementById('screen-kill');
+            const killCont = document.getElementById('kill-container');
+            killScreen.classList.remove('hidden');
+            killCont.classList.add('animate-shake');
+            setTimeout(() => {
+                killScreen.classList.add('hidden');
+                killCont.classList.remove('animate-shake');
+                endGame(false, "The Impostor eliminated you.");
+            }, 2500);
+        }
+
+        function init() {
+            canvas = document.getElementById('gameCanvas'); ctx = canvas.getContext('2d');
+            window.addEventListener('resize', () => { canvas.width = window.innerWidth; canvas.height = window.innerHeight; });
+            window.dispatchEvent(new Event('resize'));
+            window.addEventListener('keydown', e => keys[e.key.toLowerCase()] = true);
+            window.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
+            document.getElementById('btn-start').onclick = startGame;
+            document.getElementById('btn-use').onclick = handleUse;
+            document.getElementById('btn-report').onclick = () => showMeeting(true);
+            document.getElementById('btn-skip').onclick = () => voteEject(null);
+            document.getElementById('btn-proceed').onclick = () => {
+                document.getElementById('screen-eject').classList.add('hidden');
+                if (state !== 'GAMEOVER') state = 'PLAYING';
+            };
+            setupJoystick();
+            requestAnimationFrame(loop);
+        }
+
+        function startGame() {
+            document.getElementById('screen-start').classList.add('hidden');
+            progress = 0; lastTask = 0; lastMeeting = 0; tasks = [];
+            const shuffledCols = [...COLORS].sort(() => Math.random() - 0.5);
+
+            for (let r = 0; r < map.length; r++) {
+                for (let c = 0; c < map[0].length; c++) {
+                    let x = c * TILE_SIZE + TILE_SIZE/2, y = r * TILE_SIZE + TILE_SIZE/2;
+                    if (['D','M','P','E'].includes(map[r][c])) tasks.push({x, y, type: map[r][c]});
+                }
+            }
+
+            player = new Player(MAP_W/2, MAP_H/2, shuffledCols[0]);
+            bots = [];
+            let impIdx = 1 + Math.floor(Math.random() * (shuffledCols.length - 1));
+            for (let i = 1; i < shuffledCols.length; i++) {
+                let p = getRandomSafePos();
+                bots.push(new Bot(p.x, p.y, shuffledCols[i], i === impIdx));
+            }
+            state = 'PLAYING';
+            updateProgress(0);
+        }
+
+        function updateProgress(v) {
+            progress = Math.min(TASK_LIMIT, progress + v);
+            const p = (progress/TASK_LIMIT)*100;
+            document.getElementById('task-bar').style.width = p + '%';
+            document.getElementById('task-percent').innerText = Math.floor(p) + '%';
+            if (progress >= TASK_LIMIT) endGame(true, "All Tasks Completed.");
+        }
+
+        function handleUse() {
+            const near = tasks.find(t => Math.hypot(t.x - player.x, t.y - player.y) < 130);
+            if (!near) return;
+            if (near.type === 'E') { 
+                if (Date.now() - lastMeeting < EMERGENCY_COOLDOWN_MS) return;
+                showMeeting(false); 
+                return; 
+            }
+            if (Date.now() - lastTask < COOLDOWN_MS) return;
+            
+            // Randomize task type every time you use a task station
+            const taskTypes = ['D', 'M', 'P'];
+            const randomType = taskTypes[Math.floor(Math.random() * taskTypes.length)];
+            openTaskModal({ ...near, type: randomType });
+        }
+
+        function openTaskModal(task) {
+            state = 'MODAL';
+            const modal = document.getElementById('modal-task');
+            const container = document.getElementById('minigame-container');
+            const title = document.getElementById('task-title');
+            modal.classList.remove('hidden');
+            container.innerHTML = '';
+            if (task.type === 'D') {
+                title.innerText = "DATA UPLOAD";
+                container.innerHTML = `
+                    <div class="w-full text-center space-y-4">
+                        <div class="flex justify-between items-center bg-slate-800 p-4 rounded-xl border border-slate-700">
+                            <span class="text-[10px] font-bold">LOCAL</span>
+                            <div class="flex-1 mx-4 bg-slate-950 h-2 rounded-full overflow-hidden"><div id="dl-bar" class="h-full bg-sky-500 w-0"></div></div>
+                            <span class="text-[10px] font-bold">HQ</span>
+                        </div>
+                        <button id="dl-btn" class="w-full py-4 bg-sky-600 rounded-xl font-black text-sm active:scale-95 transition-transform">START TRANSMISSION</button>
+                    </div>
+                `;
+                let p = 0; let active = false;
+                document.getElementById('dl-btn').onclick = (e) => { active = true; e.target.disabled = true; e.target.innerText = "UPLOADING..."; };
+                const interval = setInterval(() => { if (active) { p += 1.5; document.getElementById('dl-bar').style.width = p + '%'; if (p >= 100) { clearInterval(interval); finishTask(150); } } }, 40);
+            } else if (task.type === 'M') {
+                title.innerText = "SEQUENCE CHECK";
+                container.innerHTML = `<div class="grid grid-cols-5 gap-2" id="manifold-grid"></div>`;
+                const grid = document.getElementById('manifold-grid');
+                let current = 1;
+                [1,2,3,4,5,6,7,8,9,10].sort(() => Math.random() - 0.5).forEach(n => {
+                    const b = document.createElement('button');
+                    b.className = "w-12 h-12 bg-slate-800 border-2 border-slate-700 rounded-lg font-black text-sky-400 hover:bg-slate-700 transition-colors";
+                    b.innerText = n;
+                    b.onclick = () => { if (n === current) { b.classList.add('opacity-30', 'bg-emerald-900', 'border-emerald-500'); b.disabled = true; current++; if (current > 10) finishTask(150); } };
+                    grid.appendChild(b);
+                });
+            } else {
+                title.innerText = "POWER SYNC";
+                container.innerHTML = `
+                    <div class="flex flex-col items-center gap-6">
+                        <div class="flex gap-4">
+                            <div id="p-1" class="w-8 h-12 bg-slate-800 rounded-lg border-2 border-slate-700"></div>
+                            <div id="p-2" class="w-8 h-12 bg-slate-800 rounded-lg border-2 border-slate-700"></div>
+                            <div id="p-3" class="w-8 h-12 bg-slate-800 rounded-lg border-2 border-slate-700"></div>
+                        </div>
+                        <button id="p-btn" class="bg-amber-500 w-24 h-24 rounded-full shadow-lg active:scale-90 transition-all border-4 border-amber-300"></button>
+                    </div>
+                `;
+                let activeNode = 1;
+                document.getElementById('p-btn').onclick = () => {
+                    document.getElementById('p-'+activeNode).style.backgroundColor = '#fbbf24';
+                    document.getElementById('p-'+activeNode).style.borderColor = '#fff';
+                    activeNode++; if (activeNode > 3) finishTask(150);
+                };
+            }
+        }
+
+        function finishTask(v) { lastTask = Date.now(); updateProgress(v); closeModal('modal-task'); }
+        function closeModal(id) { document.getElementById(id).classList.add('hidden'); state = 'PLAYING'; }
+
+        function showMeeting(isReport) {
+            state = 'MEETING';
+            if (!isReport) lastMeeting = Date.now();
+            if (isReport) bots = bots.filter(b => !b.isDead);
+
+            document.getElementById('modal-meeting').classList.remove('hidden');
+            const grid = document.getElementById('vote-grid');
+            grid.innerHTML = '';
+            [player, ...bots].forEach(e => {
+                const card = document.createElement('button');
+                card.className = `p-4 rounded-2xl border-2 flex flex-col items-center transition-all ${e.isDead ? 'opacity-20 bg-black' : 'bg-slate-900 border-slate-800 hover:border-sky-500'}`;
+                card.disabled = e.isDead || e === player;
+                card.innerHTML = `
+                    <div class="w-10 h-12 mb-2 relative" style="background:${e.colorData.main}; border-radius: 8px;">
+                        <div class="absolute top-2 right-[-6px] w-6 h-6 bg-slate-800/90 rounded border border-slate-500"></div>
+                    </div>
+                    <span class="text-xs font-black tracking-widest">${e.colorData.name}</span>
+                `;
+                if (!e.isDead && e !== player) card.onclick = () => voteEject(e);
+                grid.appendChild(card);
+            });
+        }
+
+        function voteEject(target) {
+            document.getElementById('modal-meeting').classList.add('hidden');
+            const screen = document.getElementById('screen-eject');
+            const text = document.getElementById('eject-text');
+            const sub = document.getElementById('eject-sub');
+            screen.classList.remove('hidden');
+            if (!target) { text.innerText = "No one was ejected."; sub.innerText = "The crew skipped."; }
+            else {
+                target.isDead = true;
+                text.innerText = `${target.colorData.name} was ejected.`;
+                if (target.isImp) { sub.innerText = "They were the Impostor."; sub.className = "text-xl text-emerald-500 font-bold uppercase tracking-widest"; }
+                else { sub.innerText = "They were not an Impostor."; sub.className = "text-xl text-rose-500 font-bold uppercase tracking-widest"; }
+                bots = bots.filter(b => b !== target);
+            }
+            checkEndCondition();
+        }
+
+        function checkEndCondition() {
+            if (player.isDead) return;
+            const imp = bots.find(b => b.isImp);
+            if (!imp) return endGame(true, "The Impostor has been ejected.");
+            if (bots.filter(b => !b.isDead && !b.isImp).length <= 0) return endGame(false, "The Impostor won.");
+        }
+
+        function endGame(win, msg) {
+            state = 'GAMEOVER';
+            document.getElementById('screen-gameover').classList.remove('hidden');
+            document.getElementById('end-title').innerText = win ? "VICTORY" : "DEFEAT";
+            document.getElementById('end-title').className = `text-9xl font-black mb-4 italic tracking-tighter ${win ? 'text-emerald-500' : 'text-rose-600'}`;
+            document.getElementById('end-desc').innerText = msg;
+            const list = document.getElementById('survivor-list');
+            list.innerHTML = '';
+            [player, ...bots].filter(e => !e.isDead).forEach(s => {
+                const item = document.createElement('div');
+                item.className = "px-4 py-2 bg-slate-900 border border-slate-700 rounded-full flex items-center gap-2";
+                item.innerHTML = `<div class="w-3 h-3 rounded-full" style="background:${s.colorData.main}"></div><span class="text-xs font-bold">${s.colorData.name}</span>`;
+                list.appendChild(item);
+            });
+        }
+
+        function setupJoystick() {
+            const area = document.getElementById('joystick-area'), knob = document.getElementById('joystick-knob');
+            const handle = (e) => {
+                e.preventDefault(); const t = e.touches ? e.touches[0] : e;
+                const r = area.getBoundingClientRect();
+                const cx = r.left + r.width/2, cy = r.top + r.height/2;
+                let dx = t.clientX - cx, dy = t.clientY - cy, d = Math.hypot(dx, dy);
+                if (d > 50) { dx *= 50/d; dy *= 50/d; }
+                knob.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
+                joy.x = dx/50; joy.y = dy/50; joy.active = true;
+            };
+            area.addEventListener('touchstart', handle); area.addEventListener('touchmove', handle);
+            area.addEventListener('touchend', () => { joy.active = false; knob.style.transform = 'translate(-50%, -50%)'; });
+            if (window.matchMedia("(pointer: coarse)").matches) area.classList.remove('hidden');
+        }
+
+        function loop() {
+            ctx.fillStyle = '#010410'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+            if (state === 'MENU') { requestAnimationFrame(loop); return; }
+            if (state === 'PLAYING') { player.update(); bots.forEach(b => b.update()); }
+
+            camera.x += (player.x - canvas.width/2 - camera.x) * 0.1;
+            camera.y += (player.y - canvas.height/2 - camera.y) * 0.1;
+            camera.x = Math.max(0, Math.min(camera.x, MAP_W - canvas.width));
+            camera.y = Math.max(0, Math.min(camera.y, MAP_H - canvas.height));
+
+            ctx.save(); ctx.translate(-camera.x, -camera.y);
+            for (let r = 0; r < map.length; r++) {
+                for (let c = 0; c < map[0].length; c++) {
+                    let x = c * TILE_SIZE, y = r * TILE_SIZE;
+                    if (map[r][c] === '1') { 
+                        ctx.fillStyle = '#1e293b'; ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE); 
+                        ctx.strokeStyle = '#020617'; ctx.lineWidth = 4; ctx.strokeRect(x+2, y+2, TILE_SIZE-4, TILE_SIZE-4); 
+                    } else { 
+                        ctx.fillStyle = '#0a0f1e'; ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE); 
+                        ctx.strokeStyle = '#1e293b'; ctx.lineWidth = 1; ctx.strokeRect(x, y, TILE_SIZE, TILE_SIZE); 
+                    }
+                }
+            }
+            tasks.forEach(t => {
+                ctx.save();
+                if (t.type === 'E') {
+                    ctx.fillStyle = '#334155'; ctx.beginPath(); ctx.roundRect(t.x-50, t.y-50, 100, 100, 15); ctx.fill();
+                    ctx.shadowBlur = 15; ctx.shadowColor = '#f43f5e';
+                    ctx.fillStyle = '#f43f5e'; ctx.beginPath(); ctx.arc(t.x, t.y, 35, 0, Math.PI*2); ctx.fill();
+                    ctx.fillStyle = 'white'; ctx.font = "bold 10px sans-serif"; ctx.textAlign = "center";
+                    ctx.fillText("ALARM", t.x, t.y + 5);
+                } else {
+                    ctx.shadowBlur = 10; ctx.shadowColor = '#0ea5e9';
+                    ctx.fillStyle = '#0ea5e9'; ctx.beginPath(); ctx.roundRect(t.x-25, t.y-25, 50, 50, 8); ctx.fill();
+                    ctx.strokeStyle = "white"; ctx.lineWidth = 2; ctx.stroke();
+                    ctx.fillStyle = 'white'; ctx.beginPath(); ctx.arc(t.x, t.y, 8, 0, Math.PI*2); ctx.fill();
+                }
+                ctx.restore();
+            });
+            [player, ...bots].sort((a,b) => a.y - b.y).forEach(e => e.draw());
+            ctx.restore();
+            requestAnimationFrame(loop);
+        }
+        window.onload = init;
+    </script>
+</body>
+</html>
