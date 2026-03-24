@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Army Pro - Boss Edition</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: #0f172a;
+            font-family: 'Arial Black', sans-serif;
+            touch-action: none;
+        }
+        #game-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        canvas {
+            background: linear-gradient(to bottom, #1e293b 0%, #334155 100%);
+            display: block;
+        }
+        .ui-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+            color: white;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+        }
+        .menu-screen {
+            position: absolute;
+            inset: 0;
+            background: rgba(15, 23, 42, 0.9);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+            pointer-events: all;
+            text-align: center;
+        }
+        .btn {
+            background: #22c55e;
+            color: white;
+            padding: 15px 50px;
+            border-radius: 12px;
+            font-size: 28px;
+            font-weight: 900;
+            cursor: pointer;
+            border: none;
+            box-shadow: 0 6px 0 #15803d;
+            transition: all 0.1s;
+            margin-top: 20px;
+        }
+        .btn:active {
+            transform: translateY(4px);
+            box-shadow: 0 2px 0 #15803d;
+        }
+        .count-badge {
+            font-size: 36px;
+            background: rgba(0,0,0,0.5);
+            padding: 5px 25px;
+            border-radius: 99px;
+            border: 2px solid #3b82f6;
+        }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <canvas id="gameCanvas"></canvas>
+    
+    <div id="ui" class="ui-overlay">
+        <div id="level-display" class="text-2xl font-black mb-2">LEVEL 1 / 20</div>
+        <div id="count-display" class="count-badge">1</div>
+        
+        <!-- Progress Bar -->
+        <div class="w-64 h-4 bg-gray-800 rounded-full mt-4 border-2 border-white overflow-hidden">
+            <div id="progress-fill" class="h-full bg-blue-500 w-0 transition-all duration-100"></div>
+        </div>
+    </div>
+
+    <div id="start-screen" class="menu-screen">
+        <h1 class="text-7xl font-black text-blue-500 italic mb-2">ARMY PRO</h1>
+        <p class="text-white text-xl mb-8 opacity-80 uppercase tracking-widest">Defeat the Bosses</p>
+        <button class="btn" onclick="startGame()">DEPLOY ARMY</button>
+    </div>
+
+    <div id="game-over-screen" class="menu-screen" style="display: none;">
+        <h2 id="result-text" class="text-6xl font-black text-red-500 mb-4">DEFEATED!</h2>
+        <p id="score-text" class="text-white text-xl mb-8">The boss was too strong.</p>
+        <button id="restart-btn" class="btn" onclick="resetLevel()">TRY AGAIN</button>
+    </div>
+</div>
+
+<script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    
+    const startScreen = document.getElementById('start-screen');
+    const gameOverScreen = document.getElementById('game-over-screen');
+    const resultText = document.getElementById('result-text');
+    const scoreText = document.getElementById('score-text');
+    const countDisplay = document.getElementById('count-display');
+    const levelDisplay = document.getElementById('level-display');
+    const progressFill = document.getElementById('progress-fill');
+    const restartBtn = document.getElementById('restart-btn');
+
+    const PLAYER_COLOR = '#3b82f6';
+    const ENEMY_COLOR = '#ef4444';
+    const BOSS_COLOR = '#7c3aed';
+    const ROAD_WIDTH = 360;
+    const GAME_SPEED = 5.5;
+    const TOTAL_LEVELS = 20;
+    
+    let gameState = 'MENU';
+    let currentLevel = 1;
+    let distance = 0;
+    let trackLength = 6000;
+    let playerX = 0;
+    let armyCount = 1;
+    let enemies = [];
+    let gates = [];
+    let boss = null;
+    let particles = [];
+    let shake = 0;
+
+    class Particle {
+        constructor(x, y, color) {
+            this.x = x; this.y = y;
+            this.vx = (Math.random() - 0.5) * 12;
+            this.vy = (Math.random() - 0.5) * 12;
+            this.life = 1.0;
+            this.color = color;
+        }
+        update() {
+            this.x += this.vx; this.y += this.vy;
+            this.life -= 0.04;
+        }
+        draw() {
+            ctx.globalAlpha = this.life;
+            ctx.fillStyle = this.color;
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, 4, 0, Math.PI*2);
+            ctx.fill();
+            ctx.globalAlpha = 1;
+        }
+    }
+
+    class Boss {
+        constructor(z) {
+            this.z = z;
+            this.hp = 20 + (currentLevel * 40);
+            this.maxHp = this.hp;
+            this.x = 0;
+            this.size = 90;
+        }
+        draw() {
+            const p = 800 / (800 + this.z);
+            const dx = canvas.width/2 + this.x * p;
+            const dy = canvas.height * 0.8 - this.z * p;
+            const sz = this.size * p;
+
+            ctx.fillStyle = '#000';
+            ctx.fillRect(dx - 60*p, dy - sz - 40*p, 120*p, 12*p);
+            ctx.fillStyle = '#f00';
+            ctx.fillRect(dx - 60*p, dy - sz - 40*p, (this.hp/this.maxHp) * 120*p, 12*p);
+
+            ctx.fillStyle = BOSS_COLOR;
+            ctx.beginPath();
+            ctx.moveTo(dx - sz, dy);
+            ctx.lineTo(dx + sz, dy);
+            ctx.lineTo(dx, dy - sz * 2.5);
+            ctx.closePath();
+            ctx.fill();
+            
+            ctx.fillStyle = 'white';
+            ctx.beginPath();
+            ctx.arc(dx - 20*p, dy - sz, 10*p, 0, Math.PI*2);
+            ctx.arc(dx + 20*p, dy - sz, 10*p, 0, Math.PI*2);
+            ctx.fill();
+            ctx.fillStyle = 'black';
+            ctx.beginPath();
+            ctx.arc(dx - 20*p, dy - sz, 4*p, 0, Math.PI*2);
+            ctx.arc(dx + 20*p, dy - sz, 4*p, 0, Math.PI*2);
+            ctx.fill();
+        }
+    }
+
+    function spawnParticles(x, y, color) {
+        for(let i=0; i<10; i++) particles.push(new Particle(x, y, color));
+    }
+
+    function init() {
+        resize();
+        window.addEventListener('resize', resize);
+        
+        const updateX = (clientX) => {
+            if(gameState !== 'PLAYING') return;
+            const rect = canvas.getBoundingClientRect();
+            const rawX = ((clientX - rect.left) / canvas.width - 0.5) * ROAD_WIDTH * 2;
+            playerX = Math.max(-ROAD_WIDTH/2 + 25, Math.min(ROAD_WIDTH/2 - 25, rawX));
+        };
+
+        canvas.addEventListener('mousemove', e => updateX(e.clientX));
+        canvas.addEventListener('touchmove', e => {
+            updateX(e.touches[0].clientX);
+            e.preventDefault();
+        }, {passive: false});
+
+        requestAnimationFrame(gameLoop);
+    }
+
+    function resize() {
+        canvas.width = Math.min(window.innerWidth, 500);
+        canvas.height = window.innerHeight;
+    }
+
+    function startGame() {
+        gameState = 'PLAYING';
+        startScreen.style.display = 'none';
+        gameOverScreen.style.display = 'none';
+        resetLevelData();
+    }
+
+    function resetLevel() {
+        startGame();
+    }
+
+    function resetLevelData() {
+        distance = 0;
+        playerX = 0;
+        armyCount = 1;
+        gates = [];
+        enemies = [];
+        particles = [];
+        trackLength = 6000 + (currentLevel * 1200);
+        
+        let zCounter = 1000;
+        let gateCycle = 0;
+
+        while (zCounter < trackLength - 1000) {
+            gateCycle++;
+            
+            // Generate a gate pair
+            gates.push(generateGatePair(zCounter, gateCycle > 1));
+            
+            // Every 3 gates, spawn a MANDATORY group of enemies across the track
+            if (gateCycle % 3 === 0) {
+                const enemyZ = zCounter + 500;
+                const enemyQty = 10 + (currentLevel * 6);
+                
+                // Mandatory wall of enemies
+                enemies.push({
+                    z: enemyZ,
+                    count: Math.floor(enemyQty * 0.4),
+                    x: -ROAD_WIDTH/3,
+                    active: true,
+                    mandatory: true
+                });
+                enemies.push({
+                    z: enemyZ,
+                    count: Math.floor(enemyQty * 0.4),
+                    x: ROAD_WIDTH/3,
+                    active: true,
+                    mandatory: true
+                });
+            } else {
+                // Random skirmish enemies
+                enemies.push({
+                    z: zCounter + 500,
+                    count: 5 + Math.floor(Math.random() * (currentLevel * 5)),
+                    x: (Math.random() - 0.5) * (ROAD_WIDTH - 80),
+                    active: true,
+                    mandatory: false
+                });
+            }
+            
+            zCounter += 1000;
+        }
+        
+        boss = new Boss(trackLength);
+        levelDisplay.innerText = `LEVEL ${currentLevel} / ${TOTAL_LEVELS}`;
+    }
+
+    function generateGatePair(z, allowPunishing) {
+        const createVal = () => {
+            const roll = Math.random();
+            
+            // Punishing gates logic (Division and heavy subtraction)
+            if (allowPunishing && roll < 0.25) {
+                if (Math.random() < 0.5) {
+                    return { type: 'DIV', val: 2, color: '#b91c1c', text: '÷2' };
+                } else {
+                    return { type: 'SUB', val: 100, color: '#7f1d1d', text: '-100' };
+                }
+            }
+            
+            // Standard negative gates
+            if (allowPunishing && roll < 0.45) {
+                return { type: 'SUB', val: 15 + Math.floor(Math.random() * 20), color: '#ef4444', text: '-' };
+            }
+
+            // Positive gates
+            const isMult = Math.random() < 0.35;
+            const val = isMult ? Math.floor(Math.random() * 2) + 2 : Math.floor(Math.random() * 25) + 5;
+            return {
+                type: isMult ? 'MULT' : 'ADD',
+                val: val,
+                color: isMult ? '#3b82f6' : '#22c55e',
+                text: isMult ? 'x' : '+'
+            };
+        };
+        return { z, left: createVal(), right: createVal(), active: true };
+    }
+
+    function update() {
+        if (gameState !== 'PLAYING') return;
+
+        distance += GAME_SPEED;
+        
+        const prog = Math.min(100, (distance / trackLength) * 100);
+        progressFill.style.width = prog + '%';
+
+        // Update Gates
+        gates.forEach(g => {
+            g.z -= GAME_SPEED;
+            if (g.active && g.z < 40 && g.z > -40) {
+                g.active = false;
+                const gate = playerX < 0 ? g.left : g.right;
+                if(gate.type === 'MULT') armyCount *= gate.val;
+                else if(gate.type === 'ADD') armyCount += gate.val;
+                else if(gate.type === 'DIV') armyCount = Math.floor(armyCount / gate.val);
+                else armyCount = Math.max(0, armyCount - gate.val);
+            }
+        });
+
+        // Update Enemies
+        enemies.forEach(e => {
+            e.z -= GAME_SPEED;
+            const collisionWidth = e.mandatory ? 120 : 60;
+            if (e.active && Math.abs(e.z) < 60 && Math.abs(e.x - playerX) < collisionWidth) {
+                const loss = Math.min(armyCount, 2); // Combat intensity
+                if(loss > 0) {
+                    armyCount -= loss;
+                    e.count -= loss;
+                    shake = 6;
+                    spawnParticles(canvas.width/2 + e.x, canvas.height * 0.75, ENEMY_COLOR);
+                }
+                if(e.count <= 0) e.active = false;
+            }
+        });
+
+        // Boss Battle
+        if(boss) {
+            boss.z -= GAME_SPEED;
+            if(boss.z < 120) {
+                if(armyCount > 0) {
+                    const dmg = Math.min(armyCount, 5); 
+                    armyCount -= dmg;
+                    boss.hp -= dmg;
+                    shake = 12;
+                    spawnParticles(canvas.width/2, canvas.height * 0.6, BOSS_COLOR);
+                }
+                
+                if(boss.hp <= 0) {
+                    winLevel();
+                } else if(armyCount <= 0) {
+                    loseGame();
+                }
+            }
+        }
+
+        if (armyCount <= 0 && (!boss || boss.z > 120)) {
+            loseGame();
+        }
+
+        particles.forEach(p => p.update());
+        particles = particles.filter(p => p.life > 0);
+        if(shake > 0) shake *= 0.85;
+
+        countDisplay.innerText = Math.max(0, Math.floor(armyCount));
+    }
+
+    function winLevel() {
+        gameState = 'MENU';
+        if(currentLevel >= TOTAL_LEVELS) {
+            resultText.innerText = "GRAND COMMANDER!";
+            resultText.className = "text-5xl font-black text-yellow-500 mb-4";
+            scoreText.innerText = "All 20 sectors secured. You are a legend!";
+            restartBtn.innerText = "REPLAY MISSION 1";
+            currentLevel = 1;
+        } else {
+            currentLevel++;
+            resultText.innerText = "SECTOR SECURED!";
+            resultText.className = "text-5xl font-black text-green-500 mb-4";
+            scoreText.innerText = `Boss destroyed. Deploying to Sector ${currentLevel}.`;
+            restartBtn.innerText = "CONTINUE";
+        }
+        gameOverScreen.style.display = 'flex';
+    }
+
+    function loseGame() {
+        gameState = 'MENU';
+        resultText.innerText = "MISSION FAILED!";
+        resultText.className = "text-5xl font-black text-red-500 mb-4";
+        scoreText.innerText = "Army neutralized by mathematical obstacles.";
+        restartBtn.innerText = "TRY AGAIN";
+        gameOverScreen.style.display = 'flex';
+    }
+
+    function draw() {
+        ctx.save();
+        if(shake > 1) ctx.translate((Math.random()-0.5)*shake, (Math.random()-0.5)*shake);
+        
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        const horizon = canvas.height * 0.4;
+        
+        // Road
+        ctx.fillStyle = '#1e293b';
+        ctx.beginPath();
+        ctx.moveTo(canvas.width/2 - 45, horizon);
+        ctx.lineTo(canvas.width/2 + 45, horizon);
+        ctx.lineTo(canvas.width/2 + ROAD_WIDTH, canvas.height);
+        ctx.lineTo(canvas.width/2 - ROAD_WIDTH, canvas.height);
+        ctx.fill();
+
+        // Track Lines
+        ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+        ctx.setLineDash([20, 20]);
+        ctx.lineWidth = 3;
+        for(let i=0; i<8; i++) {
+            let lineZ = ((distance + i * 600) % 3000);
+            let p = 600 / (600 + lineZ);
+            let y = canvas.height * 0.8 - lineZ * p;
+            let w = ROAD_WIDTH * 2 * p;
+            ctx.beginPath();
+            ctx.moveTo(canvas.width/2 - w/2, y);
+            ctx.lineTo(canvas.width/2 + w/2, y);
+            ctx.stroke();
+        }
+        ctx.setLineDash([]);
+
+        // Draw Gates
+        gates.forEach(g => {
+            if(g.z < 0 || g.z > 2500) return;
+            const p = 800 / (800 + g.z);
+            const y = canvas.height * 0.8 - g.z * p;
+            const w = ROAD_WIDTH * 2.2 * p;
+            const h = 140 * p;
+            const x = canvas.width/2 - w/2;
+
+            if(g.active) {
+                // Left
+                ctx.fillStyle = g.left.color;
+                ctx.globalAlpha = 0.7;
+                ctx.fillRect(x, y - h, w/2, h);
+                ctx.globalAlpha = 1;
+                ctx.fillStyle = 'white';
+                ctx.font = `black ${28*p}px Arial`;
+                ctx.textAlign = 'center';
+                ctx.fillText(g.left.text + (g.left.type === 'DIV' || g.left.type === 'SUB' ? g.left.val : g.left.val), x + w/4, y - h/2 + 10*p);
+
+                // Right
+                ctx.fillStyle = g.right.color;
+                ctx.globalAlpha = 0.7;
+                ctx.fillRect(x + w/2, y - h, w/2, h);
+                ctx.globalAlpha = 1;
+                ctx.fillStyle = 'white';
+                ctx.fillText(g.right.text + (g.right.type === 'DIV' || g.right.type === 'SUB' ? g.right.val : g.right.val), x + 3*w/4, y - h/2 + 10*p);
+                
+                // Gate Border
+                ctx.strokeStyle = 'white';
+                ctx.lineWidth = 2 * p;
+                ctx.strokeRect(x, y - h, w, h);
+            }
+        });
+
+        // Draw Enemies
+        enemies.forEach(e => {
+            if(!e.active || e.z < 0 || e.z > 2500) return;
+            const p = 800 / (800 + e.z);
+            const dx = canvas.width/2 + e.x * p;
+            const dy = canvas.height * 0.8 - e.z * p;
+            const sz = (e.mandatory ? 60 : 45) * p;
+
+            ctx.fillStyle = ENEMY_COLOR;
+            ctx.beginPath();
+            ctx.arc(dx, dy - sz/2, sz, 0, Math.PI*2);
+            ctx.fill();
+            
+            ctx.fillStyle = 'white';
+            ctx.font = `bold ${22*p}px Arial`;
+            ctx.fillText(e.count, dx, dy - sz - 10);
+            
+            // Angry Eyes
+            ctx.fillStyle = 'black';
+            ctx.fillRect(dx - 12*p, dy - sz/2 - 5*p, 6*p, 6*p);
+            ctx.fillRect(dx + 6*p, dy - sz/2 - 5*p, 6*p, 6*p);
+        });
+
+        // Draw Boss
+        if(boss && boss.z < 3000) boss.draw();
+
+        // Draw Army
+        if(gameState === 'PLAYING' && armyCount > 0) {
+            const visualSize = Math.min(120, 25 + Math.sqrt(armyCount) * 4.5);
+            ctx.fillStyle = PLAYER_COLOR;
+            ctx.shadowBlur = 20;
+            ctx.shadowColor = PLAYER_COLOR;
+            ctx.beginPath();
+            ctx.arc(canvas.width/2 + playerX, canvas.height * 0.8, visualSize, 0, Math.PI*2);
+            ctx.fill();
+            ctx.shadowBlur = 0;
+            
+            ctx.fillStyle = 'rgba(255,255,255,0.4)';
+            for(let i=0; i<Math.min(armyCount, 12); i++) {
+                const angle = (Date.now() * 0.005) + (i * Math.PI * 2 / 12);
+                const dist = Math.sin(Date.now() * 0.002 + i) * visualSize * 0.6;
+                ctx.beginPath();
+                ctx.arc(canvas.width/2 + playerX + Math.cos(angle) * dist, 
+                        canvas.height * 0.8 + Math.sin(angle) * dist, 
+                        6, 0, Math.PI*2);
+                ctx.fill();
+            }
+        }
+
+        particles.forEach(p => p.draw());
+        ctx.restore();
+    }
+
+    function gameLoop() {
+        update();
+        draw();
+        requestAnimationFrame(gameLoop);
+    }
+
+    init();
+</script>
+
+</body>
+</html>
