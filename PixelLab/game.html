@@ -55,6 +55,20 @@
             text-transform: uppercase;
             letter-spacing: 0.05em;
         }
+
+        .hotbar-btn {
+            transition: all 0.2s;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        .hotbar-btn:hover {
+            transform: scale(1.05);
+            border-color: rgba(255,255,255,0.3);
+        }
+        .hotbar-btn.active {
+            border-color: #60a5fa;
+            background: rgba(59, 130, 246, 0.2);
+            box-shadow: 0 0 15px rgba(59, 130, 246, 0.3);
+        }
     </style>
 </head>
 <body class="flex h-screen">
@@ -67,7 +81,7 @@
                 <div class="w-3 h-3 rounded-full bg-blue-500 animate-pulse"></div>
                 <h1 class="text-lg font-bold tracking-tight text-white">PIXEL<span class="text-blue-500">LAB</span></h1>
             </div>
-            <p class="text-[10px] text-zinc-500 mt-1 uppercase tracking-widest font-semibold">50 Elements • 60 FPS Physics</p>
+            <p class="text-[10px] text-zinc-500 mt-1 uppercase tracking-widest font-semibold">Extended Edition • 60 FPS</p>
         </div>
         
         <!-- Global Controls -->
@@ -101,42 +115,71 @@
     </div>
 
     <!-- Main Viewport -->
-    <div class="flex-1 flex flex-col items-center justify-center bg-[#050507] relative overflow-hidden">
+    <div class="flex-1 flex flex-col bg-[#050507] relative overflow-hidden">
         
-        <!-- Inspector Overlay (Magnifying Glass View) -->
-        <div id="inspectorUI" class="absolute top-6 right-6 glass-panel rounded-lg p-3 w-48 pointer-events-none opacity-0 transition-opacity duration-200 z-20">
-            <div class="flex items-center gap-2 mb-2">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-blue-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-                <span class="text-[10px] font-bold text-zinc-400 uppercase">Inspector</span>
-            </div>
-            <div id="inspectorContent" class="space-y-1">
-                <div class="text-sm font-bold text-white" id="insName">-</div>
-                <div class="flex justify-between text-[10px] inspector-badge">
-                    <span class="text-zinc-500">Type</span>
-                    <span id="insType" class="text-blue-400">-</span>
-                </div>
-                <div class="flex justify-between text-[10px] inspector-badge">
-                    <span class="text-zinc-500">Density</span>
-                    <span id="insDensity" class="text-emerald-400">-</span>
-                </div>
-            </div>
-        </div>
-
-        <div id="canvasContainer" class="relative group">
-            <canvas id="gameCanvas" class="ring-1 ring-white/10"></canvas>
+        <!-- TOPBAR -->
+        <div class="w-full h-16 border-b border-zinc-800 bg-[#0f0f12]/80 backdrop-blur-md flex items-center justify-center gap-4 z-20 px-6">
+            <div class="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mr-2">Quick Tools</div>
             
-            <!-- Contextual Brush Preview -->
-            <div id="brushPreview" class="absolute border border-white/30 rounded-full pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-75"></div>
+            <button onclick="selectElement(7)" id="hot-7" class="hotbar-btn flex items-center gap-3 bg-zinc-900 px-4 py-2 rounded-full border border-zinc-800">
+                <div class="w-3 h-3 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.6)]"></div>
+                <span class="text-xs font-bold text-zinc-200 uppercase">Fire</span>
+            </button>
+
+            <button onclick="selectElement(22)" id="hot-22" class="hotbar-btn flex items-center gap-3 bg-zinc-900 px-4 py-2 rounded-full border border-zinc-800">
+                <div class="w-3 h-3 rounded-full bg-yellow-400 shadow-[0_0_8px_rgba(250,204,21,0.6)]"></div>
+                <span class="text-xs font-bold text-zinc-200 uppercase">Spark</span>
+            </button>
+
+            <button onclick="selectElement(3)" id="hot-3" class="hotbar-btn flex items-center gap-3 bg-zinc-900 px-4 py-2 rounded-full border border-zinc-800">
+                <div class="w-3 h-3 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.6)]"></div>
+                <span class="text-xs font-bold text-zinc-200 uppercase">Water</span>
+            </button>
+
+            <div class="h-6 w-px bg-zinc-800 mx-2"></div>
+
+            <button onclick="selectElement(0)" id="hot-0" class="hotbar-btn flex items-center gap-3 bg-zinc-900 px-4 py-2 rounded-full border border-zinc-800">
+                <div class="w-3 h-3 rounded-full bg-zinc-600"></div>
+                <span class="text-xs font-bold text-zinc-200 uppercase">Eraser</span>
+            </button>
         </div>
 
-        <div class="mt-4 text-[10px] text-zinc-600 font-medium tracking-widest uppercase">
-            Left Click: Paint • Right Click: Erase • Middle Click: Inspect
+        <div class="flex-1 flex flex-col items-center justify-center relative">
+            <!-- Inspector Overlay -->
+            <div id="inspectorUI" class="absolute top-6 right-6 glass-panel rounded-lg p-3 w-48 pointer-events-none opacity-0 transition-opacity duration-200 z-20">
+                <div class="flex items-center gap-2 mb-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-blue-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                    <span class="text-[10px] font-bold text-zinc-400 uppercase">Inspector</span>
+                </div>
+                <div id="inspectorContent" class="space-y-1">
+                    <div class="text-sm font-bold text-white" id="insName">-</div>
+                    <div class="flex justify-between text-[10px] inspector-badge">
+                        <span class="text-zinc-500">Type</span>
+                        <span id="insType" class="text-blue-400">-</span>
+                    </div>
+                    <div class="flex justify-between text-[10px] inspector-badge">
+                        <span class="text-zinc-500">Density</span>
+                        <span id="insDensity" class="text-emerald-400">-</span>
+                    </div>
+                </div>
+            </div>
+
+            <div id="canvasContainer" class="relative group">
+                <canvas id="gameCanvas" class="ring-1 ring-white/10"></canvas>
+                
+                <!-- Contextual Brush Preview -->
+                <div id="brushPreview" class="absolute border border-white/30 rounded-full pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-75"></div>
+            </div>
+
+            <div class="mt-4 text-[10px] text-zinc-600 font-medium tracking-widest uppercase">
+                Left Click: Paint • Right Click: Erase • Middle Click: Inspect
+            </div>
         </div>
     </div>
 
 <script>
 /**
- * Pixel Sandbox Engine
+ * Pixel Sandbox Engine - Extended Edition
  */
 
 const W = 200; 
@@ -144,7 +187,7 @@ const H = 150;
 const SCALE = 4; 
 
 const TYPES = { EMPTY: 0, SOLID: 1, POWDER: 2, LIQUID: 3, GAS: 4, ENERGY: 5 };
-const typeNames = ["Gas", "Solid", "Powder", "Liquid", "Gas", "Energy"];
+const typeNames = ["Air", "Solid", "Powder", "Liquid", "Gas", "Energy"];
 
 const typeGrid = new Uint8Array(W * H);
 const colorGrid = new Uint32Array(W * H);
@@ -157,70 +200,83 @@ let brushSize = 3;
 
 // --- ELEMENTS ---
 const rawElements = [
-    { id: 0, name: 'Eraser', cat: 'Tools', type: TYPES.EMPTY, color: [0,0,0], v: 0 },
-    { id: 51, name: 'Inspector', cat: 'Tools', type: TYPES.EMPTY, color: [100, 200, 255], v: 0 }, // Special ID for Inspector tool
+    { id: 0, name: 'Eraser', cat: 'Tools', type: TYPES.EMPTY, color: [0,0,0], v: 0, inspectorName: "Air" },
+    { id: 51, name: 'Inspector', cat: 'Tools', type: TYPES.EMPTY, color: [100, 200, 255], v: 0 },
     
+    // Solids
     { id: 1, name: 'Wall', cat: 'Solids', type: TYPES.SOLID, color: [82, 82, 91], v: 5 },
     { id: 5, name: 'Stone', cat: 'Solids', type: TYPES.SOLID, color: [113, 113, 122], v: 10 },
     { id: 6, name: 'Wood', cat: 'Solids', type: TYPES.SOLID, color: [120, 53, 15], v: 15 },
     { id: 12, name: 'Glass', cat: 'Solids', type: TYPES.SOLID, color: [186, 230, 253], v: 5 },
     { id: 16, name: 'Ice', cat: 'Solids', type: TYPES.SOLID, color: [224, 242, 254], v: 5 },
-    { id: 18, name: 'Coal', cat: 'Solids', type: TYPES.SOLID, color: [24, 24, 27], v: 8 },
     { id: 19, name: 'Iron', cat: 'Solids', type: TYPES.SOLID, color: [161, 161, 170], v: 5 },
-    { id: 28, name: 'Sponge', cat: 'Solids', type: TYPES.SOLID, color: [234, 179, 8], v: 10, update: updateSponge },
-    { id: 33, name: 'Concrete', cat: 'Solids', type: TYPES.SOLID, color: [168, 162, 158], v: 5 },
-    { id: 36, name: 'Brick', cat: 'Solids', type: TYPES.SOLID, color: [153, 27, 27], v: 10 },
-    { id: 46, name: 'Meat', cat: 'Solids', type: TYPES.SOLID, color: [239, 68, 68], v: 15 },
-    { id: 47, name: 'Bone', cat: 'Solids', type: TYPES.SOLID, color: [245, 245, 244], v: 5 },
-    { id: 50, name: 'Uranium', cat: 'Solids', type: TYPES.SOLID, color: [34, 197, 94], v: 5, update: updateUranium },
     { id: 49, name: 'Lead', cat: 'Solids', type: TYPES.SOLID, color: [63, 63, 70], v: 5 },
+    { id: 36, name: 'Brick', cat: 'Solids', type: TYPES.SOLID, color: [153, 27, 27], v: 10 },
+    { id: 52, name: 'Diamond', cat: 'Solids', type: TYPES.SOLID, color: [147, 197, 253], v: 10 },
+    { id: 53, name: 'Gold', cat: 'Solids', type: TYPES.SOLID, color: [234, 179, 8], v: 12 },
+    { id: 54, name: 'Obsidian', cat: 'Solids', type: TYPES.SOLID, color: [30, 20, 40], v: 8 },
 
+    // Powders
     { id: 2, name: 'Sand', cat: 'Powders', type: TYPES.POWDER, color: [251, 191, 36], v: 15, density: 10 },
     { id: 14, name: 'Dirt', cat: 'Powders', type: TYPES.POWDER, color: [120, 53, 15], v: 10, density: 10 },
     { id: 15, name: 'Snow', cat: 'Powders', type: TYPES.POWDER, color: [255, 255, 255], v: 5, density: 4 },
-    { id: 20, name: 'Rust', cat: 'Powders', type: TYPES.POWDER, color: [154, 52, 18], v: 10, density: 11 },
     { id: 23, name: 'Gunpowder', cat: 'Powders', type: TYPES.POWDER, color: [39, 39, 42], v: 5, density: 9 },
-    { id: 24, name: 'C4', cat: 'Powders', type: TYPES.POWDER, color: [212, 212, 216], v: 5, density: 12 },
-    { id: 25, name: 'TNT', cat: 'Solids', type: TYPES.SOLID, color: [220, 38, 38], v: 10 }, 
-    { id: 26, name: 'Salt', cat: 'Powders', type: TYPES.POWDER, color: [250, 250, 250], v: 10, density: 8 },
-    { id: 35, name: 'Mud', cat: 'Powders', type: TYPES.POWDER, color: [69, 26, 3], v: 10, density: 12 },
     { id: 37, name: 'Ash', cat: 'Powders', type: TYPES.POWDER, color: [82, 82, 91], v: 10, density: 3 },
-    { id: 38, name: 'Magnesium', cat: 'Powders', type: TYPES.POWDER, color: [228, 228, 231], v: 5, density: 9 },
-    { id: 43, name: 'Slime', cat: 'Powders', type: TYPES.POWDER, color: [132, 204, 22], v: 10, density: 8, update: updateSlime },
-    
-    { id: 3, name: 'Water', cat: 'Liquids', type: TYPES.LIQUID, color: [59, 130, 246], v: 10, density: 5 },
-    { id: 9, name: 'Lava', cat: 'Liquids', type: TYPES.LIQUID, color: [234, 88, 12], v: 15, density: 15, update: updateLava },
-    { id: 11, name: 'Acid', cat: 'Liquids', type: TYPES.LIQUID, color: [163, 230, 53], v: 10, density: 6, update: updateAcid },
-    { id: 17, name: 'Oil', cat: 'Liquids', type: TYPES.LIQUID, color: [44, 44, 44], v: 5, density: 4 },
-    { id: 27, name: 'Saltwater', cat: 'Liquids', type: TYPES.LIQUID, color: [37, 99, 235], v: 10, density: 6 },
-    { id: 34, name: 'Wet Concrete', cat: 'Liquids', type: TYPES.LIQUID, color: [120, 113, 108], v: 5, density: 13, update: updateWetConcrete },
-    { id: 41, name: 'Mercury', cat: 'Liquids', type: TYPES.LIQUID, color: [161, 161, 170], v: 5, density: 20 },
-    { id: 42, name: 'Wax (Melted)', cat: 'Liquids', type: TYPES.LIQUID, color: [253, 224, 71], v: 10, density: 4 },
-    { id: 44, name: 'Honey', cat: 'Liquids', type: TYPES.LIQUID, color: [234, 179, 8], v: 5, density: 7, update: updateHoney },
-    { id: 45, name: 'Blood', cat: 'Liquids', type: TYPES.LIQUID, color: [153, 27, 27], v: 10, density: 5 },
-    { id: 48, name: 'Poison', cat: 'Liquids', type: TYPES.LIQUID, color: [147, 51, 234], v: 10, density: 5 },
+    { id: 26, name: 'Salt', cat: 'Powders', type: TYPES.POWDER, color: [250, 250, 250], v: 10, density: 8 },
+    { id: 55, name: 'Sugar', cat: 'Powders', type: TYPES.POWDER, color: [255, 250, 240], v: 5, density: 7 },
+    { id: 56, name: 'Pollen', cat: 'Powders', type: TYPES.POWDER, color: [254, 240, 138], v: 20, density: 2 },
+    { id: 57, name: 'Clay', cat: 'Powders', type: TYPES.POWDER, color: [168, 85, 24], v: 10, density: 12 },
+    { id: 58, name: 'Gravel', cat: 'Powders', type: TYPES.POWDER, color: [100, 100, 100], v: 15, density: 14 },
 
+    // Liquids
+    { id: 3, name: 'Water', cat: 'Liquids', type: TYPES.LIQUID, color: [59, 130, 246], v: 10, density: 5 },
+    { id: 17, name: 'Oil', cat: 'Liquids', type: TYPES.LIQUID, color: [44, 44, 44], v: 5, density: 4 },
+    { id: 11, name: 'Acid', cat: 'Liquids', type: TYPES.LIQUID, color: [163, 230, 53], v: 10, density: 6, update: updateAcid },
+    { id: 9, name: 'Lava', cat: 'Liquids', type: TYPES.LIQUID, color: [234, 88, 12], v: 15, density: 15, update: updateLava },
+    { id: 41, name: 'Mercury', cat: 'Liquids', type: TYPES.LIQUID, color: [161, 161, 170], v: 5, density: 20 },
+    { id: 45, name: 'Blood', cat: 'Liquids', type: TYPES.LIQUID, color: [153, 27, 27], v: 10, density: 5 },
+    { id: 59, name: 'Milk', cat: 'Liquids', type: TYPES.LIQUID, color: [255, 255, 255], v: 5, density: 5.5 },
+    { id: 60, name: 'Nitro', cat: 'Liquids', type: TYPES.LIQUID, color: [248, 250, 252], v: 10, density: 7, update: updateNitro },
+    { id: 61, name: 'Alcohol', cat: 'Liquids', type: TYPES.LIQUID, color: [224, 231, 255], v: 5, density: 3.5 },
+
+    // Gases
     { id: 8, name: 'Smoke', cat: 'Gases', type: TYPES.GAS, color: [113, 113, 122], v: 20, density: 2, update: updateLife },
     { id: 10, name: 'Steam', cat: 'Gases', type: TYPES.GAS, color: [212, 212, 216], v: 15, density: 1, update: updateLife },
     { id: 21, name: 'Methane', cat: 'Gases', type: TYPES.GAS, color: [187, 247, 208], v: 10, density: 2 },
-    { id: 39, name: 'Neon', cat: 'Gases', type: TYPES.GAS, color: [236, 72, 153], v: 5, density: 3 },
-    
-    { id: 7, name: 'Fire', cat: 'Energy/Special', type: TYPES.ENERGY, color: [239, 68, 68], v: 30, update: updateFire },
-    { id: 13, name: 'Plant', cat: 'Energy/Special', type: TYPES.SOLID, color: [22, 163, 74], v: 15, update: updatePlant },
-    { id: 22, name: 'Spark', cat: 'Energy/Special', type: TYPES.ENERGY, color: [253, 224, 71], v: 20, update: updateSpark },
-    { id: 29, name: 'Virus', cat: 'Energy/Special', type: TYPES.ENERGY, color: [217, 70, 239], v: 10, update: updateVirus },
-    { id: 30, name: 'Antivirus', cat: 'Energy/Special', type: TYPES.ENERGY, color: [34, 211, 238], v: 10, update: updateAntivirus },
-    { id: 31, name: 'Clone', cat: 'Energy/Special', type: TYPES.SOLID, color: [250, 204, 21], v: 0, update: updateClone },
-    { id: 32, name: 'Void', cat: 'Energy/Special', type: TYPES.SOLID, color: [12, 10, 15], v: 0, update: updateVoid },
-    { id: 40, name: 'Plasma', cat: 'Energy/Special', type: TYPES.ENERGY, color: [139, 92, 246], v: 40, update: updatePlasma },
+    { id: 62, name: 'Helium', cat: 'Gases', type: TYPES.GAS, color: [254, 226, 226], v: 5, density: 0.1 },
+    { id: 63, name: 'Chlorine', cat: 'Gases', type: TYPES.GAS, color: [217, 249, 157], v: 15, density: 3, update: updateAcid },
+    { id: 39, name: 'Neon', cat: 'Gases', type: TYPES.GAS, color: [236, 72, 153], v: 5, density: 2.5 },
+
+    // Life & Nature
+    { id: 13, name: 'Plant', cat: 'Life', type: TYPES.SOLID, color: [22, 163, 74], v: 15, update: updatePlant },
+    { id: 46, name: 'Meat', cat: 'Life', type: TYPES.SOLID, color: [239, 68, 68], v: 15 },
+    { id: 29, name: 'Virus', cat: 'Life', type: TYPES.ENERGY, color: [217, 70, 239], v: 10, update: updateVirus },
+    { id: 30, name: 'Antivirus', cat: 'Life', type: TYPES.ENERGY, color: [34, 211, 238], v: 10, update: updateAntivirus },
+    { id: 64, name: 'Fungus', cat: 'Life', type: TYPES.SOLID, color: [231, 229, 228], v: 10, update: updateFungus },
+    { id: 65, name: 'Seed', cat: 'Life', type: TYPES.POWDER, color: [101, 163, 13], v: 5, density: 8, update: updateSeed },
+
+    // Energy & Radioactive
+    { id: 7, name: 'Fire', cat: 'Energy', type: TYPES.ENERGY, color: [239, 68, 68], v: 30, update: updateFire },
+    { id: 22, name: 'Spark', cat: 'Energy', type: TYPES.ENERGY, color: [253, 224, 71], v: 20, update: updateSpark },
+    { id: 40, name: 'Plasma', cat: 'Energy', type: TYPES.ENERGY, color: [139, 92, 246], v: 40, update: updatePlasma },
+    { id: 50, name: 'Uranium', cat: 'Energy', type: TYPES.SOLID, color: [34, 197, 94], v: 5, update: updateUranium },
+    { id: 66, name: 'Neutron', cat: 'Energy', type: TYPES.ENERGY, color: [255, 255, 255], v: 0, update: updateNeutron },
+    { id: 67, name: 'Gamma', cat: 'Energy', type: TYPES.ENERGY, color: [168, 85, 247], v: 0, update: updateGamma },
+
+    // Special
+    { id: 31, name: 'Clone', cat: 'Special', type: TYPES.SOLID, color: [250, 204, 21], v: 0, update: updateClone },
+    { id: 32, name: 'Void', cat: 'Special', type: TYPES.SOLID, color: [12, 10, 15], v: 0, update: updateVoid },
+    { id: 28, name: 'Sponge', cat: 'Special', type: TYPES.SOLID, color: [234, 179, 8], v: 10, update: updateSponge },
+    { id: 68, name: 'Inhibitor', cat: 'Special', type: TYPES.SOLID, color: [51, 65, 85], v: 5, update: updateInhibitor },
+    { id: 69, name: 'Wormhole', cat: 'Special', type: TYPES.ENERGY, color: [79, 70, 229], v: 30, update: updateWormhole },
 ];
 
-const elements = new Array(55).fill(null);
+const elements = new Array(100).fill(null);
 rawElements.forEach(el => elements[el.id] = el);
 
-// Physics Helpers
-const flammables = { 6: { result: 7, chance: 0.05 }, 18: { result: 7, chance: 0.01 }, 17: { result: 7, chance: 0.2 }, 21: { result: 7, chance: 0.5 }, 42: { result: 7, chance: 0.05 }, 46: { result: 7, chance: 0.02 }, 13: { result: 7, chance: 0.1 }, 23: { result: 'explode', radius: 4 }, 24: { result: 'explode', radius: 8 }, 25: { result: 'explode', radius: 12 }, 38: { result: 40, chance: 0.1 } };
-const meltables = { 15: { result: 3, by: [7, 9, 40] }, 16: { result: 3, by: [7, 9, 40] }, 2: { result: 12, by: [7, 9, 40] }, 12: { result: 9, by: [40] } };
+// --- PHYSICS HELPERS ---
+const flammables = { 6: { result: 7, chance: 0.05 }, 18: { result: 7, chance: 0.01 }, 17: { result: 7, chance: 0.2 }, 21: { result: 7, chance: 0.5 }, 42: { result: 7, chance: 0.05 }, 46: { result: 7, chance: 0.02 }, 13: { result: 7, chance: 0.1 }, 23: { result: 'explode', radius: 4 }, 24: { result: 'explode', radius: 8 }, 25: { result: 'explode', radius: 12 }, 38: { result: 40, chance: 0.1 }, 61: { result: 7, chance: 0.4 }, 60: { result: 'explode', radius: 10 } };
+const meltables = { 15: { result: 3, by: [7, 9, 40] }, 16: { result: 3, by: [7, 9, 40] }, 2: { result: 12, by: [7, 9, 40] }, 12: { result: 9, by: [40] }, 5: { result: 9, by: [40, 9] }, 19: { result: 9, by: [40, 9] } };
 
 // --- ENGINE CORE ---
 
@@ -290,84 +346,29 @@ function getNeighbors(x, y) {
     return n;
 }
 
-// Custom behaviors (simplified from original for brevity, maintaining logic)
-function updateFire(x, y) {
-    if (Math.random() < 0.08) { setCell(x, y, Math.random() < 0.3 ? 8 : 0); return true; }
-    if (Math.random() < 0.3) tryMove(x, y, Math.floor(Math.random() * 3) - 1, -1, 0);
-    getNeighbors(x, y).forEach(adj => {
-        if (flammables[adj.id]) {
-            let f = flammables[adj.id];
-            if (f.result === 'explode') explode(adj.x, adj.y, f.radius);
-            else if (Math.random() < f.chance) setCell(adj.x, adj.y, f.result);
-        }
-        if (meltables[adj.id] && meltables[adj.id].by.includes(7)) setCell(adj.x, adj.y, meltables[adj.id].result);
-        if (adj.id === 3) { setCell(x, y, 10); setCell(adj.x, adj.y, 10); }
-    });
-    return false;
-}
-
-function updatePlasma(x, y) {
-    if (Math.random() < 0.05) setCell(x, y, 0);
-    tryMove(x, y, Math.floor(Math.random() * 5) - 2, Math.floor(Math.random() * 5) - 2, 0);
-    getNeighbors(x, y).forEach(adj => { if(adj.id !== 1 && adj.id !== 32 && adj.id !== 40 && adj.id !== 0 && Math.random() < 0.2) setCell(adj.x, adj.y, 7); });
-    return false;
-}
-
-function updateSpark(x, y) {
-    if (Math.random() < 0.1) setCell(x, y, 0);
-    tryMove(x, y, Math.floor(Math.random() * 3) - 1, 1, 0);
-    getNeighbors(x, y).forEach(adj => { if (flammables[adj.id]?.result === 'explode') explode(adj.x, adj.y, flammables[adj.id].radius); });
-    return false;
-}
-
+// --- BEHAVIORS ---
+function updateFire(x, y) { if (Math.random() < 0.08) { setCell(x, y, Math.random() < 0.3 ? 8 : 0); return true; } if (Math.random() < 0.3) tryMove(x, y, Math.floor(Math.random() * 3) - 1, -1, 0); getNeighbors(x, y).forEach(adj => { if (flammables[adj.id]) { let f = flammables[adj.id]; if (f.result === 'explode') explode(adj.x, adj.y, f.radius); else if (Math.random() < f.chance) setCell(adj.x, adj.y, f.result); } if (meltables[adj.id] && meltables[adj.id].by.includes(7)) setCell(adj.x, adj.y, meltables[adj.id].result); }); return false; }
+function updatePlasma(x, y) { if (Math.random() < 0.05) setCell(x, y, 0); tryMove(x, y, Math.floor(Math.random() * 5) - 2, Math.floor(Math.random() * 5) - 2, 0); getNeighbors(x, y).forEach(adj => { if(adj.id !== 1 && adj.id !== 32 && adj.id !== 40 && adj.id !== 0 && Math.random() < 0.2) setCell(adj.x, adj.y, 7); }); return false; }
+function updateSpark(x, y) { if (Math.random() < 0.1) setCell(x, y, 0); tryMove(x, y, Math.floor(Math.random() * 3) - 1, Math.floor(Math.random() * 3) - 1, 0); getNeighbors(x, y).forEach(adj => { if (flammables[adj.id]?.result === 'explode') explode(adj.x, adj.y, flammables[adj.id].radius); }); return false; }
 function updateLife(x, y) { if (Math.random() < 0.02) { setCell(x, y, 0); return true; } return false; }
-
-function updateAcid(x, y) {
-    getNeighbors(x, y).forEach(adj => {
-        if (![0, 1, 12, 32, 11].includes(adj.id) && Math.random() < 0.1) {
-            setCell(adj.x, adj.y, 0);
-            if (Math.random() < 0.5) setCell(x, y, Math.random()<0.5 ? 8 : 21);
-        }
-    });
-    return false;
-}
-
-function updateLava(x, y) {
-    getNeighbors(x, y).forEach(adj => {
-        if ([3, 27].includes(adj.id)) { setCell(x, y, 5); setCell(adj.x, adj.y, 10); }
-        else if (flammables[adj.id]) {
-            if(flammables[adj.id].result === 'explode') explode(adj.x, adj.y, flammables[adj.id].radius);
-            else setCell(adj.x, adj.y, 7);
-        }
-        if (meltables[adj.id]?.by.includes(9)) setCell(adj.x, adj.y, meltables[adj.id].result);
-    });
-    return false;
-}
-
+function updateAcid(x, y) { getNeighbors(x, y).forEach(adj => { if (![0, 1, 12, 32, 11, 52, 54].includes(adj.id) && Math.random() < 0.1) { setCell(adj.x, adj.y, 0); if (Math.random() < 0.5) setCell(x, y, Math.random()<0.5 ? 8 : 21); } }); return false; }
+function updateLava(x, y) { getNeighbors(x, y).forEach(adj => { if ([3, 27, 59].includes(adj.id)) { setCell(x, y, 5); setCell(adj.x, adj.y, 10); } else if (flammables[adj.id]) { if(flammables[adj.id].result === 'explode') explode(adj.x, adj.y, flammables[adj.id].radius); else setCell(adj.x, adj.y, 7); } if (meltables[adj.id]?.by.includes(9)) setCell(adj.x, adj.y, meltables[adj.id].result); }); return false; }
 function updatePlant(x, y) { getNeighbors(x, y).forEach(adj => { if (adj.id === 3) setCell(adj.x, adj.y, 13); }); return false; }
-function updateSponge(x, y) { getNeighbors(x, y).forEach(adj => { if ([3, 27].includes(adj.id)) setCell(adj.x, adj.y, 0); }); return false; }
-function updateClone(x, y) { 
-    let tid = getNeighbors(x, y).find(a => a.id !== 0 && a.id !== 31)?.id;
-    if (tid) getNeighbors(x, y).forEach(adj => { if (adj.id === 0) setCell(adj.x, adj.y, tid); });
-    return false;
-}
+function updateSponge(x, y) { getNeighbors(x, y).forEach(adj => { if ([3, 27, 59, 11, 17].includes(adj.id)) setCell(adj.x, adj.y, 0); }); return false; }
+function updateClone(x, y) { let tid = getNeighbors(x, y).find(a => a.id !== 0 && a.id !== 31)?.id; if (tid) getNeighbors(x, y).forEach(adj => { if (adj.id === 0) setCell(adj.x, adj.y, tid); }); return false; }
 function updateVoid(x, y) { getNeighbors(x, y).forEach(adj => { if (![0, 32, 1].includes(adj.id)) setCell(adj.x, adj.y, 0); }); return false; }
 function updateVirus(x, y) { getNeighbors(x, y).forEach(adj => { if (![0, 1, 29, 30, 32].includes(adj.id) && Math.random() < 0.2) setCell(adj.x, adj.y, 29); }); return false; }
 function updateAntivirus(x, y) { getNeighbors(x, y).forEach(adj => { if (adj.id === 29) setCell(adj.x, adj.y, 0); }); return false; }
-function updateWetConcrete(x, y) { if (Math.random() < 0.005) { setCell(x, y, 33); return true; } return false; }
-function updateSlime(x, y) { return Math.random() < 0.5; }
-function updateHoney(x, y) { return Math.random() < 0.7; }
-function updateUranium(x, y) {
-    if (Math.random() < 0.01) {
-        let dx = Math.floor(Math.random() * 3) - 1, dy = Math.floor(Math.random() * 3) - 1;
-        if(inBounds(x+dx, y+dy) && typeGrid[getIndex(x+dx, y+dy)] === 0) setCell(x+dx, y+dy, 39);
-    }
-    getNeighbors(x, y).forEach(adj => { if ([15, 16].includes(adj.id)) setCell(adj.x, adj.y, 3); });
-    return false;
-}
+function updateNitro(x, y) { if (Math.random() < 0.001) explode(x, y, 10); return false; }
+function updateUranium(x, y) { if (Math.random() < 0.01) { let dx = Math.floor(Math.random() * 5) - 2, dy = Math.floor(Math.random() * 5) - 2; if(inBounds(x+dx, y+dy) && typeGrid[getIndex(x+dx, y+dy)] === 0) setCell(x+dx, y+dy, 66); } return false; }
+function updateNeutron(x, y) { if (Math.random() < 0.1) { setCell(x, y, 0); return true; } let dx = Math.floor(Math.random() * 3) - 1, dy = Math.floor(Math.random() * 3) - 1; if (inBounds(x+dx, y+dy)) { let tid = typeGrid[getIndex(x+dx, y+dy)]; if (tid === 50 && Math.random() < 0.5) explode(x+dx, y+dy, 15); else if (tid === 0) swapCells(x, y, x+dx, y+dy); } return false; }
+function updateGamma(x, y) { if (Math.random() < 0.2) { setCell(x, y, 0); return true; } let ny = y + 1; if (inBounds(x, ny)) { let tid = typeGrid[getIndex(x, ny)]; if (tid !== 0 && tid !== 1 && tid !== 49) setCell(x, ny, 0); else swapCells(x, y, x, ny); } return false; }
+function updateFungus(x, y) { getNeighbors(x, y).forEach(adj => { if ((adj.id === 14 || adj.id === 6 || adj.id === 46) && Math.random() < 0.05) setCell(adj.x, adj.y, 64); }); return false; }
+function updateSeed(x, y) { let below = typeGrid[getIndex(x, y+1)]; if ((below === 14 || below === 2) && Math.random() < 0.01) setCell(x, y, 13); return false; }
+function updateInhibitor(x, y) { getNeighbors(x, y).forEach(adj => { if ([7, 22, 40, 29].includes(adj.id)) setCell(adj.x, adj.y, 0); }); return false; }
+function updateWormhole(x, y) { getNeighbors(x, y).forEach(adj => { if (adj.id !== 0 && adj.id !== 69 && adj.id !== 1) { let rx = Math.floor(Math.random() * W), ry = Math.floor(Math.random() * H); if (typeGrid[getIndex(rx, ry)] === 0) setCell(rx, ry, adj.id); setCell(adj.x, adj.y, 0); } }); return false; }
 
 // --- PHYSICS LOOP ---
-
 function updatePhysics() {
     currentFrame++;
     for (let y = H - 1; y >= 0; y--) {
@@ -380,6 +381,7 @@ function updatePhysics() {
             let id = typeGrid[i];
             if (id === 0) continue;
             let el = elements[id];
+            if (!el) continue;
             if (el.update && el.update(x, y, i, el)) continue;
             if (el.type === TYPES.POWDER) tryMove(x, y, 0, 1, el.density) || tryMove(x, y, dir, 1, el.density) || tryMove(x, y, -dir, 1, el.density);
             else if (el.type === TYPES.LIQUID) tryMove(x, y, 0, 1, el.density) || tryMove(x, y, dir, 1, el.density) || tryMove(x, y, -dir, 1, el.density) || tryMove(x, y, dir, 0, el.density) || tryMove(x, y, -dir, 0, el.density);
@@ -389,7 +391,6 @@ function updatePhysics() {
 }
 
 // --- RENDERING ---
-
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 canvas.width = W; canvas.height = H;
@@ -408,8 +409,79 @@ function gameLoop() {
     requestAnimationFrame(gameLoop);
 }
 
-// --- INPUT & TOOLS ---
+// --- UI HELPERS ---
 
+function selectElement(id) {
+    currentElement = id;
+    const el = elements[id];
+    document.getElementById('currentElementName').innerText = el ? el.name : "Unknown";
+    
+    // Sync sidebar buttons
+    document.querySelectorAll('.element-btn').forEach(b => b.classList.remove('selected'));
+    const sidebarBtn = document.getElementById('btn-' + id);
+    if (sidebarBtn) sidebarBtn.classList.add('selected');
+
+    // Sync hotbar buttons
+    document.querySelectorAll('.hotbar-btn').forEach(b => b.classList.remove('active'));
+    const hotBtn = document.getElementById('hot-' + id);
+    if (hotBtn) hotBtn.classList.add('active');
+}
+
+function initUI() {
+    const menu = document.getElementById('elementMenu');
+    const categories = {};
+    rawElements.forEach(el => {
+        if (!categories[el.cat]) categories[el.cat] = [];
+        categories[el.cat].push(el);
+    });
+
+    for (let cat in categories) {
+        let catDiv = document.createElement('div');
+        catDiv.innerHTML = `<h2 class="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-2 border-b border-zinc-800 pb-1">${cat}</h2>`;
+        let grid = document.createElement('div');
+        grid.className = 'grid grid-cols-4 gap-2 mb-4';
+        
+        categories[cat].forEach(el => {
+            let btn = document.createElement('button');
+            btn.className = 'element-btn flex flex-col items-center justify-center p-1.5 rounded-md bg-zinc-900 border border-zinc-800';
+            btn.id = 'btn-' + el.id;
+            
+            let swatch = document.createElement('div');
+            swatch.className = 'w-full aspect-square rounded-sm mb-1 shadow-sm';
+            if (el.id === 0) swatch.className += ' bg-zinc-700';
+            else if (el.id === 51) swatch.innerHTML = `<svg class="w-full h-full p-0.5 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>`;
+            else swatch.style.backgroundColor = `rgb(${el.color[0]}, ${el.color[1]}, ${el.color[2]})`;
+            
+            let label = document.createElement('span');
+            label.className = 'text-[9px] text-zinc-400 font-medium truncate w-full text-center';
+            label.innerText = el.name;
+            
+            btn.appendChild(swatch);
+            btn.appendChild(label);
+            btn.onclick = () => selectElement(el.id);
+            grid.appendChild(btn);
+        });
+        catDiv.appendChild(grid);
+        menu.appendChild(catDiv);
+    }
+
+    selectElement(2); // Start with Sand
+    document.getElementById('brushSize').addEventListener('input', (e) => {
+        brushSize = parseInt(e.target.value);
+        document.getElementById('brushSizeDisplay').innerText = brushSize + 'px';
+    });
+    document.getElementById('clearBtn').addEventListener('click', () => {
+        typeGrid.fill(0); colorGrid.fill(0xFF000000); updatedGrid.fill(0);
+    });
+    document.getElementById('pauseBtn').addEventListener('click', (e) => {
+        isPaused = !isPaused;
+        e.target.innerText = isPaused ? "RESUME" : "PAUSE";
+        e.target.classList.toggle('bg-blue-600');
+        e.target.classList.toggle('bg-amber-600');
+    });
+}
+
+// --- INPUT HANDLERS ---
 let isDrawing = false;
 let lastX = 0, lastY = 0;
 const brushPreview = document.getElementById('brushPreview');
@@ -424,18 +496,12 @@ function updateBrushPreview(pos) {
 }
 
 function inspectPixel(x, y) {
-    if (!inBounds(x, y)) {
-        inspectorUI.style.opacity = '0';
-        return;
-    }
+    if (!inBounds(x, y)) { inspectorUI.style.opacity = '0'; return; }
     const id = typeGrid[getIndex(x, y)];
+    const el = id === 0 ? { name: 'Air', type: 0, density: 0 } : (elements[id] || { name: 'Unknown', type: 0, density: 0 });
     
-    // Display "Air" for Empty Space (ID 0)
-    const el = id === 0 
-        ? { name: 'Air', type: 0, density: 0 } 
-        : (elements[id] || { name: 'Unknown', type: 0, density: 0 });
-    
-    document.getElementById('insName').innerText = el.name;
+    // Explicit check for Eraser to display as "Air" in Inspector
+    document.getElementById('insName').innerText = (id === 0) ? "Air" : el.name;
     document.getElementById('insType').innerText = typeNames[el.type];
     document.getElementById('insDensity').innerText = el.density || (el.type === 1 ? 'INF' : '0');
     inspectorUI.style.opacity = '1';
@@ -445,22 +511,14 @@ function handleInput(e) {
     const rect = canvas.getBoundingClientRect();
     const x = Math.floor((e.clientX - rect.left) / SCALE);
     const y = Math.floor((e.clientY - rect.top) / SCALE);
-    const pos = { x, y };
+    updateBrushPreview({x, y});
 
-    updateBrushPreview(pos);
-
-    // Inspector Logic (Always shows on middle click, or if Inspector tool is selected)
-    if (e.buttons === 4 || currentElement === 51) {
-        inspectPixel(x, y);
-    } else if (currentElement !== 51) {
-        inspectorUI.style.opacity = '0';
-    }
+    if (e.buttons === 4 || currentElement === 51) inspectPixel(x, y);
+    else if (currentElement !== 51) inspectorUI.style.opacity = '0';
 
     let drawId = currentElement;
     if (e.buttons === 2) drawId = 0; 
-
-    // Don't draw if using inspector tool
-    const shouldPaint = (e.buttons === 1 || (e.buttons === 2)) && drawId !== 51;
+    const shouldPaint = (e.buttons === 1 || e.buttons === 2) && drawId !== 51;
 
     if (e.type === 'mousedown' && shouldPaint) {
         isDrawing = true;
@@ -470,7 +528,6 @@ function handleInput(e) {
     } else if (e.type === 'mouseup' || e.type === 'mouseleave') {
         isDrawing = false;
     }
-    
     lastX = x; lastY = y;
 }
 
@@ -481,9 +538,7 @@ function drawCircle(cx, cy, radius, id) {
                 let dx = x - cx; let dy = y - cy;
                 if (dx * dx + dy * dy <= radius * radius) {
                     let targetId = typeGrid[getIndex(x, y)];
-                    if (id === 0 || id === 1 || id === 32 || targetId === 0 || elements[targetId].type === TYPES.LIQUID || elements[targetId].type === TYPES.GAS) {
-                        setCell(x, y, id);
-                    }
+                    if (id === 0 || id === 1 || id === 32 || targetId === 0 || elements[targetId].type === TYPES.LIQUID || elements[targetId].type === TYPES.GAS) setCell(x, y, id);
                 }
             }
         }
@@ -506,73 +561,8 @@ function drawLine(x0, y0, x1, y1, radius, id) {
 canvas.addEventListener('mousedown', handleInput);
 canvas.addEventListener('mousemove', handleInput);
 window.addEventListener('mouseup', handleInput);
-canvas.addEventListener('mouseleave', () => { 
-    isDrawing = false; 
-    inspectorUI.style.opacity = '0';
-    brushPreview.style.opacity = '0';
-});
+canvas.addEventListener('mouseleave', () => { isDrawing = false; inspectorUI.style.opacity = '0'; brushPreview.style.opacity = '0'; });
 canvas.addEventListener('contextmenu', e => e.preventDefault());
-
-// --- UI SETUP ---
-
-function initUI() {
-    const menu = document.getElementById('elementMenu');
-    const categories = {};
-    rawElements.forEach(el => {
-        if (!categories[el.cat]) categories[el.cat] = [];
-        categories[el.cat].push(el);
-    });
-
-    for (let cat in categories) {
-        let catDiv = document.createElement('div');
-        catDiv.innerHTML = `<h2 class="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-2">${cat}</h2>`;
-        let grid = document.createElement('div');
-        grid.className = 'grid grid-cols-4 gap-2';
-        
-        categories[cat].forEach(el => {
-            let btn = document.createElement('button');
-            btn.className = 'element-btn flex flex-col items-center justify-center p-1.5 rounded-md bg-zinc-900 border border-zinc-800';
-            btn.id = 'btn-' + el.id;
-            
-            let swatch = document.createElement('div');
-            swatch.className = 'w-full aspect-square rounded-sm mb-1 shadow-sm';
-            if (el.id === 0) swatch.className += ' bg-zinc-700';
-            else if (el.id === 51) swatch.innerHTML = `<svg class="w-full h-full p-0.5 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>`;
-            else swatch.style.backgroundColor = `rgb(${el.color[0]}, ${el.color[1]}, ${el.color[2]})`;
-            
-            let label = document.createElement('span');
-            label.className = 'text-[9px] text-zinc-400 font-medium truncate w-full text-center';
-            label.innerText = el.name;
-            
-            btn.appendChild(swatch);
-            btn.appendChild(label);
-            btn.onclick = () => {
-                currentElement = el.id;
-                document.getElementById('currentElementName').innerText = el.name;
-                document.querySelectorAll('.element-btn').forEach(b => b.classList.remove('selected'));
-                btn.classList.add('selected');
-            };
-            grid.appendChild(btn);
-        });
-        catDiv.appendChild(grid);
-        menu.appendChild(catDiv);
-    }
-
-    document.getElementById('btn-' + currentElement).classList.add('selected');
-    document.getElementById('brushSize').addEventListener('input', (e) => {
-        brushSize = parseInt(e.target.value);
-        document.getElementById('brushSizeDisplay').innerText = brushSize + 'px';
-    });
-    document.getElementById('clearBtn').addEventListener('click', () => {
-        typeGrid.fill(0); colorGrid.fill(0xFF000000); updatedGrid.fill(0);
-    });
-    document.getElementById('pauseBtn').addEventListener('click', (e) => {
-        isPaused = !isPaused;
-        e.target.innerText = isPaused ? "RESUME" : "PAUSE";
-        e.target.classList.toggle('bg-blue-600');
-        e.target.classList.toggle('bg-amber-600');
-    });
-}
 
 initUI();
 colorGrid.fill(0xFF000000); 
