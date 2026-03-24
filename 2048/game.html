@@ -1,403 +1,423 @@
 <!DOCTYPE html>
-<html lang="en" class="light">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Fusion Flux: Evolved</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>M3E Minesweeper</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-        tailwind.config = {
-            darkMode: 'class',
-            theme: {
-                extend: {
-                    colors: {
-                        'game-bg': 'var(--bg)',
-                        'game-grid': 'var(--grid)',
-                        'game-text': 'var(--text)',
-                    }
-                }
-            }
-        }
-    </script>
     <style>
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;800&family=JetBrains+Mono:wght@500;700&display=swap');
+
         :root {
-            --bg: #fffcf0;
-            --grid: #f0e4d0;
-            --text: #5d4037;
-        }
-        .dark {
-            --bg: #05050a;
-            --grid: #151525;
-            --text: #ffffff;
+            --m3e-bg: #fafafa;
+            --m3e-accent: #000000;
+            --m3e-surface: #ffffff;
+            --m3e-border: #e2e8f0;
+            --cell-unrevealed: #ffffff;
+            --cell-revealed: #f1f5f9;
         }
 
-        body { 
-            background-color: var(--bg); 
-            color: var(--text); 
-            overflow: hidden;
-            margin: 0;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            min-height: 100vh;
-            font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
-        }
-
-        .grid-container { 
-            background: var(--grid); 
-            position: relative; 
-            touch-action: none; 
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: var(--m3e-bg);
+            color: var(--m3e-accent);
             user-select: none;
+            -webkit-user-select: none;
         }
 
-        .tile {
-            position: absolute;
-            transition: transform 100ms ease-in-out, left 100ms ease-in-out, top 100ms ease-in-out, background-color 200ms ease;
+        .mono { font-family: 'JetBrains Mono', monospace; }
+
+        /* M3E Grid Styling */
+        .grid-container {
+            display: grid;
+            gap: 4px;
+            padding: 8px;
+            background: var(--m3e-surface);
+            border: 2px solid var(--m3e-accent);
+            border-radius: 12px;
+            box-shadow: 6px 6px 0px rgba(0,0,0,0.1);
+            margin: 0 auto;
+            width: fit-content;
+        }
+
+        .cell {
+            width: 32px;
+            height: 32px;
+            background-color: var(--cell-unrevealed);
+            border: 1px solid var(--m3e-border);
+            border-radius: 6px;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-weight: 900;
-            border-radius: 12px;
+            font-weight: 800;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+        }
+
+        .cell:hover:not(.revealed) {
+            transform: translateY(-2px);
+            border-color: var(--m3e-accent);
+            box-shadow: 0 4px 0px rgba(0,0,0,0.05);
             z-index: 10;
         }
 
-        .tile-appear { animation: appear 200ms cubic-bezier(0.175, 0.885, 0.32, 1.275); }
-        @keyframes appear { from { opacity: 0; transform: scale(0.3); } to { opacity: 1; transform: scale(1); } }
-
-        /* DARK MODE PALETTE (Neon High-Contrast) */
-        .dark .tile-2 { background: #1e293b; color: #94a3b8; }
-        .dark .tile-4 { background: #334155; color: #cbd5e1; }
-        .dark .tile-8 { background: #3b82f6; color: #ffffff; }
-        .dark .tile-16 { background: #6366f1; color: #ffffff; }
-        .dark .tile-32 { background: #8b5cf6; color: #ffffff; }
-        .dark .tile-64 { background: #a855f7; color: #ffffff; }
-        .dark .tile-128 { background: #d946ef; color: #ffffff; box-shadow: 0 0 15px #d946ef; }
-        .dark .tile-256 { background: #ec4899; color: #ffffff; box-shadow: 0 0 20px #ec4899; }
-        .dark .tile-512 { background: #f43f5e; color: #ffffff; box-shadow: 0 0 25px #f43f5e; }
-        .dark .tile-1024 { background: #f97316; color: #ffffff; border: 2px solid #ffffff; }
-        .dark .tile-2048 { background: #fbbf24; color: #000000; box-shadow: 0 0 35px #fbbf24; }
-
-        /* LIGHT MODE PALETTE */
-        .tile-2 { background: #eee4da; color: #776e65; }
-        .tile-4 { background: #ede0c8; color: #776e65; }
-        .tile-8 { background: #f2b179; color: #fff; }
-        .tile-16 { background: #f59563; color: #fff; }
-        .tile-32 { background: #f67c5f; color: #fff; }
-        .tile-64 { background: #f65e3b; color: #fff; }
-        .tile-128 { background: #edcf72; color: #fff; }
-        .tile-2048 { background: #edc22e; color: #fff; }
-
-        #achievement-toast {
-            position: fixed;
-            top: -120px;
-            left: 50%;
-            transform: translateX(-50%);
-            transition: top 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-            z-index: 2000;
+        .cell.revealed {
+            background-color: var(--cell-revealed);
+            border-color: transparent;
+            cursor: default;
+            transform: none !important;
+            box-shadow: none !important;
         }
-        #achievement-toast.show { top: 20px; }
+
+        .cell.flagged::after {
+            content: '🚩';
+            font-size: 12px;
+        }
+
+        .cell.mine.revealed {
+            background-color: #000;
+            color: #fff;
+        }
+
+        .cell.mine.revealed::after {
+            content: '×';
+            font-size: 20px;
+        }
+
+        /* Number Colors - M3E Palette */
+        .n-1 { color: #3b82f6; }
+        .n-2 { color: #10b981; }
+        .n-3 { color: #ef4444; }
+        .n-4 { color: #6366f1; }
+        .n-5 { color: #f59e0b; }
+        .n-6 { color: #06b6d4; }
+        .n-7 { color: #000000; }
+        .n-8 { color: #64748b; }
+
+        .m3e-card {
+            background: white;
+            border: 2px solid var(--m3e-accent);
+            border-radius: 16px;
+            box-shadow: 8px 8px 0px rgba(0,0,0,1);
+        }
+
+        .m3e-btn-active {
+            background: var(--m3e-accent) !important;
+            color: white !important;
+        }
+
+        @media (max-width: 500px) {
+            .cell { width: 28px; height: 28px; font-size: 12px; gap: 2px; }
+            .grid-container { gap: 2px; padding: 4px; }
+        }
     </style>
 </head>
-<body class="p-4">
+<body class="min-h-screen flex flex-col items-center justify-center p-6">
 
-    <!-- Notification Toast -->
-    <div id="achievement-toast" class="flex items-center gap-4 bg-white dark:bg-zinc-900 shadow-2xl rounded-2xl p-4 border-2 border-indigo-500 min-w-[280px]">
-        <div id="toast-icon" class="text-4xl">✨</div>
-        <div>
-            <div id="toast-tag" class="text-[10px] uppercase font-black text-indigo-500 tracking-widest">Evolution!</div>
-            <div id="toast-title" class="text-lg font-bold leading-tight dark:text-white">Milestone</div>
+    <div class="w-full max-w-2xl flex flex-col gap-8">
+        <header class="flex justify-between items-end">
+            <div>
+                <h1 class="text-4xl font-extrabold tracking-tight">Mines.</h1>
+                <p class="text-slate-400 font-medium">Clear the field, find the truth.</p>
+            </div>
+            <div class="flex gap-2">
+                <button onclick="setDifficulty('easy')" class="diff-btn px-4 py-1.5 text-xs font-bold uppercase rounded-full border-2 border-black bg-white hover:bg-black hover:text-white transition-all" id="btn-easy">Easy</button>
+                <button onclick="setDifficulty('medium')" class="diff-btn px-4 py-1.5 text-xs font-bold uppercase rounded-full border-2 border-black bg-white hover:bg-black hover:text-white transition-all" id="btn-medium">Med</button>
+                <button onclick="setDifficulty('hard')" class="diff-btn px-4 py-1.5 text-xs font-bold uppercase rounded-full border-2 border-black bg-white hover:bg-black hover:text-white transition-all" id="btn-hard">Hard</button>
+            </div>
+        </header>
+
+        <main class="m3e-card p-6 flex flex-col gap-6">
+            <div class="flex justify-between items-center px-2">
+                <div class="flex flex-col">
+                    <span class="text-[10px] font-black uppercase text-slate-400 tracking-widest">Detected</span>
+                    <span id="mine-count" class="text-3xl font-bold mono tracking-tighter">000</span>
+                </div>
+                
+                <button id="reset-btn" class="w-14 h-14 rounded-full border-4 border-black bg-yellow-300 flex items-center justify-center text-2xl hover:scale-110 active:scale-90 transition-transform shadow-[4px_4px_0px_rgba(0,0,0,1)]">
+                    ●
+                </button>
+
+                <div class="flex flex-col items-end">
+                    <span class="text-[10px] font-black uppercase text-slate-400 tracking-widest">Elapsed</span>
+                    <span id="timer" class="text-3xl font-bold mono tracking-tighter">000</span>
+                </div>
+            </div>
+
+            <div id="game-board" class="grid-container"></div>
+        </main>
+
+        <footer class="text-center">
+            <div class="inline-flex gap-4 px-6 py-2 bg-slate-100 rounded-full text-[10px] font-black uppercase tracking-widest text-slate-500">
+                <span>Left: Reveal</span>
+                <span class="opacity-30">|</span>
+                <span>Right: Flag</span>
+                <span class="opacity-30">|</span>
+                <span>Space: Chord</span>
+            </div>
+        </footer>
+    </div>
+
+    <!-- Modal -->
+    <div id="modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center hidden z-50">
+        <div class="bg-white border-4 border-black p-10 rounded-2xl shadow-[12px_12px_0px_rgba(255,255,255,0.2)] text-center max-w-sm w-full mx-4">
+            <div id="modal-icon" class="text-6xl mb-4">×</div>
+            <h2 id="modal-title" class="text-4xl font-black mb-2 italic">LOSED</h2>
+            <p id="modal-msg" class="text-slate-500 font-semibold mb-8">Better luck next run.</p>
+            <button onclick="closeModal()" class="w-full bg-black text-white font-black py-4 rounded-xl hover:bg-slate-800 transition-colors uppercase tracking-widest">
+                Restart
+            </button>
         </div>
     </div>
 
-    <div class="w-full max-w-md flex flex-col items-center">
-        <!-- Header -->
-        <div class="w-full flex justify-between items-center mb-6">
-            <h1 class="text-3xl font-black italic tracking-tighter dark:text-indigo-400">FUSION FLUX</h1>
-            <div class="flex gap-2">
-                <div class="bg-game-grid p-2 rounded-xl text-center min-w-[80px]">
-                    <div class="text-[9px] uppercase font-black opacity-50">Score</div>
-                    <div id="score" class="text-lg font-bold">0</div>
-                </div>
-                <div class="bg-game-grid p-2 rounded-xl text-center min-w-[80px]">
-                    <div class="text-[9px] uppercase font-black opacity-50">Best</div>
-                    <div id="best-score" class="text-lg font-bold">0</div>
-                </div>
-            </div>
-        </div>
+    <script>
+        const CONFIGS = {
+            easy: { rows: 9, cols: 9, mines: 10 },
+            medium: { rows: 16, cols: 16, mines: 40 },
+            hard: { rows: 16, cols: 30, mines: 99 }
+        };
 
-        <!-- Toolbar -->
-        <div class="w-full flex justify-between items-center mb-4">
-            <div class="flex gap-2">
-                <button id="lb-btn" onclick="toggleLeaderboard()" class="bg-game-grid p-3 rounded-xl hover:brightness-95 active:scale-90 transition-all relative">
-                    🏆
-                    <div id="conn-dot" class="absolute top-1 right-1 w-2 h-2 rounded-full bg-red-500"></div>
-                </button>
-                <button onclick="toggleSettings()" class="bg-game-grid p-3 rounded-xl hover:brightness-95 active:scale-90 transition-all">⚙️</button>
-                <button id="reset-btn" class="bg-game-grid p-3 rounded-xl hover:brightness-95 active:scale-90 transition-all">🔄</button>
-            </div>
-            <div class="flex flex-col items-end">
-                <div class="text-[10px] font-bold px-3 py-1 rounded-full bg-indigo-500/10 text-indigo-600 dark:text-indigo-300">
-                    🌐 Global High: <span id="global-best">0</span>
-                </div>
-                <div id="spawn-indicator" class="text-[9px] mt-1 font-black opacity-60 dark:text-white uppercase tracking-tighter">
-                    Spawning: [2]
-                </div>
-            </div>
-        </div>
+        let currentDifficulty = 'easy';
+        let board = [];
+        let minesLocations = new Set();
+        let revealedCount = 0;
+        let flaggedCount = 0;
+        let isGameOver = false;
+        let timerInterval = null;
+        let seconds = 0;
+        let firstClick = true;
 
-        <!-- Game Board -->
-        <div class="grid-container w-full aspect-square rounded-2xl p-3 shadow-2xl border-4 border-game-grid overflow-hidden">
-            <div id="grid-bg" class="grid grid-cols-4 grid-rows-4 gap-3 h-full w-full"></div>
-            <div id="tile-layer" class="absolute inset-3 pointer-events-none"></div>
+        const boardElement = document.getElementById('game-board');
+        const mineCountDisplay = document.getElementById('mine-count');
+        const timerDisplay = document.getElementById('timer');
+        const resetBtn = document.getElementById('reset-btn');
+        const modal = document.getElementById('modal');
+
+        function initGame() {
+            const config = CONFIGS[currentDifficulty];
+            board = [];
+            minesLocations.clear();
+            revealedCount = 0;
+            flaggedCount = 0;
+            isGameOver = false;
+            firstClick = true;
+            clearInterval(timerInterval);
+            seconds = 0;
             
-            <div id="game-over" class="absolute inset-0 bg-white/95 dark:bg-black/95 backdrop-blur-md hidden flex-col items-center justify-center rounded-xl z-50 p-6 text-center">
-                <h2 class="text-3xl font-black mb-1 dark:text-white">FLUX STALLED</h2>
-                <p id="final-score-display" class="text-xl mb-6 text-indigo-600 font-bold italic"></p>
-                
-                <div class="w-full max-w-xs mb-6">
-                    <label class="block text-[10px] uppercase font-black mb-2 opacity-60 text-left px-1 dark:text-white">Player Name</label>
-                    <input type="text" id="player-name-input" maxlength="15" placeholder="Your Name" 
-                        class="w-full p-4 rounded-xl bg-black/5 dark:bg-white/10 border-2 border-transparent focus:border-indigo-500 outline-none text-center font-bold text-lg dark:text-white transition-all shadow-inner">
-                </div>
+            updateDisplay();
+            renderBoard();
+            updateDifficultyUI();
+        }
 
-                <button id="submit-score-btn" class="bg-indigo-600 hover:bg-indigo-700 p-4 rounded-2xl text-white font-black text-xl shadow-xl active:scale-95 transition-all w-full max-w-xs flex items-center justify-center gap-2">
-                    <span id="btn-text">SAVE & REBOOT</span>
-                </button>
-            </div>
-        </div>
+        function setDifficulty(diff) {
+            currentDifficulty = diff;
+            initGame();
+        }
 
-        <!-- Evolution Progress -->
-        <div class="w-full mt-6 flex gap-2">
-            <div id="mini-ach-reached_128" class="flex-1 h-2 rounded-full bg-game-grid opacity-30 transition-all"></div>
-            <div id="mini-ach-reached_512" class="flex-1 h-2 rounded-full bg-game-grid opacity-30 transition-all"></div>
-            <div id="mini-ach-reached_1024" class="flex-1 h-2 rounded-full bg-game-grid opacity-30 transition-all"></div>
-            <div id="mini-ach-reached_2048" class="flex-1 h-2 rounded-full bg-game-grid opacity-30 transition-all"></div>
-        </div>
+        function updateDifficultyUI() {
+            document.querySelectorAll('.diff-btn').forEach(btn => btn.classList.remove('m3e-btn-active'));
+            document.getElementById(`btn-${currentDifficulty}`).classList.add('m3e-btn-active');
+        }
 
-        <!-- Leaderboard Modal -->
-        <div id="leaderboard-modal" class="fixed inset-0 bg-black/60 z-[100] hidden flex items-center justify-center p-6 backdrop-blur-md">
-            <div class="bg-game-bg rounded-3xl w-full max-w-sm p-8 shadow-2xl flex flex-col max-h-[75vh]">
-                <div class="flex justify-between items-center mb-6">
-                    <h3 class="text-2xl font-black">Top Ranks</h3>
-                    <button onclick="toggleLeaderboard()" class="text-3xl leading-none">&times;</button>
-                </div>
-                <div id="leaderboard-content" class="space-y-2 overflow-y-auto pr-2 min-h-[200px]">
-                    <div class="p-8 text-center opacity-50 flex flex-col items-center gap-4">
-                        <div class="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
-                        Accessing Cloud...
-                    </div>
-                </div>
-                <button onclick="game.syncLeaderboard(true)" class="mt-4 text-[10px] uppercase font-bold text-indigo-500 py-2">Force Reconnect</button>
-            </div>
-        </div>
+        function updateDisplay() {
+            const config = CONFIGS[currentDifficulty];
+            mineCountDisplay.innerText = String(Math.max(0, config.mines - flaggedCount)).padStart(3, '0');
+            timerDisplay.innerText = String(seconds).padStart(3, '0');
+            resetBtn.innerText = '●';
+        }
 
-        <!-- Settings Modal -->
-        <div id="settings-modal" class="fixed inset-0 bg-black/60 z-[100] hidden flex items-center justify-center p-6 backdrop-blur-md">
-            <div class="bg-game-bg rounded-3xl w-full max-w-xs p-8 shadow-2xl border border-white/10">
-                <h3 class="text-2xl font-black mb-8 dark:text-white">Settings</h3>
-                <div class="space-y-6">
-                    <div class="flex items-center justify-between">
-                        <span class="font-bold">Dark Mode</span>
-                        <button onclick="game.toggleTheme()" class="w-12 h-6 rounded-full bg-gray-300 dark:bg-indigo-500 relative transition-colors">
-                            <div class="w-4 h-4 bg-white rounded-full absolute top-1 left-1 dark:left-7 transition-all"></div>
-                        </button>
-                    </div>
-                </div>
-                <button onclick="toggleSettings()" class="w-full mt-10 bg-game-grid py-4 rounded-2xl font-black">CLOSE</button>
-            </div>
-        </div>
-    </div>
+        function renderBoard() {
+            const config = CONFIGS[currentDifficulty];
+            boardElement.style.gridTemplateColumns = `repeat(${config.cols}, 1fr)`;
+            boardElement.innerHTML = '';
 
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, setDoc, onSnapshot, collection, getDocs, query, limit, arrayUnion, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-
-        const firebaseConfig = JSON.parse(__firebase_config);
-        const app = initializeApp(firebaseConfig);
-        const auth = getAuth(app);
-        const db = getFirestore(app);
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'fusion-flux-v6';
-
-        class Game2048 {
-            constructor() {
-                this.grid = [];
-                this.score = 0;
-                this.bestScore = 0;
-                this.user = null;
-                this.userName = localStorage.getItem('ff_name_v2') || 'Fluxer';
-                this.settings = { theme: 'light' };
-                this.spawnLevel = 1;
-                this.over = false;
-                
-                this.setupUI();
-                this.initAuth();
-            }
-
-            setupUI() {
-                const bg = document.getElementById('grid-bg');
-                bg.innerHTML = '';
-                for(let i=0; i<16; i++) {
+            for (let r = 0; r < config.rows; r++) {
+                board[r] = [];
+                for (let c = 0; c < config.cols; c++) {
                     const cell = document.createElement('div');
-                    cell.className = 'bg-black/[0.04] dark:bg-white/[0.06] rounded-lg h-full w-full';
-                    bg.appendChild(cell);
-                }
-                
-                document.getElementById('reset-btn').onclick = () => this.init();
-                const nameInput = document.getElementById('player-name-input');
-                nameInput.value = this.userName;
-                nameInput.addEventListener('input', (e) => {
-                    this.userName = e.target.value.trim() || 'Fluxer';
-                    localStorage.setItem('ff_name_v2', this.userName);
-                });
-
-                document.getElementById('submit-score-btn').onclick = () => this.submitScoreAndRestart();
-                this.setupSwipe();
-                this.loadSettings();
-            }
-
-            async initAuth() {
-                try {
-                    if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                        await signInWithCustomToken(auth, __initial_auth_token);
-                    } else {
-                        await signInAnonymously(auth);
-                    }
-                    onAuthStateChanged(auth, user => {
-                        if(user) {
-                            this.user = user;
-                            document.getElementById('conn-dot').classList.replace('bg-red-500', 'bg-green-500');
-                            this.syncCloud();
-                            this.init();
-                        }
+                    cell.classList.add('cell');
+                    
+                    cell.addEventListener('mousedown', (e) => {
+                        if (e.button === 0) handleCellClick(r, c);
+                        if (e.button === 2) handleRightClick(r, c);
                     });
-                } catch(e) {
-                    console.error("Auth error", e);
-                    this.init();
+                    
+                    cell.addEventListener('contextmenu', e => e.preventDefault());
+
+                    // Touch support
+                    let touchTimer;
+                    cell.addEventListener('touchstart', (e) => {
+                        touchTimer = setTimeout(() => handleRightClick(r, c), 400);
+                    }, {passive: true});
+                    cell.addEventListener('touchend', () => clearTimeout(touchTimer));
+
+                    boardElement.appendChild(cell);
+                    board[r][c] = {
+                        element: cell,
+                        isMine: false,
+                        isRevealed: false,
+                        isFlagged: false,
+                        neighborMines: 0,
+                        r, c
+                    };
                 }
             }
+        }
 
-            syncCloud() {
-                if(!this.user) return;
+        function placeMines(firstR, firstC) {
+            const config = CONFIGS[currentDifficulty];
+            let placed = 0;
+            while (placed < config.mines) {
+                let r = Math.floor(Math.random() * config.rows);
+                let c = Math.floor(Math.random() * config.cols);
+                const isNearFirstClick = Math.abs(r - firstR) <= 1 && Math.abs(c - firstC) <= 1;
                 
-                // Global Best
-                onSnapshot(doc(db, 'artifacts', appId, 'public', 'data', 'global_stats'), s => {
-                    if(s.exists()) document.getElementById('global-best').textContent = s.data().topScore || 0;
+                if (!board[r][c].isMine && !isNearFirstClick) {
+                    board[r][c].isMine = true;
+                    minesLocations.add(`${r},${c}`);
+                    placed++;
+                }
+            }
+            for (let r = 0; r < config.rows; r++) {
+                for (let c = 0; c < config.cols; c++) {
+                    if (!board[r][c].isMine) board[r][c].neighborMines = countNeighborMines(r, c);
+                }
+            }
+        }
+
+        function countNeighborMines(r, c) {
+            const config = CONFIGS[currentDifficulty];
+            let count = 0;
+            getNeighbors(r, c).forEach(n => {
+                if (board[n.r][n.c].isMine) count++;
+            });
+            return count;
+        }
+
+        function getNeighbors(r, c) {
+            const config = CONFIGS[currentDifficulty];
+            const neighbors = [];
+            for (let i = -1; i <= 1; i++) {
+                for (let j = -1; j <= 1; j++) {
+                    if (i === 0 && j === 0) continue;
+                    let nr = r + i, nc = c + j;
+                    if (nr >= 0 && nr < config.rows && nc >= 0 && nc < config.cols) {
+                        neighbors.push({r: nr, c: nc});
+                    }
+                }
+            }
+            return neighbors;
+        }
+
+        function handleCellClick(r, c) {
+            if (isGameOver || board[r][c].isFlagged) return;
+
+            if (firstClick) {
+                firstClick = false;
+                placeMines(r, c);
+                startTimer();
+            }
+
+            if (board[r][c].isRevealed) {
+                chord(r, c);
+                return;
+            }
+
+            if (board[r][c].isMine) {
+                gameOver(false);
+                return;
+            }
+
+            revealCell(r, c);
+            checkWin();
+        }
+
+        function handleRightClick(r, c) {
+            if (isGameOver || board[r][c].isRevealed) return;
+            const cell = board[r][c];
+            cell.isFlagged = !cell.isFlagged;
+            cell.element.classList.toggle('flagged');
+            flaggedCount += cell.isFlagged ? 1 : -1;
+            updateDisplay();
+        }
+
+        function revealCell(r, c) {
+            const cell = board[r][c];
+            if (cell.isRevealed || cell.isFlagged) return;
+
+            cell.isRevealed = true;
+            revealedCount++;
+            cell.element.classList.add('revealed');
+
+            if (cell.neighborMines > 0) {
+                cell.element.innerText = cell.neighborMines;
+                cell.element.classList.add(`n-${cell.neighborMines}`);
+            } else {
+                getNeighbors(r, c).forEach(n => revealCell(n.r, n.c));
+            }
+        }
+
+        function chord(r, c) {
+            const cell = board[r][c];
+            if (!cell.isRevealed || cell.neighborMines === 0) return;
+
+            const neighbors = getNeighbors(r, c);
+            const flagCount = neighbors.filter(n => board[n.r][n.c].isFlagged).length;
+
+            if (flagCount === cell.neighborMines) {
+                neighbors.forEach(n => {
+                    if (!board[n.r][n.c].isRevealed && !board[n.r][n.c].isFlagged) {
+                        handleCellClick(n.r, n.c);
+                    }
                 });
-
-                // Personal Stats
-                onSnapshot(doc(db, 'artifacts', appId, 'users', this.user.uid, 'profile'), s => {
-                    if(s.exists()) {
-                        const d = s.data();
-                        this.bestScore = d.bestScore || 0;
-                        document.getElementById('best-score').textContent = this.bestScore;
-                        (d.achievements || []).forEach(id => this.markAchievement(id));
-                    }
-                });
             }
+        }
 
-            async syncLeaderboard(isManual = false) {
-                const cont = document.getElementById('leaderboard-content');
-                if(isManual) cont.innerHTML = `<div class="p-8 text-center animate-pulse">Retrying...</div>`;
+        function startTimer() {
+            timerInterval = setInterval(() => {
+                seconds++;
+                updateDisplay();
+            }, 1000);
+        }
 
-                try {
-                    const snap = await getDocs(collection(db, 'artifacts', appId, 'public', 'data', 'leaderboard'));
-                    const data = snap.docs.map(d => ({id: d.id, ...d.data()}))
-                        .sort((a,b) => (b.score || 0) - (a.score || 0))
-                        .slice(0, 15);
-
-                    if(data.length === 0) {
-                        cont.innerHTML = `<div class="p-8 text-center opacity-50">Board is empty.<br>Start the flux!</div>`;
-                    } else {
-                        cont.innerHTML = data.map((e, i) => `
-                            <div class="flex justify-between items-center p-4 rounded-2xl ${this.user && e.id === this.user.uid ? 'bg-indigo-500/20 ring-2 ring-indigo-500' : 'bg-black/5 dark:bg-white/5'}">
-                                <div class="flex items-center gap-3">
-                                    <span class="text-xs font-black opacity-30">#${i+1}</span>
-                                    <span class="font-bold truncate max-w-[140px] dark:text-white">${e.name || 'Anonymous'}</span>
-                                </div>
-                                <span class="font-black text-indigo-500 text-lg">${(e.score || 0).toLocaleString()}</span>
-                            </div>
-                        `).join('');
-                    }
-                } catch(e) {
-                    cont.innerHTML = `<div class="p-8 text-center text-red-400">Connection Failed.<br><span class="text-[10px] opacity-50">Tap Reconnect Below</span></div>`;
-                }
+        function checkWin() {
+            const config = CONFIGS[currentDifficulty];
+            if (revealedCount === (config.rows * config.cols) - config.mines) {
+                gameOver(true);
             }
+        }
 
-            init() {
-                this.grid = Array(4).fill().map(() => Array(4).fill(0));
-                this.score = 0;
-                this.over = false;
-                this.spawnLevel = 1;
-                document.getElementById('game-over').classList.add('hidden');
-                document.getElementById('score').textContent = "0";
-                this.updateSpawnIndicator();
-                this.addRandom();
-                this.addRandom();
-                this.render();
-            }
+        function gameOver(won) {
+            isGameOver = true;
+            clearInterval(timerInterval);
+            resetBtn.innerText = won ? '★' : '×';
+            resetBtn.style.backgroundColor = won ? '#4ade80' : '#f87171';
 
-            addRandom() {
-                const empty = [];
-                this.grid.forEach((r, ri) => r.forEach((c, ci) => { if(c === 0) empty.push({r:ri, c:ci}) }));
-                if(empty.length) {
-                    const {r, c} = empty[Math.floor(Math.random()*empty.length)];
-                    const base = Math.pow(2, this.spawnLevel);
-                    this.grid[r][c] = Math.random() < 0.9 ? base : base * 2;
-                }
-            }
+            minesLocations.forEach(loc => {
+                const [r, c] = loc.split(',').map(Number);
+                board[r][c].element.classList.add('revealed', 'mine');
+            });
 
-            updateSpawnIndicator() {
-                const base = Math.pow(2, this.spawnLevel);
-                document.getElementById('spawn-indicator').textContent = `Spawning: [${base}, ${base*2}]`;
-            }
+            setTimeout(() => showModal(won), 600);
+        }
 
-            render() {
-                const layer = document.getElementById('tile-layer');
-                layer.innerHTML = '';
-                const size = layer.clientWidth;
-                const cellSize = (size - 36) / 4;
-                const gap = 12;
+        function showModal(won) {
+            document.getElementById('modal-icon').innerText = won ? '★' : '×';
+            document.getElementById('modal-title').innerText = won ? 'VICTORY' : 'FAILED';
+            document.getElementById('modal-msg').innerText = won ? `Field cleared in ${seconds}s.` : "A mine was triggered.";
+            modal.classList.remove('hidden');
+        }
 
-                this.grid.forEach((row, r) => row.forEach((val, c) => {
-                    if(val > 0) {
-                        const tile = document.createElement('div');
-                        tile.className = `tile tile-${val <= 2048 ? val : '2048'} tile-appear`;
-                        tile.style.width = `${cellSize}px`;
-                        tile.style.height = `${cellSize}px`;
-                        tile.style.left = `${c * (cellSize + gap)}px`;
-                        tile.style.top = `${r * (cellSize + gap)}px`;
-                        tile.style.fontSize = val > 100 ? (val > 1000 ? '1.1rem' : '1.3rem') : '1.5rem';
-                        tile.textContent = val;
-                        layer.appendChild(tile);
-                    }
-                }));
-            }
+        function closeModal() {
+            modal.classList.add('hidden');
+            resetBtn.style.backgroundColor = '#fde047';
+            initGame();
+        }
 
-            move(dir) {
-                if(this.over) return;
-                let moved = false;
-                let mergedPoints = 0;
-                const rotate = (m) => m[0].map((_, i) => m.map(row => row[i]).reverse());
-                let rotCount = {up:3, right:2, down:1, left:0}[dir];
-                for(let i=0; i<rotCount; i++) this.grid = rotate(this.grid);
-
-                for(let r=0; r<4; r++) {
-                    let row = this.grid[r].filter(v => v !== 0);
-                    for(let i=0; i<row.length-1; i++) {
-                        if(row[i] === row[i+1]) {
-                            row[i] *= 2;
-                            mergedPoints += row[i];
-                            row.splice(i+1, 1);
-                            moved = true;
-                        }
-                    }
-                    const newRow = row.concat(Array(4 - row.length).fill(0));
-                    if(JSON.stringify(this.grid[r]) !== JSON.stringify(newRow)) moved = true;
-                    this.grid[r] = newRow;
-                }
-
-                for(let i=0; i<(4-rotCount)%4; i++) this.grid = rotate(this.grid);
-
-                if(moved) {
-     
+        resetBtn.addEventListener('click', initGame);
+        window.onload = initGame;
+    </script>
+</body>
+</html>
