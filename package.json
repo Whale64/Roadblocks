@@ -1,0 +1,7 @@
+{
+  "name": "snake-com",
+  "version": "1.0.0",
+  "scripts": {
+    "build": "sed -i \"s|PROCESS_REPLACE_SUPABASE_KEY|$SUPABASE_KEY|g\" Snake.com/game.html"
+  }
+}
