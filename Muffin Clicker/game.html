@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Muffin Clicker</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        @keyframes bounce-up {
+            0% { transform: translateY(0); opacity: 1; }
+            100% { transform: translateY(-120px); opacity: 0; }
+        }
+        .animate-pop {
+            animation: bounce-up 0.8s ease-out forwards;
+        }
+        .muffin-scale:active {
+            transform: scale(0.95);
+        }
+        body {
+            -webkit-touch-callout: none;
+            -webkit-user-select: none;
+            user-select: none;
+        }
+    </style>
+</head>
+<body class="bg-amber-50 text-stone-800 font-sans overflow-hidden">
+    <div id="app" class="flex flex-col md:flex-row h-screen w-screen overflow-hidden">
+        <!-- Sidebar -->
+        <div class="w-full md:w-1/3 bg-amber-100 p-8 flex flex-col items-center justify-center border-b-4 md:border-b-0 md:border-r-4 border-amber-200 relative">
+            <div id="save-status" class="absolute top-4 left-4 text-[10px] font-bold text-amber-700 uppercase">
+                Bakery Offline
+            </div>
+            
+            <div class="text-center mb-8">
+                <h1 id="muffin-count" class="text-4xl md:text-5xl font-black text-amber-900 leading-tight uppercase">0</h1>
+                <p class="text-amber-700 font-bold">Muffins</p>
+                <p id="mps-display" class="text-amber-600 text-sm mt-1">per second: 0</p>
+            </div>
+
+            <div id="muffin-button" class="relative transition-transform duration-75 cursor-pointer muffin-scale touch-none">
+                <div class="w-48 h-48 md:w-64 md:h-64 rounded-full bg-amber-600 border-8 border-amber-800 shadow-2xl flex items-center justify-center relative overflow-hidden">
+                    <!-- Chips -->
+                    <div class="absolute top-1/4 left-1/4 w-4 h-4 md:w-6 md:h-6 bg-stone-900 rounded-full opacity-70"></div>
+                    <div class="absolute bottom-1/3 right-1/4 w-5 h-5 md:w-8 md:h-8 bg-stone-900 rounded-full opacity-70"></div>
+                    <div class="absolute top-1/2 right-1/3 w-3 h-3 bg-stone-900 rounded-full opacity-70"></div>
+                    <i data-lucide="sparkles" class="text-amber-200 opacity-30 w-32 h-32"></i>
+                </div>
+            </div>
+        </div>
+
+        <!-- Shop -->
+        <div class="flex-1 flex flex-col h-full overflow-hidden">
+            <div class="bg-white p-4 border-b border-stone-200 flex justify-between items-center shadow-sm">
+                <div class="flex gap-4">
+                    <div class="bg-stone-100 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-2">
+                        <i data-lucide="trophy" class="text-amber-500 w-4 h-4"></i>
+                        <span id="total-earned">0</span>
+                    </div>
+                </div>
+                <button id="sync-btn" class="bg-amber-600 hover:bg-amber-700 text-white px-4 py-1.5 rounded-lg text-xs font-bold flex items-center gap-2 transition-colors">
+                    <i data-lucide="save" class="w-4 h-4"></i> Sync Now
+                </button>
+            </div>
+
+            <div id="shop-list" class="flex-1 overflow-y-auto p-4 md:p-6 space-y-3 bg-stone-50 pb-20">
+                <h2 class="text-xs font-black text-stone-500 uppercase tracking-widest mb-4">Muffin Empire Expansion</h2>
+                <!-- Buildings will be injected here -->
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // --- Data ---
+        const BUILDINGS = [
+            { id: 'cursor', name: 'Auto-Clicker', baseCost: 15, mps: 0.1, icon: 'mouse-pointer-2' },
+            { id: 'grandma', name: 'Muffin Grandma', baseCost: 100, mps: 1, icon: 'users' },
+            { id: 'bakery', name: 'Local Bakery', baseCost: 1100, mps: 8, icon: 'store' },
+            { id: 'factory', name: 'Muffin Factory', baseCost: 12000, mps: 47, icon: 'factory' },
+            { id: 'mine', name: 'Muffin Mine', baseCost: 130000, mps: 260, icon: 'pickaxe' },
+            { id: 'shipment', name: 'Muffin Shipment', baseCost: 1400000, mps: 1400, icon: 'ship' },
+            { id: 'lab', name: 'Alchemy Lab', baseCost: 20000000, mps: 7800, icon: 'beaker' },
+            { id: 'portal', name: 'Batter Portal', baseCost: 330000000, mps: 44000, icon: 'zap' },
+        ];
+
+        let state = {
+            muffins: 0,
+            totalEarned: 0,
+            inventory: { cursor: 0, grandma: 0, bakery: 0, factory: 0, mine: 0, shipment: 0, lab: 0, portal: 0 },
+            mps: 0,
+            clickValue: 1
+        };
+
+        // --- Logic ---
+        function format(n) {
+            if (n >= 1e9) return (n / 1e9).toFixed(2) + 'B';
+            if (n >= 1e6) return (n / 1e6).toFixed(2) + 'M';
+            if (n >= 1e3) return (n / 1e3).toFixed(1) + 'k';
+            return Math.floor(n).toLocaleString();
+        }
+
+        function updateUI() {
+            document.getElementById('muffin-count').innerText = format(state.muffins);
+            document.getElementById('mps-display').innerText = `per second: ${format(state.mps)}`;
+            document.getElementById('total-earned').innerText = format(state.totalEarned);
+            renderShop();
+        }
+
+        function renderShop() {
+            const container = document.getElementById('shop-list');
+            const buildingsHeader = container.querySelector('h2');
+            container.innerHTML = '';
+            container.appendChild(buildingsHeader);
+
+            BUILDINGS.forEach(b => {
+                const count = state.inventory[b.id] || 0;
+                const cost = Math.floor(b.baseCost * Math.pow(1.15, count));
+                const canAfford = state.muffins >= cost;
+
+                const btn = document.createElement('button');
+                btn.className = `w-full p-4 rounded-xl border-b-4 flex items-center justify-between transition-all ${canAfford ? 'bg-white border-amber-200 hover:border-amber-400' : 'bg-stone-200 border-stone-300 opacity-60 cursor-not-allowed'}`;
+                btn.onclick = () => buyBuilding(b.id, cost);
+                
+                btn.innerHTML = `
+                    <div class="flex items-center gap-4">
+                        <div class="p-2 rounded-lg ${canAfford ? 'bg-amber-100 text-amber-600' : 'bg-stone-300 text-stone-500'}">
+                            <i data-lucide="${b.icon}" class="w-5 h-5"></i>
+                        </div>
+                        <div class="text-left">
+                            <h3 class="font-bold text-stone-800 text-xs uppercase">${b.name}</h3>
+                            <div class="flex items-center gap-1 text-amber-600 font-bold text-[10px]">
+                                <i data-lucide="cookie" class="w-3 h-3"></i> ${format(cost)}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="text-2xl font-black text-stone-100">${count}</div>
+                `;
+                container.appendChild(btn);
+            });
+            lucide.createIcons();
+        }
+
+        function buyBuilding(id, cost) {
+            if (state.muffins >= cost) {
+                state.muffins -= cost;
+                state.inventory[id]++;
+                calculateMPS();
+                updateUI();
+            }
+        }
+
+        function calculateMPS() {
+            let m = 0;
+            BUILDINGS.forEach(b => {
+                m += (state.inventory[b.id] || 0) * b.mps;
+            });
+            state.mps = m;
+            const total = Object.values(state.inventory).reduce((a, b) => a + b, 0);
+            state.clickValue = 1 + Math.floor(total / 10);
+        }
+
+        function createFloatingText(x, y, val) {
+            const el = document.createElement('div');
+            el.className = 'fixed pointer-events-none font-black text-2xl text-amber-900 animate-pop z-50';
+            el.style.left = x + 'px';
+            el.style.top = y + 'px';
+            el.innerText = `+${val}`;
+            document.body.appendChild(el);
+            setTimeout(() => el.remove(), 800);
+        }
+
+        // --- Initialization ---
+        window.onload = async () => {
+            lucide.createIcons();
+            
+            // Interaction
+            document.getElementById('muffin-button').onclick = (e) => {
+                state.muffins += state.clickValue;
+                state.totalEarned += state.clickValue;
+                createFloatingText(e.clientX, e.clientY, state.clickValue);
+                updateUI();
+            };
+
+            // Game Loop
+            setInterval(() => {
+                if (state.mps > 0) {
+                    const gain = state.mps / 10;
+                    state.muffins += gain;
+                    state.totalEarned += gain;
+                    updateUI();
+                }
+            }, 100);
+
+            // Firebase Logic
+            try {
+                const firebaseConfig = JSON.parse(__firebase_config);
+                const app = initializeApp(firebaseConfig);
+                const auth = getAuth(app);
+                const db = getFirestore(app);
+                const appId = typeof __app_id !== 'undefined' ? __app_id : 'muffin-clicker-99';
+
+                const cred = await signInAnonymously(auth);
+                const user = cred.user;
+                document.getElementById('save-status').innerText = `ID: ${user.uid.slice(0, 8)} | Syncing...`;
+
+                // Load Initial Save
+                const docRef = doc(db, 'artifacts', appId, 'users', user.uid, 'saveData', 'current');
+                const docSnap = await getDoc(docRef);
+                if (docSnap.exists()) {
+                    const data = docSnap.data();
+                    state.muffins = data.muffins || 0;
+                    state.totalEarned = data.totalEarned || 0;
+                    state.inventory = data.inventory || state.inventory;
+                    calculateMPS();
+                    updateUI();
+                }
+
+                // Auto-save
+                const save = async () => {
+                    document.getElementById('save-status').innerText = `Saving...`;
+                    await setDoc(docRef, state, { merge: true });
+                    document.getElementById('save-status').innerText = `ID: ${user.uid.slice(0, 8)} | Saved`;
+                };
+
+                document.getElementById('sync-btn').onclick = save;
+                setInterval(save, 30000);
+
+            } catch (err) {
+                console.error(err);
+                document.getElementById('save-status').innerText = 'Cloud Error';
+            }
+        };
+    </script>
+</body>
+</html>
