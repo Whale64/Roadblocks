@@ -1,0 +1,452 @@
+
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  #game-root {
+    font-family: var(--font-sans);
+    min-height: 520px;
+    background: linear-gradient(180deg, #fce4f0 0%, #e8d5f5 50%, #d0e8ff 100%);
+    border-radius: var(--border-radius-lg);
+    overflow: hidden;
+    position: relative;
+    user-select: none;
+  }
+  #hud {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 10px 16px;
+    background: rgba(255,255,255,0.5);
+    backdrop-filter: blur(4px);
+    border-bottom: 0.5px solid rgba(180,120,200,0.3);
+    font-size: 14px; font-weight: 500;
+    color: #7a3b8a;
+  }
+  #hud span { display: flex; align-items: center; gap: 6px; }
+  #canvas-wrap { position: relative; width: 100%; }
+  canvas { display: block; width: 100%; cursor: pointer; }
+  #msg-box {
+    position: absolute; bottom: 0; left: 0; right: 0;
+    background: rgba(255,255,255,0.88);
+    border-top: 0.5px solid rgba(180,120,200,0.4);
+    padding: 10px 16px;
+    font-size: 13px; color: #5a3070;
+    min-height: 40px; text-align: center;
+  }
+  #start-screen {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    background: linear-gradient(160deg, #fce4f0 0%, #e0d0f8 60%, #cce0ff 100%);
+    z-index: 10;
+    gap: 14px;
+  }
+  #start-screen h1 {
+    font-size: 28px; font-weight: 500;
+    color: #8b3fa8;
+    text-shadow: 0 2px 8px rgba(180,100,220,0.18);
+    letter-spacing: -0.5px;
+  }
+  #start-screen p { font-size: 13px; color: #7a60a0; max-width: 280px; text-align: center; line-height: 1.6; }
+  .big-btn {
+    background: linear-gradient(135deg, #d970e8, #9060d0);
+    color: white; border: none;
+    padding: 12px 32px; border-radius: 24px;
+    font-size: 15px; font-weight: 500; cursor: pointer;
+    letter-spacing: 0.2px;
+    box-shadow: 0 4px 16px rgba(180,80,220,0.3);
+    transition: transform 0.12s, box-shadow 0.12s;
+  }
+  .big-btn:hover { transform: scale(1.04); box-shadow: 0 6px 20px rgba(180,80,220,0.4); }
+  .big-btn:active { transform: scale(0.97); }
+  #over-screen {
+    position: absolute; inset: 0;
+    display: none; flex-direction: column;
+    align-items: center; justify-content: center;
+    background: rgba(255,230,250,0.92);
+    z-index: 10; gap: 12px;
+  }
+  #over-screen h2 { font-size: 24px; font-weight: 500; color: #8b3fa8; }
+  #over-screen p { font-size: 14px; color: #6a4090; }
+  .stars { font-size: 22px; letter-spacing: 4px; }
+  #combo-flash {
+    position: absolute; top: 60px; left: 50%; transform: translateX(-50%);
+    font-size: 18px; font-weight: 500; color: #c040d0;
+    pointer-events: none; opacity: 0;
+    transition: opacity 0.2s;
+    text-shadow: 0 2px 8px rgba(200,80,220,0.3);
+    white-space: nowrap;
+  }
+</style>
+
+<div id="game-root">
+  <div id="start-screen">
+    <h1>Furry Femboy Land</h1>
+    <p>Click the falling fuzzy cuties to collect stars! Catch them before they float away! Combos give bonus points!</p>
+    <button class="big-btn" onclick="startGame()">Play now!</button>
+    <div class="stars">✦ ✧ ✦</div>
+  </div>
+  <div id="over-screen">
+    <h2 id="over-title">Fabulous!</h2>
+    <p id="over-score"></p>
+    <p id="over-best"></p>
+    <button class="big-btn" onclick="startGame()">Play again!</button>
+  </div>
+  <div id="hud">
+    <span>Score: <strong id="score-disp">0</strong></span>
+    <span id="level-disp">Level 1</span>
+    <span>Best: <strong id="best-disp">0</strong></span>
+  </div>
+  <div id="canvas-wrap">
+    <canvas id="gc" height="440"></canvas>
+    <div id="combo-flash" id="combo-flash"></div>
+  </div>
+  <div id="msg-box" id="msg-box">Click the cuties to collect their stars!</div>
+</div>
+
+<script>
+const canvas = document.getElementById('gc');
+const ctx = canvas.getContext('2d');
+const msgBox = document.getElementById('msg-box');
+const comboFlash = document.getElementById('combo-flash');
+const startScreen = document.getElementById('start-screen');
+const overScreen = document.getElementById('over-screen');
+
+let W, H, dpr;
+function resize() {
+  const rect = canvas.getBoundingClientRect();
+  dpr = window.devicePixelRatio || 1;
+  W = rect.width; H = 440;
+  canvas.width = W * dpr; canvas.height = H * dpr;
+  ctx.scale(dpr, dpr);
+}
+
+const CHARS = [
+  { ears: '#e8a0d8', body: '#f7d6f0', tail: '#d08ce0', accent: '#b060c8', name: 'Mochi' },
+  { ears: '#a0d8e8', body: '#d6f0f7', tail: '#8cd0e0', accent: '#60a8c8', name: 'Coco' },
+  { ears: '#e8d0a0', body: '#f7ecd6', tail: '#e0c08c', accent: '#c09060', name: 'Kiki' },
+  { ears: '#a0e8c0', body: '#d6f7e4', tail: '#8ce0b0', accent: '#60c890', name: 'Boba' },
+  { ears: '#e8a0a8', body: '#f7d6da', tail: '#e08c94', accent: '#c86070', name: 'Lumi' },
+];
+
+const MSGS = [
+  "Slay queen!", "So cute!", "Adorable!", "Fluffy!",
+  "Fabulous!", "Serve!", "Iconic!", "Yassss!", "Gorgeous!", "Stunning!"
+];
+
+let sprites = [], score = 0, best = 0, combo = 0, level = 1;
+let spawnTimer = 0, gameRunning = false, raf;
+let particles = [];
+let lastTime = 0;
+
+function drawFemboy(cx, cy, r, ch, t) {
+  const c = ctx;
+  const bob = Math.sin(t * 2 + cx) * 3;
+  cy += bob;
+
+  // shadow
+  c.save();
+  c.globalAlpha = 0.08;
+  c.beginPath(); c.ellipse(cx, cy + r * 1.6, r * 0.7, r * 0.2, 0, 0, Math.PI * 2);
+  c.fillStyle = '#804090'; c.fill();
+  c.restore();
+
+  // tail
+  c.save();
+  c.strokeStyle = ch.tail; c.lineWidth = r * 0.55; c.lineCap = 'round';
+  c.beginPath();
+  c.moveTo(cx, cy + r * 0.4);
+  const tOff = Math.sin(t * 3 + cx) * r * 0.5;
+  c.quadraticCurveTo(cx - r * 1.2 + tOff, cy + r * 1.2, cx - r * 0.6 + tOff, cy + r * 1.8);
+  c.stroke();
+  c.restore();
+
+  // skirt / dress
+  c.save();
+  c.fillStyle = ch.accent;
+  c.beginPath();
+  c.ellipse(cx, cy + r * 0.55, r * 0.85, r * 0.55, 0, 0, Math.PI);
+  c.fill();
+  // dress stripe
+  c.strokeStyle = 'rgba(255,255,255,0.5)'; c.lineWidth = 1.5;
+  c.beginPath(); c.ellipse(cx, cy + r * 0.55, r * 0.55, r * 0.35, 0, 0, Math.PI); c.stroke();
+  c.restore();
+
+  // body
+  c.fillStyle = ch.body;
+  c.beginPath();
+  c.ellipse(cx, cy, r * 0.7, r * 0.85, 0, 0, Math.PI * 2);
+  c.fill();
+
+  // ears
+  const drawEar = (ex, ey, flip) => {
+    c.save();
+    c.fillStyle = ch.ears;
+    c.beginPath();
+    c.moveTo(ex, ey);
+    c.lineTo(ex + flip * r * 0.45, ey - r * 0.75);
+    c.lineTo(ex + flip * r * 0.25, ey);
+    c.fill();
+    c.fillStyle = 'rgba(255,200,220,0.55)';
+    c.beginPath();
+    c.moveTo(ex + flip * 0.05 * r, ey - 0.05 * r);
+    c.lineTo(ex + flip * r * 0.32, ey - r * 0.55);
+    c.lineTo(ex + flip * r * 0.18, ey - 0.08 * r);
+    c.fill();
+    c.restore();
+  };
+  drawEar(cx - r * 0.38, cy - r * 0.7, -1);
+  drawEar(cx + r * 0.38, cy - r * 0.7, 1);
+
+  // head
+  c.fillStyle = ch.body;
+  c.beginPath();
+  c.ellipse(cx, cy - r * 0.25, r * 0.62, r * 0.62, 0, 0, Math.PI * 2);
+  c.fill();
+
+  // blush
+  c.save();
+  c.globalAlpha = 0.5;
+  c.fillStyle = '#f090b0';
+  c.beginPath(); c.ellipse(cx - r * 0.3, cy - r * 0.22, r * 0.18, r * 0.1, 0, 0, Math.PI * 2); c.fill();
+  c.beginPath(); c.ellipse(cx + r * 0.3, cy - r * 0.22, r * 0.18, r * 0.1, 0, 0, Math.PI * 2); c.fill();
+  c.restore();
+
+  // eyes
+  c.fillStyle = '#5a2060';
+  c.beginPath(); c.ellipse(cx - r * 0.22, cy - r * 0.32, r * 0.1, r * 0.12, 0, 0, Math.PI * 2); c.fill();
+  c.beginPath(); c.ellipse(cx + r * 0.22, cy - r * 0.32, r * 0.1, r * 0.12, 0, 0, Math.PI * 2); c.fill();
+  c.fillStyle = 'white';
+  c.beginPath(); c.ellipse(cx - r * 0.19, cy - r * 0.35, r * 0.04, r * 0.04, 0, 0, Math.PI * 2); c.fill();
+  c.beginPath(); c.ellipse(cx + r * 0.25, cy - r * 0.35, r * 0.04, r * 0.04, 0, 0, Math.PI * 2); c.fill();
+
+  // mouth
+  c.strokeStyle = '#b060a0'; c.lineWidth = 1.5; c.lineCap = 'round';
+  c.beginPath();
+  c.moveTo(cx - r * 0.14, cy - r * 0.1);
+  c.quadraticCurveTo(cx, cy, cx + r * 0.14, cy - r * 0.1);
+  c.stroke();
+
+  // bow / accessory
+  const bx = cx + r * 0.35, by = cy - r * 0.75;
+  c.fillStyle = ch.accent;
+  c.beginPath(); c.ellipse(bx - r * 0.1, by, r * 0.15, r * 0.1, -0.5, 0, Math.PI * 2); c.fill();
+  c.beginPath(); c.ellipse(bx + r * 0.1, by, r * 0.15, r * 0.1, 0.5, 0, Math.PI * 2); c.fill();
+  c.fillStyle = '#fff'; c.beginPath(); c.arc(bx, by, r * 0.06, 0, Math.PI * 2); c.fill();
+
+  // star sparkles around
+  const sparkle = (sx, sy, sr) => {
+    c.save();
+    c.fillStyle = 'rgba(255,230,80,0.85)';
+    c.strokeStyle = 'rgba(255,200,50,0.7)'; c.lineWidth = 0.8;
+    c.translate(sx, sy);
+    c.rotate(t * 1.5);
+    for(let i=0;i<4;i++){
+      c.rotate(Math.PI/2);
+      c.beginPath(); c.moveTo(0,0); c.lineTo(sr*0.4,sr*1.2); c.lineTo(0,sr*0.5); c.lineTo(-sr*0.4,sr*1.2); c.closePath(); c.fill(); c.stroke();
+    }
+    c.restore();
+  };
+  const sw = Math.sin(t * 2.5 + cx) * 0.5 + 0.5;
+  c.globalAlpha = 0.7 + sw * 0.3;
+  sparkle(cx - r * 0.85, cy - r * 0.5, r * 0.18);
+  sparkle(cx + r * 0.85, cy - r * 0.6, r * 0.14);
+  sparkle(cx, cy - r * 1.35, r * 0.16);
+  c.globalAlpha = 1;
+
+  // name tag
+  c.save();
+  c.fillStyle = 'rgba(255,255,255,0.7)';
+  c.strokeStyle = ch.accent; c.lineWidth = 0.8;
+  const nw = ch.name.length * 6.5 + 10;
+  c.beginPath(); roundRect(c, cx - nw/2, cy + r * 1.7, nw, 16, 6); c.fill(); c.stroke();
+  c.fillStyle = ch.accent; c.font = `500 10px var(--font-sans)`;
+  c.textAlign = 'center'; c.textBaseline = 'middle';
+  c.fillText(ch.name, cx, cy + r * 1.7 + 8);
+  c.restore();
+}
+
+function roundRect(c, x, y, w, h, r) {
+  c.beginPath();
+  c.moveTo(x+r,y); c.lineTo(x+w-r,y); c.quadraticCurveTo(x+w,y,x+w,y+r);
+  c.lineTo(x+w,y+h-r); c.quadraticCurveTo(x+w,y+h,x+w-r,y+h);
+  c.lineTo(x+r,y+h); c.quadraticCurveTo(x,y+h,x,y+h-r);
+  c.lineTo(x,y+r); c.quadraticCurveTo(x,y,x+r,y); c.closePath();
+}
+
+function spawnSprite() {
+  const ch = CHARS[Math.floor(Math.random() * CHARS.length)];
+  const r = 28 + Math.random() * 12;
+  const x = r * 1.5 + Math.random() * (W - r * 3);
+  const speed = 28 + level * 8 + Math.random() * 16;
+  const drift = (Math.random() - 0.5) * 20;
+  sprites.push({ x, y: -r * 2.5, r, ch, speed, drift, t: Math.random() * 100, hp: 1.0, popped: false, popT: 0 });
+}
+
+function spawnParticles(x, y, ch) {
+  for(let i = 0; i < 14; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const spd = 60 + Math.random() * 90;
+    particles.push({
+      x, y, vx: Math.cos(angle)*spd, vy: Math.sin(angle)*spd - 40,
+      life: 1, decay: 1.5 + Math.random(),
+      r: 4 + Math.random() * 5,
+      color: [ch.body, ch.accent, ch.ears, '#ffe080'][Math.floor(Math.random()*4)],
+      star: Math.random() < 0.4
+    });
+  }
+}
+
+function gameLoop(ts) {
+  if(!gameRunning) return;
+  const dt = Math.min((ts - lastTime) / 1000, 0.05);
+  lastTime = ts;
+  ctx.clearRect(0, 0, W, H);
+
+  // background
+  const grad = ctx.createLinearGradient(0, 0, 0, H);
+  grad.addColorStop(0, '#fce4f0'); grad.addColorStop(0.5, '#e8d5f5'); grad.addColorStop(1, '#d0e8ff');
+  ctx.fillStyle = grad; ctx.fillRect(0, 0, W, H);
+
+  // floating hearts bg
+  ctx.save(); ctx.globalAlpha = 0.08;
+  ctx.fillStyle = '#d060c0';
+  const hPos = [{x:60,y:80},{x:W-80,y:120},{x:W/2-40,y:60},{x:W/4,y:200},{x:W*0.75,y:180}];
+  hPos.forEach(p=>{
+    const by = p.y + Math.sin(ts/1200 + p.x)*12;
+    ctx.beginPath(); ctx.arc(p.x-5,by-4,8,0,Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(p.x+5,by-4,8,0,Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(p.x-12,by-2); ctx.lineTo(p.x,by+12); ctx.lineTo(p.x+12,by-2); ctx.closePath(); ctx.fill();
+  });
+  ctx.restore();
+
+  // ground
+  ctx.fillStyle = 'rgba(220,160,240,0.35)';
+  ctx.fillRect(0, H - 28, W, 28);
+  ctx.fillStyle = 'rgba(200,140,220,0.6)';
+  ctx.fillRect(0, H - 28, W, 3);
+  // ground flowers
+  for(let i=0;i<8;i++){
+    const fx = (i * W / 7) + 20;
+    const fy = H - 16;
+    ctx.fillStyle = ['#f090c0','#a0c8f0','#c0f0a0','#f0d060'][i%4];
+    ctx.beginPath(); ctx.arc(fx,fy-8,6,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle = 'white'; ctx.beginPath(); ctx.arc(fx,fy-8,3,0,Math.PI*2); ctx.fill();
+    ctx.strokeStyle='rgba(180,100,120,0.4)'; ctx.lineWidth=1.5;
+    ctx.beginPath(); ctx.moveTo(fx,fy-2); ctx.lineTo(fx,fy); ctx.stroke();
+  }
+
+  // spawn timer
+  spawnTimer += dt;
+  const spawnRate = Math.max(0.5, 1.8 - level * 0.12);
+  if(spawnTimer > spawnRate) { spawnSprite(); spawnTimer = 0; }
+
+  // update & draw sprites
+  sprites.forEach(s => {
+    if(!s.popped) {
+      s.y += s.speed * dt;
+      s.x += s.drift * dt;
+      s.t += dt;
+      if(s.y > H + 20) { s.popped = true; combo = 0; updateComboDisplay(); }
+      drawFemboy(s.x, s.y, s.r, s.ch, s.t);
+    } else {
+      s.popT += dt;
+    }
+  });
+  sprites = sprites.filter(s => !s.popped || s.popT < 0.4);
+
+  // particles
+  particles.forEach(p => {
+    p.x += p.vx * dt; p.y += p.vy * dt;
+    p.vy += 180 * dt;
+    p.life -= p.decay * dt;
+    if(p.life <= 0) return;
+    ctx.save();
+    ctx.globalAlpha = Math.max(0, p.life);
+    if(p.star) {
+      ctx.fillStyle = '#ffe060';
+      ctx.translate(p.x, p.y); ctx.rotate(p.life * 4);
+      ctx.beginPath();
+      for(let i=0;i<5;i++){
+        const a = (i/5)*Math.PI*2 - Math.PI/2;
+        const a2 = a + Math.PI/5;
+        if(i===0) ctx.moveTo(Math.cos(a)*p.r,Math.sin(a)*p.r);
+        else ctx.lineTo(Math.cos(a)*p.r,Math.sin(a)*p.r);
+        ctx.lineTo(Math.cos(a2)*p.r*0.45,Math.sin(a2)*p.r*0.45);
+      }
+      ctx.closePath(); ctx.fill();
+    } else {
+      ctx.fillStyle = p.color;
+      ctx.beginPath(); ctx.arc(p.x, p.y, p.r * p.life, 0, Math.PI*2); ctx.fill();
+    }
+    ctx.restore();
+  });
+  particles = particles.filter(p => p.life > 0);
+
+  // level up
+  level = Math.min(10, 1 + Math.floor(score / 100));
+  document.getElementById('level-disp').textContent = `Level ${level}`;
+  document.getElementById('score-disp').textContent = score;
+
+  raf = requestAnimationFrame(gameLoop);
+}
+
+function updateComboDisplay() {
+  if(combo > 1) {
+    comboFlash.textContent = combo >= 5 ? `${combo}x COMBO — SLAY!` : `${combo}x combo!`;
+    comboFlash.style.opacity = 1;
+    setTimeout(()=>{ comboFlash.style.opacity = 0; }, 800);
+  }
+}
+
+canvas.addEventListener('click', e => {
+  if(!gameRunning) return;
+  const rect = canvas.getBoundingClientRect();
+  const mx = e.clientX - rect.left;
+  const my = e.clientY - rect.top;
+  let hit = false;
+  sprites.forEach(s => {
+    if(s.popped) return;
+    const dx = mx - s.x, dy = my - s.y;
+    if(Math.sqrt(dx*dx + dy*dy) < s.r * 1.4) {
+      s.popped = true; hit = true;
+      combo++;
+      const pts = combo > 1 ? combo * 10 : 10;
+      score += pts;
+      spawnParticles(s.x, s.y, s.ch);
+      msgBox.textContent = MSGS[Math.floor(Math.random()*MSGS.length)] + (combo>1?` ${combo}x combo!`:'');
+      updateComboDisplay();
+      if(score > best) { best = score; document.getElementById('best-disp').textContent = best; }
+    }
+  });
+  if(!hit) { combo = 0; msgBox.textContent = 'Missed! Keep going!'; }
+});
+
+function startGame() {
+  sprites = []; particles = [];
+  score = 0; combo = 0; level = 1; spawnTimer = 0;
+  document.getElementById('score-disp').textContent = '0';
+  document.getElementById('best-disp').textContent = best;
+  document.getElementById('level-disp').textContent = 'Level 1';
+  msgBox.textContent = 'Click the cuties to collect their stars!';
+  startScreen.style.display = 'none';
+  overScreen.style.display = 'none';
+  gameRunning = true;
+  lastTime = performance.now();
+  if(raf) cancelAnimationFrame(raf);
+  resize();
+  raf = requestAnimationFrame(gameLoop);
+  // end after 45 seconds
+  setTimeout(() => {
+    if(!gameRunning) return;
+    gameRunning = false;
+    cancelAnimationFrame(raf);
+    if(score > best) best = score;
+    overScreen.style.display = 'flex';
+    document.getElementById('over-title').textContent = score > 150 ? 'ICONIC SLAY!' : score > 80 ? 'Fabulous!' : 'Keep serving, babe!';
+    document.getElementById('over-score').textContent = `Score: ${score}`;
+    document.getElementById('over-best').textContent = `Personal best: ${best}`;
+  }, 45000);
+}
+
+window.startGame = startGame;
+resize();
+window.addEventListener('resize', resize);
+</script>
