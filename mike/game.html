@@ -1,170 +1,142 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>THE VOID - Wazowski Edition</title>
+    <title>THE WATCHER: FIXED</title>
     <style>
-        body { margin: 0; background: #000; color: #00ff00; font-family: 'Courier New', monospace; overflow: hidden; }
-        #canvas { display: block; image-rendering: pixelated; width: 100vw; height: 100vh; }
-        #ui { position: absolute; top: 20px; left: 20px; pointer-events: none; text-shadow: 2px 2px #000; z-index: 5; }
-        #overlay {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.95); display: flex; flex-direction: column;
-            justify-content: center; align-items: center; cursor: pointer; z-index: 10;
-        }
+        body { margin: 0; background: #000; overflow: hidden; color: #0f0; font-family: monospace; text-align: center; }
+        canvas { display: block; margin: 20px auto; border: 4px solid #111; background: #050505; }
+        #death { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #000; display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 100; }
+        h1 { font-size: 80px; color: #f00; text-shadow: 0 0 30px #f00; }
+        #ui { position: fixed; top: 30px; width: 100%; color: #0f0; font-weight: bold; }
     </style>
 </head>
 <body>
-
-    <div id="overlay" onclick="start()">
-        <h1 style="color: #a3ff00;">"ALWAYS WATCHING"</h1>
-        <p>CLICK TO START SHIFT</p>
+    <div id="ui">GET TO THE EXIT | USE WASD | STATUS: <span id="status">WAITING...</span></div>
+    <canvas id="game"></canvas>
+    <div id="death">
+        <h1>GOT MIKED</h1>
+        <button onclick="location.reload()" style="padding:15px; cursor:pointer;">RETRY</button>
     </div>
-
-    <div id="ui">
-        <div>STATUS: SCARING_IN_PROGRESS</div>
-        <div>SCREAM POWER: <span id="pulse">0</span>%</div>
-    </div>
-    <canvas id="canvas"></canvas>
 
     <script>
-        const canvas = document.getElementById('canvas');
+        const canvas = document.getElementById('game');
         const ctx = canvas.getContext('2d');
-        const overlay = document.getElementById('overlay');
-        const pulseUI = document.getElementById('pulse');
+        canvas.width = 640; canvas.height = 400;
 
-        const mapSize = 24;
-        const map = [
-            [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
-            [1,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
-            [1,0,1,1,1,0,1,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,1],
-            [1,0,1,0,0,0,1,0,0,0,0,0,0,0,0,1,0,0,0,0,0,1,0,1],
-            [1,0,1,0,1,1,1,1,1,1,1,1,1,1,0,1,0,1,1,1,0,1,0,1],
-            [1,0,0,0,1,0,0,0,0,0,0,0,0,1,0,1,0,1,0,1,0,1,0,1],
-            [1,1,1,0,1,0,1,1,1,1,1,1,0,1,0,1,0,1,0,1,0,1,0,1],
-            [1,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,1,0,0,0,1,0,1],
-            [1,0,1,1,1,1,1,1,1,1,0,1,1,1,1,1,1,1,1,1,1,1,0,1],
-            [1,0,1,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
-            [1,0,1,0,1,1,1,1,0,1,1,1,1,1,1,1,1,1,1,1,1,1,0,1],
-            [1,0,0,0,1,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,1],
-            [1,1,1,1,1,0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,0,1,0,1],
-            [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,1,0,1],
-            [1,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,1,0,1,0,1],
-            [1,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,1,0,1,0,1],
-            [1,0,1,0,1,1,1,1,1,1,1,1,1,1,1,1,0,1,0,1,0,1,0,1],
-            [1,0,0,0,1,0,0,0,0,0,0,0,0,0,0,1,0,0,0,1,0,0,0,1],
-            [1,1,1,1,1,0,1,1,1,1,1,1,1,1,0,1,1,1,1,1,1,1,1,1],
-            [1,0,0,0,0,0,1,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,1],
-            [1,0,1,1,1,1,1,0,1,1,1,1,0,1,1,1,1,1,1,1,1,1,0,1],
-            [1,0,1,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
-            [1,0,0,0,1,1,1,1,1,0,1,1,1,1,1,1,1,1,1,1,1,1,0,1],
-            [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+        const world = [
+            [1,1,1,1,1,1,1,1,1,1],
+            [1,0,0,0,1,0,0,0,0,1],
+            [1,0,1,0,1,0,1,1,0,1],
+            [1,0,1,0,0,0,0,1,0,1],
+            [1,0,1,1,1,1,0,1,0,1],
+            [1,0,0,0,0,1,0,0,0,1],
+            [1,1,1,1,0,1,1,1,0,1],
+            [1,0,0,0,0,0,0,1,0,1],
+            [1,0,1,1,1,1,0,0,0,1],
+            [1,1,1,1,1,1,1,1,1,1]
         ];
 
-        let pX = 1.5, pY = 1.5, pA = 0; 
-        let mX = 22.5, mY = 22.5; 
+        let player = { x: 1.5, y: 1.5, dir: 0 };
+        let mike = { x: 8.5, y: 8.5 }; // Mike starts far away
+        let breadcrumbs = [{x: 1.5, y: 1.5}];
         let keys = {};
+        let startTime = Date.now();
+        let active = false;
 
-        function start() {
-            overlay.style.display = 'none';
-            canvas.requestPointerLock();
-            requestAnimationFrame(loop);
+        window.onkeydown = e => keys[e.code] = true;
+        window.onkeyup = e => keys[e.code] = false;
+
+        setInterval(() => {
+            if(!active) return;
+            breadcrumbs.push({x: player.x, y: player.y});
+            if(breadcrumbs.length > 30) breadcrumbs.shift();
+        }, 400);
+
+        function drawMikeSprite(x, y, s) {
+            ctx.fillStyle = "#7CFC00";
+            ctx.beginPath(); ctx.arc(x, y, s, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = "white";
+            ctx.beginPath(); ctx.arc(x, y - s/4, s/1.6, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = "black";
+            ctx.beginPath(); ctx.arc(x, y - s/4, s/4, 0, Math.PI*2); ctx.fill();
         }
 
-        document.addEventListener('keydown', e => keys[e.code] = true);
-        document.addEventListener('keyup', e => keys[e.code] = false);
-        document.addEventListener('mousemove', e => {
-            if (document.pointerLockElement === canvas) pA += e.movementX * 0.003;
-        });
-
         function loop() {
-            let moveStep = 0.06;
-            let nextX = pX, nextY = pY;
-            if (keys['KeyW']) { nextX += Math.cos(pA) * moveStep; nextY += Math.sin(pA) * moveStep; }
-            if (keys['KeyS']) { nextX -= Math.cos(pA) * moveStep; nextY -= Math.sin(pA) * moveStep; }
-            if (keys['KeyA']) { nextX += Math.sin(pA) * moveStep; nextY -= Math.cos(pA) * moveStep; }
-            if (keys['KeyD']) { nextX -= Math.sin(pA) * moveStep; nextY += Math.cos(pA) * moveStep; }
-            if (map[Math.floor(nextY)][Math.floor(nextX)] === 0) { pX = nextX; pY = nextY; }
+            if(Date.now() - startTime > 3000) {
+                active = true;
+                document.getElementById('status').innerText = "HUNTED";
+                document.getElementById('status').style.color = "red";
+            }
 
-            let mStep = 0.02;
-            if(mX < pX) mX += mStep; else mX -= mStep;
-            if(mY < pY) mY += mStep; else mY -= mStep;
+            // Player Physics
+            if(keys['KeyA']) player.dir -= 0.05;
+            if(keys['KeyD']) player.dir += 0.05;
+            if(keys['KeyW']) {
+                let nx = player.x + Math.cos(player.dir)*0.06;
+                let ny = player.y + Math.sin(player.dir)*0.06;
+                if(world[Math.floor(ny)][Math.floor(nx)] === 0) { player.x = nx; player.y = ny; }
+            }
+            if(keys['KeyS']) {
+                let nx = player.x - Math.cos(player.dir)*0.06;
+                let ny = player.y - Math.sin(player.dir)*0.06;
+                if(world[Math.floor(ny)][Math.floor(nx)] === 0) { player.x = nx; player.y = ny; }
+            }
 
-            canvas.width = window.innerWidth / 2;
-            canvas.height = window.innerHeight / 2;
-            ctx.fillStyle = "#020000"; ctx.fillRect(0, 0, canvas.width, canvas.height/2);
-            ctx.fillStyle = "#080000"; ctx.fillRect(0, canvas.height/2, canvas.width, canvas.height/2);
-
-            const numRays = canvas.width;
-            const fov = Math.PI / 3;
-
-            for (let i = 0; i < numRays; i++) {
-                let rayAngle = (pA - fov/2) + (i / numRays) * fov;
-                let distance = 0;
-                let hitWall = false;
-                let eyeX = Math.cos(rayAngle), eyeY = Math.sin(rayAngle);
-
-                while (!hitWall && distance < 20) {
-                    distance += 0.05;
-                    let testX = Math.floor(pX + eyeX * distance), testY = Math.floor(pY + eyeY * distance);
-                    if (testX < 0 || testX >= mapSize || testY < 0 || testY >= mapSize || map[testY][testX] === 1) hitWall = true;
-                }
-
-                let ceiling = (canvas.height / 2.0) - canvas.height / distance;
-                let floor = canvas.height - ceiling;
-                let shade = 255 / (1 + distance * distance * 0.1);
-                ctx.fillStyle = `rgb(0, ${shade/4}, 0)`;
-                ctx.fillRect(i, ceiling, 1, floor - ceiling);
+            // Pathfinding AI (Fixed)
+            if(active) {
+                let target = breadcrumbs[0];
+                let dx = target.x - mike.x;
+                let dy = target.y - mike.y;
+                let distToCrumb = Math.sqrt(dx*dx + dy*dy);
                 
-                // --- MIKE WAZOWSKI RENDERING ---
-                let dirToMonster = Math.atan2(mY - pY, mX - pX);
-                let angleDiff = dirToMonster - pA;
-                while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
-                while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
+                if(distToCrumb < 0.2 && breadcrumbs.length > 1) breadcrumbs.shift();
+                
+                let angle = Math.atan2(dy, dx);
+                mike.x += Math.cos(angle) * 0.035;
+                mike.y += Math.sin(angle) * 0.035;
+            }
 
-                if (Math.abs(angleDiff) < fov / 2) {
-                    let mDist = Math.sqrt((pX-mX)**2 + (pY-mY)**2);
-                    if (distance > mDist) {
-                        let screenX = (0.5 * (angleDiff / (fov / 2)) + 0.5) * canvas.width;
-                        let mHeight = canvas.height / mDist;
-                        
-                        // Mike's Round Body (Green)
-                        ctx.fillStyle = "#a3ff00";
-                        ctx.fillRect(screenX - (mHeight/3), canvas.height/2 - mHeight/4, mHeight/1.5, mHeight/1.5);
-                        
-                        // The Giant Eye (White)
-                        ctx.fillStyle = "white";
-                        ctx.fillRect(screenX - (mHeight/6), canvas.height/2 - mHeight/8, mHeight/3, mHeight/3);
-                        
-                        // The Pupil (Blue/Black)
-                        ctx.fillStyle = "black";
-                        ctx.fillRect(screenX - (mHeight/20), canvas.height/2 - mHeight/20, mHeight/10, mHeight/10);
+            ctx.fillStyle = "#050505"; ctx.fillRect(0,0,640,400); 
+            ctx.fillStyle = "#001a00"; ctx.fillRect(0,200,640,200);
 
-                        // The Horns
-                        ctx.fillStyle = "#e0e0e0";
-                        ctx.fillRect(screenX - (mHeight/4), canvas.height/2 - mHeight/3, mHeight/10, mHeight/8);
-                        ctx.fillRect(screenX + (mHeight/6), canvas.height/2 - mHeight/3, mHeight/10, mHeight/8);
+            let wallDistances = new Array(160);
+            for(let i=0; i<160; i++) {
+                let rayAngle = (player.dir - 0.5) + (i/160);
+                let d = 0;
+                while(d < 12) {
+                    d += 0.05;
+                    let tx = Math.floor(player.x + Math.cos(rayAngle)*d);
+                    let ty = Math.floor(player.y + Math.sin(rayAngle)*d);
+                    if(world[ty][tx] === 1) {
+                        wallDistances[i] = d;
+                        let h = 400 / (d * Math.cos(rayAngle - player.dir));
+                        ctx.fillStyle = `rgb(0,${180/d},0)`;
+                        ctx.fillRect(i*4, 200-h/2, 4, h);
+                        break;
                     }
                 }
             }
 
-            // Mini-map
-            const mmScale = 3;
-            const mmX = canvas.width - (mapSize * mmScale) - 10;
-            const mmY = 10;
-            ctx.fillStyle = "rgba(0, 40, 0, 0.7)";
-            ctx.fillRect(mmX, mmY, mapSize * mmScale, mapSize * mmScale);
-            ctx.fillStyle = "white";
-            ctx.fillRect(mmX + pX*mmScale - 1, mmY + pY*mmScale - 1, 2, 2);
-            ctx.fillStyle = "#a3ff00";
-            ctx.fillRect(mmX + mX*mmScale - 1, mmY + mY*mmScale - 1, 2, 2);
+            let mAngle = Math.atan2(mike.y - player.y, mike.x - player.x) - player.dir;
+            if(mAngle < -Math.PI) mAngle += Math.PI*2;
+            if(mAngle > Math.PI) mAngle -= Math.PI*2;
+            let mDist = Math.sqrt((mike.x-player.x)**2 + (mike.y-player.y)**2);
 
-            // Death Check
-            let finalDist = Math.sqrt((pX-mX)**2 + (pY-mY)**2);
-            if(finalDist < 0.4) location.reload();
+            let screenXIndex = Math.floor((mAngle + 0.5) * 160);
+            if(screenXIndex >= 0 && screenXIndex < 160) {
+                if(mDist < wallDistances[screenXIndex]) {
+                    drawMikeSprite(320 + mAngle*640, 200, 120/mDist);
+                }
+            }
 
-            pulseUI.innerText = Math.min(100, Math.floor((1 / finalDist) * 10));
-            requestAnimationFrame(loop);
+            if(mDist < 0.35 && active) {
+                document.getElementById('death').style.display='flex';
+            } else {
+                requestAnimationFrame(loop);
+            }
         }
+        loop();
     </script>
 </body>
 </html>
+w
