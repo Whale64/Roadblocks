@@ -1,21 +1,38 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>THE WATCHER: FIXED</title>
+    <title>THE WATCHER: SPAWN FIXED</title>
     <style>
         body { margin: 0; background: #000; overflow: hidden; color: #0f0; font-family: monospace; text-align: center; }
         canvas { display: block; margin: 20px auto; border: 4px solid #111; background: #050505; }
-        #death { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #000; display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 100; }
-        h1 { font-size: 80px; color: #f00; text-shadow: 0 0 30px #f00; }
-        #ui { position: fixed; top: 30px; width: 100%; color: #0f0; font-weight: bold; }
+        #death { 
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
+            background: #000; display: none; flex-direction: column; 
+            align-items: center; justify-content: center; z-index: 100; 
+        }
+        #scare-container { position: relative; width: 200px; height: 200px; animation: lunge 0.3s forwards ease-in; }
+        #scare-mike { width: 100%; height: 100%; background: #7CFC00; border-radius: 50%; position: relative; border: 5px solid #000; overflow: hidden; }
+        #scare-eye { position: absolute; top: 15%; left: 25%; width: 50%; height: 40%; background: white; border-radius: 50%; border: 3px solid #000; }
+        #scare-pupil { position: absolute; top: 30%; left: 35%; width: 30%; height: 40%; background: black; border-radius: 50%; }
+        #scare-mouth { position: absolute; bottom: -10%; left: -10%; width: 120%; height: 60%; background: #400; border: 4px solid #000; border-radius: 50% 50% 0 0; animation: bite 0.4s 0.2s forwards; transform: scaleY(0); transform-origin: bottom; }
+        .tooth { position: absolute; width: 0; height: 0; border-left: 15px solid transparent; border-right: 15px solid transparent; border-bottom: 40px solid #eee; top: 0; }
+        @keyframes lunge { from { transform: scale(1); } to { transform: scale(15); } }
+        @keyframes bite { to { transform: scaleY(1.5); } }
     </style>
 </head>
 <body>
-    <div id="ui">GET TO THE EXIT | USE WASD | STATUS: <span id="status">WAITING...</span></div>
+    <div id="ui">RUN | USE WASD | STATUS: <span id="status" style="color:red">HUNTED</span></div>
     <canvas id="game"></canvas>
     <div id="death">
-        <h1>GOT MIKED</h1>
-        <button onclick="location.reload()" style="padding:15px; cursor:pointer;">RETRY</button>
+        <div id="scare-container">
+            <div id="scare-mike">
+                <div id="scare-eye"><div id="scare-pupil"></div></div>
+                <div id="scare-mouth">
+                    <div class="tooth" style="left:10%"></div><div class="tooth" style="left:30%"></div>
+                    <div class="tooth" style="left:50%"></div><div class="tooth" style="left:70%"></div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script>
@@ -23,34 +40,52 @@
         const ctx = canvas.getContext('2d');
         canvas.width = 640; canvas.height = 400;
 
+        // FIXED GRID: 0 is floor, 1 is wall. Mike spawns at 8,8.
         const world = [
             [1,1,1,1,1,1,1,1,1,1],
-            [1,0,0,0,1,0,0,0,0,1],
-            [1,0,1,0,1,0,1,1,0,1],
+            [1,0,0,0,0,0,0,0,0,1],
+            [1,0,1,1,0,1,1,1,0,1],
+            [1,0,1,0,0,0,0,1,0,1],
+            [1,0,0,0,1,1,0,0,0,1],
+            [1,0,1,0,1,1,0,1,0,1],
             [1,0,1,0,0,0,0,1,0,1],
             [1,0,1,1,1,1,0,1,0,1],
-            [1,0,0,0,0,1,0,0,0,1],
-            [1,1,1,1,0,1,1,1,0,1],
-            [1,0,0,0,0,0,0,1,0,1],
-            [1,0,1,1,1,1,0,0,0,1],
+            [1,0,0,0,0,0,0,0,0,1],
             [1,1,1,1,1,1,1,1,1,1]
         ];
 
         let player = { x: 1.5, y: 1.5, dir: 0 };
-        let mike = { x: 8.5, y: 8.5 }; // Mike starts far away
-        let breadcrumbs = [{x: 1.5, y: 1.5}];
+        let mike = { x: 8.5, y: 8.5 }; 
+        let currentPath = [];
         let keys = {};
-        let startTime = Date.now();
-        let active = false;
+        let isDead = false;
 
         window.onkeydown = e => keys[e.code] = true;
         window.onkeyup = e => keys[e.code] = false;
 
-        setInterval(() => {
-            if(!active) return;
-            breadcrumbs.push({x: player.x, y: player.y});
-            if(breadcrumbs.length > 30) breadcrumbs.shift();
-        }, 400);
+        function findPath(start, end) {
+            let startX = Math.floor(start.x), startY = Math.floor(start.y);
+            let endX = Math.floor(end.x), endY = Math.floor(end.y);
+            let queue = [[{x: startX, y: startY}]];
+            let visited = new Set([`${startX},${startY}`]);
+
+            while(queue.length > 0) {
+                let path = queue.shift();
+                let cell = path[path.length - 1];
+                if(cell.x === endX && cell.y === endY) return path;
+
+                [[0,-1],[0,1],[-1,0],[1,0]].forEach(([dx, dy]) => {
+                    let nx = cell.x + dx, ny = cell.y + dy;
+                    if(world[ny] && world[ny][nx] === 0 && !visited.has(`${nx},${ny}`)) {
+                        visited.add(`${nx},${ny}`);
+                        queue.push([...path, {x: nx, y: ny}]);
+                    }
+                });
+            }
+            return [];
+        }
+
+        setInterval(() => { if(!isDead) currentPath = findPath(mike, player); }, 150);
 
         function drawMikeSprite(x, y, s) {
             ctx.fillStyle = "#7CFC00";
@@ -62,38 +97,29 @@
         }
 
         function loop() {
-            if(Date.now() - startTime > 3000) {
-                active = true;
-                document.getElementById('status').innerText = "HUNTED";
-                document.getElementById('status').style.color = "red";
-            }
-
-            // Player Physics
+            if(isDead) return;
             if(keys['KeyA']) player.dir -= 0.05;
             if(keys['KeyD']) player.dir += 0.05;
-            if(keys['KeyW']) {
-                let nx = player.x + Math.cos(player.dir)*0.06;
-                let ny = player.y + Math.sin(player.dir)*0.06;
-                if(world[Math.floor(ny)][Math.floor(nx)] === 0) { player.x = nx; player.y = ny; }
-            }
-            if(keys['KeyS']) {
-                let nx = player.x - Math.cos(player.dir)*0.06;
-                let ny = player.y - Math.sin(player.dir)*0.06;
+            if(keys['KeyW'] || keys['KeyS']) {
+                let speed = (keys['KeyW'] ? 1 : -1) * 0.06;
+                let nx = player.x + Math.cos(player.dir) * speed;
+                let ny = player.y + Math.sin(player.dir) * speed;
                 if(world[Math.floor(ny)][Math.floor(nx)] === 0) { player.x = nx; player.y = ny; }
             }
 
-            // Pathfinding AI (Fixed)
-            if(active) {
-                let target = breadcrumbs[0];
-                let dx = target.x - mike.x;
-                let dy = target.y - mike.y;
-                let distToCrumb = Math.sqrt(dx*dx + dy*dy);
-                
-                if(distToCrumb < 0.2 && breadcrumbs.length > 1) breadcrumbs.shift();
-                
-                let angle = Math.atan2(dy, dx);
-                mike.x += Math.cos(angle) * 0.035;
-                mike.y += Math.sin(angle) * 0.035;
+            if(currentPath.length > 1) {
+                let target = { x: currentPath[1].x + 0.5, y: currentPath[1].y + 0.5 };
+                let dx = target.x - mike.x, dy = target.y - mike.y;
+                let dist = Math.sqrt(dx*dx + dy*dy);
+                if(dist < 0.1) {
+                    currentPath.shift();
+                } else { 
+                    let step = 0.04;
+                    let mx = mike.x + (dx/dist) * step;
+                    let my = mike.y + (dy/dist) * step;
+                    if(world[Math.floor(mike.y)][Math.floor(mx + (dx>0?0.1:-0.1))] === 0) mike.x = mx;
+                    if(world[Math.floor(my + (dy>0?0.1:-0.1))][Math.floor(mike.x)] === 0) mike.y = my;
+                }
             }
 
             ctx.fillStyle = "#050505"; ctx.fillRect(0,0,640,400); 
@@ -107,7 +133,7 @@
                     d += 0.05;
                     let tx = Math.floor(player.x + Math.cos(rayAngle)*d);
                     let ty = Math.floor(player.y + Math.sin(rayAngle)*d);
-                    if(world[ty][tx] === 1) {
+                    if(world[ty] && world[ty][tx] === 1) {
                         wallDistances[i] = d;
                         let h = 400 / (d * Math.cos(rayAngle - player.dir));
                         ctx.fillStyle = `rgb(0,${180/d},0)`;
@@ -118,19 +144,19 @@
             }
 
             let mAngle = Math.atan2(mike.y - player.y, mike.x - player.x) - player.dir;
-            if(mAngle < -Math.PI) mAngle += Math.PI*2;
-            if(mAngle > Math.PI) mAngle -= Math.PI*2;
+            if(mAngle < -Math.PI) mAngle += Math.PI*2; if(mAngle > Math.PI) mAngle -= Math.PI*2;
             let mDist = Math.sqrt((mike.x-player.x)**2 + (mike.y-player.y)**2);
-
             let screenXIndex = Math.floor((mAngle + 0.5) * 160);
-            if(screenXIndex >= 0 && screenXIndex < 160) {
-                if(mDist < wallDistances[screenXIndex]) {
-                    drawMikeSprite(320 + mAngle*640, 200, 120/mDist);
-                }
+            
+            // Check if Mike is in view and not behind a wall
+            if(screenXIndex >= 0 && screenXIndex < 160 && mDist < wallDistances[screenXIndex]) {
+                drawMikeSprite(320 + mAngle*640, 200, 120/mDist);
             }
 
-            if(mDist < 0.35 && active) {
-                document.getElementById('death').style.display='flex';
+            if(mDist < 0.38) {
+                isDead = true;
+                document.getElementById('death').style.display = 'flex';
+                setTimeout(() => location.reload(), 1200);
             } else {
                 requestAnimationFrame(loop);
             }
@@ -139,4 +165,3 @@
     </script>
 </body>
 </html>
-w
