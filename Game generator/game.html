@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Bootleg Hub</title>
+    <style>
+        body {
+            font-family: 'Arial Black', sans-serif;
+            background: #0a0a0a;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            gap: 20px;
+            color: white;
+        }
+
+        .main-menu { display: flex; gap: 20px; }
+
+        /* Main Launch Buttons */
+        .launch-btn {
+            padding: 30px;
+            font-size: 1.2rem;
+            color: #000;
+            border: none;
+            cursor: pointer;
+            border-radius: 15px;
+            transition: transform 0.2s;
+            width: 220px;
+        }
+        .launch-btn:hover { transform: scale(1.05); }
+        #game-trigger { background: #00ff41; box-shadow: 0 0 20px rgba(0,255,65,0.3); }
+        #char-trigger { background: #ff00ff; box-shadow: 0 0 20px rgba(255,0,255,0.3); }
+
+        /* Pop-up Overlay */
+        #overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.95);
+            z-index: 100;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* The Pop-up Box */
+        #popup {
+            background: #1a1a1a;
+            padding: 40px;
+            border-radius: 25px;
+            text-align: center;
+            position: relative;
+            max-width: 450px;
+            width: 90%;
+            animation: popIn 0.3s cubic-bezier(0.17, 0.89, 0.32, 1.28);
+        }
+
+        @keyframes popIn {
+            from { transform: scale(0.5); opacity: 0; }
+            to { transform: scale(1); opacity: 1; }
+        }
+
+        #close-btn {
+            position: absolute;
+            top: 15px; right: 20px;
+            font-size: 30px;
+            cursor: pointer;
+            color: #444;
+        }
+
+        /* Spinner Styles */
+        #wheel-container {
+            position: relative;
+            width: 220px; height: 220px;
+            margin: 20px auto;
+        }
+        #wheel {
+            width: 100%; height: 100%;
+            border-radius: 50%;
+            border: 8px solid #444;
+            background: conic-gradient(#222 0deg 45deg, #111 45deg 90deg, #222 90deg 135deg, #111 135deg 180deg, #222 180deg 225deg, #111 225deg 270deg, #222 270deg 315deg, #111 315deg 360deg);
+            transition: transform 3s cubic-bezier(0.1, 0, 0.2, 1);
+        }
+        #pointer {
+            position: absolute;
+            top: -15px; left: 50%;
+            transform: translateX(-50%);
+            border-left: 15px solid transparent;
+            border-right: 15px solid transparent;
+            border-top: 25px solid #fff;
+            z-index: 10;
+        }
+
+        .action-btn {
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            font-weight: bold;
+            cursor: pointer;
+            width: 100%;
+            font-size: 1.2rem;
+            border-radius: 8px;
+        }
+
+        #result-box { margin-top: 25px; min-height: 100px; }
+        .label { font-size: 0.8rem; color: #888; text-transform: uppercase; margin-bottom: 5px; }
+        .main-text { font-size: 1.8rem; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+    <h1 style="color:#555">BOOTLEG HUB</h1>
+    <div class="main-menu">
+        <button id="game-trigger" class="launch-btn" onclick="openMode('game')">GAME<br>RIPOFFS</button>
+        <button id="char-trigger" class="launch-btn" onclick="openMode('char')">HERO<br>CLONES</button>
+    </div>
+
+    <div id="overlay">
+        <div id="popup">
+            <span id="close-btn" onclick="closePopup()">&times;</span>
+            <h2 id="modal-title">TITLE</h2>
+            
+            <div id="wheel-container">
+                <div id="pointer"></div>
+                <div id="wheel"></div>
+            </div>
+            
+            <button id="action-btn" class="action-btn" onclick="spin()">SPIN!</button>
+
+            <div id="result-box">
+                <div id="label-display" class="label"></div>
+                <div id="main-display" class="main-text"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentMode = 'game';
+        let currentRotation = 0;
+
+        const data = {
+            game: [
+                { original: "Flappy Bird", ripoff: "Floppy Wing Dash" },
+                { original: "Pac-Man", ripoff: "Dot Muncher Quest" },
+                { original: "Tetris", ripoff: "Block Stack Deluxe" },
+                { original: "Angry Birds", ripoff: "Grumpy Fowl Strike" },
+                { original: "Snake", ripoff: "Pixel Worm Eat" }
+            ],
+            char: [
+                { original: "Mario", ripoff: "Plumber Brother Red" },
+                { original: "Sonic", ripoff: "Blue Speed Rat" },
+                { original: "Pikachu", ripoff: "Yellow Spark Mouse" },
+                { original: "Master Chief", ripoff: "Green Space Soldier" },
+                { original: "Steve", ripoff: "Cube Craft Man" }
+            ]
+        };
+
+        function openMode(mode) {
+            currentMode = mode;
+            const popup = document.getElementById('popup');
+            const btn = document.getElementById('action-btn');
+            
+            if(mode === 'game') {
+                document.getElementById('modal-title').innerText = "WHEEL OF GAMES";
+                document.getElementById('modal-title').style.color = "#00ff41";
+                popup.style.borderColor = "#00ff41";
+                btn.style.backgroundColor = "#00ff41";
+            } else {
+                document.getElementById('modal-title').innerText = "HERO GENERATOR";
+                document.getElementById('modal-title').style.color = "#ff00ff";
+                popup.style.borderColor = "#ff00ff";
+                btn.style.backgroundColor = "#ff00ff";
+            }
+
+            document.getElementById('label-display').innerText = "";
+            document.getElementById('main-display').innerText = "Ready?";
+            document.getElementById('overlay').style.display = 'flex';
+        }
+
+        function closePopup() {
+            document.getElementById('overlay').style.display = 'none';
+        }
+
+        function spin() {
+            const btn = document.getElementById('action-btn');
+            const wheel = document.getElementById('wheel');
+            btn.disabled = true;
+
+            const extraDegrees = Math.floor(Math.random() * 360);
+            currentRotation += (360 * 5) + extraDegrees;
+            wheel.style.transform = `rotate(${currentRotation}deg)`;
+
+            setTimeout(() => {
+                const list = data[currentMode];
+                const selected = list[Math.floor(Math.random() * list.length)];
+                
+                document.getElementById('label-display').innerText = `Based on: ${selected.original}`;
+                document.getElementById('main-display').innerText = selected.ripoff;
+                btn.disabled = false;
+            }, 3000);
+        }
+    </script>
+</body>
+</html>
