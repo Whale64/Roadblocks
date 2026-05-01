@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>16-Bit Retro Pac-Man</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+        
+        body {
+            background-color: #0a0a0a;
+            color: #fff;
+            font-family: 'Press Start 2P', cursive;
+            margin: 0;
+            overflow: hidden;
+            touch-action: none;
+        }
+
+        #game-container {
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            width: 100vw;
+        }
+
+        canvas {
+            image-rendering: pixelated;
+            max-width: 95vw;
+            max-height: 70vh;
+            border: 4px solid #2222ff;
+            box-shadow: 0 0 20px rgba(34, 34, 255, 0.5);
+            background: #000;
+        }
+
+        .ui-panel {
+            width: 100%;
+            max-width: 400px;
+            display: flex;
+            justify-content: space-between;
+            padding: 10px;
+            font-size: 12px;
+        }
+
+        #controls-hint {
+            margin-top: 15px;
+            font-size: 10px;
+            color: #888;
+            text-align: center;
+        }
+
+        #d-pad {
+            display: none;
+            grid-template-columns: repeat(3, 60px);
+            grid-template-rows: repeat(3, 60px);
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .btn {
+            background: #222;
+            border: 2px solid #444;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 12px;
+            user-select: none;
+            font-size: 20px;
+            touch-action: manipulation;
+        }
+
+        .btn:active {
+            background: #444;
+            border-color: #fccf00;
+        }
+
+        @media (max-pointer: coarse) {
+            #d-pad { display: grid; }
+            #controls-hint { display: none; }
+        }
+
+        #overlay {
+            position: absolute;
+            background: rgba(0,0,0,0.85);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            z-index: 10;
+            inset: 0;
+        }
+
+        .start-btn {
+            margin-top: 20px;
+            padding: 15px 30px;
+            background: #fccf00;
+            color: #000;
+            border: none;
+            cursor: pointer;
+            font-family: 'Press Start 2P', cursive;
+            transition: transform 0.1s;
+        }
+
+        .start-btn:active {
+            transform: scale(0.95);
+        }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <div class="ui-panel">
+        <div>SCORE: <span id="score">00</span></div>
+        <div>HIGH: <span id="high-score">00</span></div>
+    </div>
+    
+    <canvas id="gameCanvas"></canvas>
+
+    <div id="controls-hint">USE ARROW KEYS TO MOVE</div>
+
+    <div id="d-pad">
+        <div></div><div class="btn" id="up">▲</div><div></div>
+        <div class="btn" id="left">◀</div><div></div><div class="btn" id="right">▶</div>
+        <div></div><div class="btn" id="down">▼</div><div></div>
+    </div>
+
+    <div id="overlay">
+        <h1 style="color: #fccf00; font-size: 24px; margin-bottom: 20px;">PAC-MAN</h1>
+        <p id="message">READY?</p>
+        <button class="start-btn" id="startBtn">START GAME</button>
+    </div>
+</div>
+
+<script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const scoreEl = document.getElementById('score');
+    const highscoreEl = document.getElementById('high-score');
+    const overlay = document.getElementById('overlay');
+    const messageEl = document.getElementById('message');
+    const startBtn = document.getElementById('startBtn');
+
+    const TILE_SIZE = 20;
+    const GRID_WIDTH = 19;
+    const GRID_HEIGHT = 21;
+    canvas.width = TILE_SIZE * GRID_WIDTH;
+    canvas.height = TILE_SIZE * GRID_HEIGHT;
+
+    const mapTemplate = [
+        [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+        [1,2,2,2,2,2,2,2,2,1,2,2,2,2,2,2,2,2,1],
+        [1,3,1,1,2,1,1,1,2,1,2,1,1,1,2,1,1,3,1],
+        [1,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,1],
+        [1,2,1,1,2,1,2,1,1,1,1,1,2,1,2,1,1,2,1],
+        [1,2,2,2,2,1,2,2,2,1,2,2,2,1,2,2,2,2,1],
+        [1,1,1,1,2,1,1,1,5,1,5,1,1,1,2,1,1,1,1],
+        [5,5,5,1,2,1,5,5,5,5,5,5,5,1,2,1,5,5,5],
+        [1,1,1,1,2,1,5,1,1,4,1,1,5,1,2,1,1,1,1],
+        [5,5,5,5,2,5,5,1,5,5,5,1,5,5,2,5,5,5,5],
+        [1,1,1,1,2,1,5,1,1,1,1,1,5,1,2,1,1,1,1],
+        [5,5,5,1,2,1,5,5,5,5,5,5,5,1,2,1,5,5,5],
+        [1,1,1,1,2,1,5,1,1,1,1,1,5,1,2,1,1,1,1],
+        [1,2,2,2,2,2,2,2,2,1,2,2,2,2,2,2,2,2,1],
+        [1,2,1,1,2,1,1,1,2,1,2,1,1,1,2,1,1,2,1],
+        [1,3,2,1,2,2,2,2,2,5,2,2,2,2,2,1,2,3,1],
+        [1,1,2,1,2,1,2,1,1,1,1,1,2,1,2,1,2,1,1],
+        [1,2,2,2,2,1,2,2,2,1,2,2,2,1,2,2,2,2,1],
+        [1,2,1,1,1,1,1,1,2,1,2,1,1,1,1,1,1,2,1],
+        [1,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,1],
+        [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+    ];
+
+    let grid = [];
+    let score = 0;
+    let highScore = localStorage.getItem('pacman-highscore') || 0;
+    highscoreEl.innerText = highScore.toString().padStart(2, '0');
+
+    let gameRunning = false;
+    let powerMode = false;
+    let powerTimer = 0;
+
+    const directions = {
+        STOP: { x: 0, y: 0, angle: 0 },
+        UP: { x: 0, y: -1, angle: Math.PI * 1.5 },
+        DOWN: { x: 0, y: 1, angle: Math.PI * 0.5 },
+        LEFT: { x: -1, y: 0, angle: Math.PI },
+        RIGHT: { x: 1, y: 0, angle: 0 }
+    };
+
+    class Entity {
+        constructor(x, y, speed) {
+            this.x = x;
+            this.y = y;
+            this.speed = speed;
+            this.dir = directions.STOP;
+            this.nextDir = directions.STOP;
+            this.radius = TILE_SIZE / 2 - 2;
+        }
+
+        getGridPos() {
+            return {
+                x: Math.round(this.x / TILE_SIZE),
+                y: Math.round(this.y / TILE_SIZE)
+            };
+        }
+
+        canMove(dir) {
+            if (dir === directions.STOP) return true;
+            const nextX = this.x + dir.x * this.speed;
+            const nextY = this.y + dir.y * this.speed;
+            
+            const checkPoints = [];
+            if (dir.x === 1) checkPoints.push({x: nextX + TILE_SIZE - 1, y: nextY + 2}, {x: nextX + TILE_SIZE - 1, y: nextY + TILE_SIZE - 3});
+            if (dir.x === -1) checkPoints.push({x: nextX, y: nextY + 2}, {x: nextX, y: nextY + TILE_SIZE - 3});
+            if (dir.y === 1) checkPoints.push({x: nextX + 2, y: nextY + TILE_SIZE - 1}, {x: nextX + TILE_SIZE - 3, y: nextY + TILE_SIZE - 1});
+            if (dir.y === -1) checkPoints.push({x: nextX + 2, y: nextY}, {x: nextX + TILE_SIZE - 3, y: nextY});
+
+            for (let p of checkPoints) {
+                let gx = Math.floor(p.x / TILE_SIZE);
+                let gy = Math.floor(p.y / TILE_SIZE);
+                if (gx < 0) gx = GRID_WIDTH - 1;
+                if (gx >= GRID_WIDTH) gx = 0;
+                if (grid[gy] && (grid[gy][gx] === 1 || grid[gy][gx] === 4)) return false;
+            }
+            return true;
+        }
+
+        handleWrap() {
+            if (this.x < -TILE_SIZE/2) this.x = canvas.width + TILE_SIZE/2 - this.speed;
+            if (this.x > canvas.width - TILE_SIZE/2) this.x = -TILE_SIZE/2 + this.speed;
+        }
+    }
+
+    class Player extends Entity {
+        constructor() {
+            super(9 * TILE_SIZE, 15 * TILE_SIZE, 2);
+            this.mouthOpen = 0;
+            this.mouthSpeed = 0.15;
+            this.dir = directions.LEFT;
+            this.nextDir = directions.LEFT;
+        }
+
+        update() {
+            if (Math.abs(this.x % TILE_SIZE) < this.speed && Math.abs(this.y % TILE_SIZE) < this.speed) {
+                if (this.canMove(this.nextDir)) {
+                    this.x = Math.round(this.x / TILE_SIZE) * TILE_SIZE;
+                    this.y = Math.round(this.y / TILE_SIZE) * TILE_SIZE;
+                    this.dir = this.nextDir;
+                }
+            }
+
+            if (this.canMove(this.dir)) {
+                this.x += this.dir.x * this.speed;
+                this.y += this.dir.y * this.speed;
+                this.mouthOpen += this.mouthSpeed;
+                if (this.mouthOpen > 0.2 || this.mouthOpen < 0) this.mouthSpeed *= -1;
+            }
+
+            this.handleWrap();
+            this.eat();
+        }
+
+        eat() {
+            const pos = this.getGridPos();
+            if (grid[pos.y] && grid[pos.y][pos.x]) {
+                const cell = grid[pos.y][pos.x];
+                if (cell === 2) {
+                    grid[pos.y][pos.x] = 5;
+                    score += 10;
+                    checkWin();
+                } else if (cell === 3) {
+                    grid[pos.y][pos.x] = 5;
+                    score += 50;
+                    activatePowerMode();
+                    checkWin();
+                }
+                scoreEl.innerText = score.toString().padStart(2, '0');
+            }
+        }
+
+        draw() {
+            ctx.fillStyle = "#fccf00";
+            ctx.beginPath();
+            const centerX = this.x + TILE_SIZE / 2;
+            const centerY = this.y + TILE_SIZE / 2;
+            const open = this.mouthOpen * Math.PI;
+            ctx.moveTo(centerX, centerY);
+            ctx.arc(centerX, centerY, this.radius, this.dir.angle + open, this.dir.angle + 2 * Math.PI - open);
+            ctx.fill();
+        }
+    }
+
+    class Ghost extends Entity {
+        constructor(x, y, color, type) {
+            super(x * TILE_SIZE, y * TILE_SIZE, 2);
+            this.color = color;
+            this.type = type; // blinky, pinky, inky, clyde
+            this.dir = directions.UP;
+        }
+
+        getTarget() {
+            if (powerMode) {
+                // Run to corners
+                return { x: (this.type === 'blinky' || this.type === 'inky') ? 0 : canvas.width, y: 0 };
+            }
+
+            switch(this.type) {
+                case 'blinky': // Red: Aggressive chase
+                    return { x: player.x, y: player.y };
+                case 'pinky': // Pink: Ambush (4 tiles ahead)
+                    return { x: player.x + player.dir.x * 80, y: player.y + player.dir.y * 80 };
+                case 'inky': // Cyan: Capricious (mirrors Blinky)
+                    const b = ghosts.find(g => g.type === 'blinky') || this;
+                    const dx = player.x - b.x;
+                    const dy = player.y - b.y;
+                    return { x: player.x + dx, y: player.y + dy };
+                case 'clyde': // Orange: Shy (chase then retreat)
+                    const d = Math.hypot(this.x - player.x, this.y - player.y);
+                    return d > 160 ? { x: player.x, y: player.y } : { x: 0, y: canvas.height };
+                default:
+                    return { x: player.x, y: player.y };
+            }
+        }
+
+        update() {
+            // Decision making at tile boundaries
+            if (Math.abs(this.x % TILE_SIZE) < this.speed && Math.abs(this.y % TILE_SIZE) < this.speed) {
+                const target = this.getTarget();
+                const possibleDirs = Object.values(directions).filter(d => {
+                    if (d === directions.STOP) return false;
+                    // Ghosts can't turn 180 degrees back
+                    if (d.x === -this.dir.x && d.y === -this.dir.y) return false;
+                    return this.canMove(d);
+                });
+
+                if (possibleDirs.length > 0) {
+                    // Pick direction that results in closest distance to target from the NEXT tile
+                    possibleDirs.sort((a, b) => {
+                        const nextStepX = this.x + a.x * TILE_SIZE;
+                        const nextStepY = this.y + a.y * TILE_SIZE;
+                        const distA = Math.hypot(nextStepX - target.x, nextStepY - target.y);
+                        
+                        const nextStepXB = this.x + b.x * TILE_SIZE;
+                        const nextStepYB = this.y + b.y * TILE_SIZE;
+                        const distB = Math.hypot(nextStepXB - target.x, nextStepYB - target.y);
+                        
+                        return distA - distB;
+                    });
+                    
+                    this.dir = possibleDirs[0];
+                    // Alignment snap
+                    this.x = Math.round(this.x / TILE_SIZE) * TILE_SIZE;
+                    this.y = Math.round(this.y / TILE_SIZE) * TILE_SIZE;
+                }
+            }
+
+            this.x += this.dir.x * this.speed;
+            this.y += this.dir.y * this.speed;
+            this.handleWrap();
+
+            // Collision check
+            const dist = Math.hypot(this.x - player.x, this.y - player.y);
+            if (dist < TILE_SIZE * 0.7) {
+                if (powerMode) {
+                    this.respawn();
+                    score += 200;
+                    scoreEl.innerText = score.toString().padStart(2, '0');
+                } else {
+                    gameOver();
+                }
+            }
+        }
+
+        respawn() {
+            this.x = 9 * TILE_SIZE;
+            this.y = 9 * TILE_SIZE;
+        }
+
+        draw() {
+            ctx.fillStyle = powerMode ? "#2222ff" : this.color;
+            const cx = this.x + TILE_SIZE / 2;
+            const cy = this.y + TILE_SIZE / 2;
+            const r = this.radius;
+
+            ctx.beginPath();
+            ctx.arc(cx, cy - 2, r, Math.PI, 0);
+            ctx.lineTo(cx + r, cy + r);
+            ctx.lineTo(cx - r, cy + r);
+            ctx.fill();
+
+            // Eyes
+            ctx.fillStyle = "white";
+            ctx.beginPath();
+            ctx.arc(cx - 4, cy - 4, 3, 0, Math.PI * 2);
+            ctx.arc(cx + 4, cy - 4, 3, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = "black";
+            ctx.beginPath();
+            ctx.arc(cx - 4 + this.dir.x * 2, cy - 4 + this.dir.y * 2, 1.5, 0, Math.PI * 2);
+            ctx.arc(cx + 4 + this.dir.x * 2, cy - 4 + this.dir.y * 2, 1.5, 0, Math.PI * 2);
+            ctx.fill();
+        }
+    }
+
+    let player;
+    let ghosts = [];
+
+    function initGame() {
+        grid = mapTemplate.map(row => [...row]);
+        score = 0;
+        powerMode = false;
+        player = new Player();
+        ghosts = [
+            new Ghost(9, 8, "#ff0000", 'blinky'), 
+            new Ghost(9, 9, "#ffb8ff", 'pinky'), 
+            new Ghost(8, 9, "#00ffff", 'inky'),
+            new Ghost(10, 9, "#ffb852", 'clyde')
+        ];
+        scoreEl.innerText = "00";
+    }
+
+    function drawMaze() {
+        ctx.lineJoin = "round";
+        for (let y = 0; y < GRID_HEIGHT; y++) {
+            for (let x = 0; x < GRID_WIDTH; x++) {
+                const cell = grid[y][x];
+                const px = x * TILE_SIZE;
+                const py = y * TILE_SIZE;
+
+                if (cell === 1) {
+                    ctx.strokeStyle = "#2222ff";
+                    ctx.lineWidth = 2;
+                    ctx.strokeRect(px + 3, py + 3, TILE_SIZE - 6, TILE_SIZE - 6);
+                } else if (cell === 2) {
+                    ctx.fillStyle = "#ffb8ae";
+                    ctx.beginPath();
+                    ctx.arc(px + TILE_SIZE / 2, py + TILE_SIZE / 2, 2, 0, Math.PI * 2);
+                    ctx.fill();
+                } else if (cell === 3) {
+                    ctx.fillStyle = "#ffb8ae";
+                    ctx.beginPath();
+                    ctx.arc(px + TILE_SIZE / 2, py + TILE_SIZE / 2, 6, 0, Math.PI * 2);
+                    ctx.fill();
+                } else if (cell === 4) {
+                    ctx.fillStyle = "#ffb8ae";
+                    ctx.fillRect(px, py + TILE_SIZE/2 - 1, TILE_SIZE, 2);
+                }
+            }
+        }
+    }
+
+    function activatePowerMode() {
+        powerMode = true;
+        clearTimeout(powerTimer);
+        powerTimer = setTimeout(() => { powerMode = false; }, 8000);
+    }
+
+    function checkWin() {
+        let pelletsLeft = false;
+        for (let row of grid) {
+            if (row.includes(2) || row.includes(3)) {
+                pelletsLeft = true;
+                break;
+            }
+        }
+        if (!pelletsLeft) {
+            messageEl.innerText = "YOU WIN!";
+            gameRunning = false;
+            overlay.style.display = "flex";
+        }
+    }
+
+    function gameOver() {
+        if (score > highScore) {
+            highScore = score;
+            localStorage.setItem('pacman-highscore', highScore);
+            highscoreEl.innerText = highScore.toString().padStart(2, '0');
+        }
+        messageEl.innerText = "GAME OVER";
+        gameRunning = false;
+        overlay.style.display = "flex";
+    }
+
+    function gameLoop() {
+        if (!gameRunning) return;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        drawMaze();
+        player.update();
+        player.draw();
+        ghosts.forEach(g => {
+            g.update();
+            g.draw();
+        });
+        requestAnimationFrame(gameLoop);
+    }
+
+    window.addEventListener('keydown', e => {
+        if (e.key === 'ArrowUp') player.nextDir = directions.UP;
+        if (e.key === 'ArrowDown') player.nextDir = directions.DOWN;
+        if (e.key === 'ArrowLeft') player.nextDir = directions.LEFT;
+        if (e.key === 'ArrowRight') player.nextDir = directions.RIGHT;
+    });
+
+    document.getElementById('up').addEventListener('pointerdown', (e) => { e.preventDefault(); player.nextDir = directions.UP; });
+    document.getElementById('down').addEventListener('pointerdown', (e) => { e.preventDefault(); player.nextDir = directions.DOWN; });
+    document.getElementById('left').addEventListener('pointerdown', (e) => { e.preventDefault(); player.nextDir = directions.LEFT; });
+    document.getElementById('right').addEventListener('pointerdown', (e) => { e.preventDefault(); player.nextDir = directions.RIGHT; });
+
+    startBtn.onclick = () => {
+        overlay.style.display = 'none';
+        initGame();
+        gameRunning = true;
+        gameLoop();
+    };
+
+    initGame();
+    drawMaze();
+    player.draw();
+</script>
+
+</body>
+</html>
