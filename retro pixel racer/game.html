@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Retro Pixel Racer</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #1a1a1a;
+            font-family: 'Courier New', Courier, monospace;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        #gameContainer {
+            position: relative;
+        }
+
+        canvas {
+            border: 6px solid #fff;
+            background-color: #222;
+            image-rendering: pixelated;
+        }
+
+        /* Mobile touch overlay controls */
+        .mobile-btn {
+            position: absolute;
+            bottom: 20px;
+            width: 70px;
+            height: 70px;
+            background-color: rgba(255, 255, 255, 0.2);
+            border: 3px solid #fff;
+            color: #fff;
+            font-size: 24px;
+            font-weight: bold;
+            display: none;
+            justify-content: center;
+            align-items: center;
+            user-select: none;
+            border-radius: 10px;
+        }
+
+        #btnLeft { left: 20px; }
+        #btnRight { right: 20px; }
+
+        @media (max-width: 600px) {
+            .mobile-btn { display: flex; }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="gameContainer">
+        <canvas id="gameCanvas" width="400" height="600"></canvas>
+        <div id="btnLeft" class="mobile-btn">◀</div>
+        <div id="btnRight" class="mobile-btn">▶</div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById("gameCanvas");
+        const ctx = canvas.getContext("2d");
+        ctx.imageSmoothingEnabled = false;
+
+        // Game Configuration Constraints
+        const ROAD_X = 60;
+        const ROAD_WIDTH = 280;
+        const CAR_WIDTH = 32;
+        const CAR_HEIGHT = 56;
+        
+        // Physics & Dynamic Speed Coefficients
+        let baseSpeed = 6;
+        let gameSpeed = baseSpeed;
+        let maxSpeed = 15;
+        let playerX = canvas.width / 2 - CAR_WIDTH / 2;
+        let playerY = canvas.height - 120;
+        let playerSpeedX = 6;
+
+        // Input States
+        let keys = { ArrowLeft: false, ArrowRight: false, KeyA: false, KeyD: false };
+        let touchLeft = false;
+        let touchRight = false;
+
+        // Entities & Score Tracking
+        let enemies = [];
+        let roadLinesY = 0;
+        let score = 0;
+        let highScore = 0;
+        let isGameOver = false;
+        let isGameStarted = false;
+        let frameCount = 0;
+
+        // Desktop Keyboard Listeners
+        window.addEventListener("keydown", (e) => {
+            if (e.code in keys) keys[e.code] = true;
+            if (e.code === "Space" || e.code === "Enter") triggerStart();
+        });
+        window.addEventListener("keyup", (e) => {
+            if (e.code in keys) keys[e.code] = false;
+        });
+
+        // Mobile Touch Listeners
+        const btnLeft = document.getElementById("btnLeft");
+        const btnRight = document.getElementById("btnRight");
+
+        btnLeft.addEventListener("touchstart", (e) => { e.preventDefault(); touchLeft = true; triggerStart(); });
+        btnLeft.addEventListener("touchend", () => touchLeft = false);
+        btnRight.addEventListener("touchstart", (e) => { e.preventDefault(); touchRight = true; triggerStart(); });
+        btnRight.addEventListener("touchend", () => touchRight = false);
+        canvas.addEventListener("click", triggerStart);
+
+        function triggerStart() {
+            if (!isGameStarted) isGameStarted = true;
+            if (isGameOver) resetGame();
+        }
+
+        function resetGame() {
+            playerX = canvas.width / 2 - CAR_WIDTH / 2;
+            enemies = [];
+            gameSpeed = baseSpeed;
+            score = 0;
+            frameCount = 0;
+            isGameOver = false;
+        }
+
+        // Engine Processing Logic
+        function update() {
+            if (!isGameStarted || isGameOver) return;
+
+            frameCount++;
+            score += Math.floor(gameSpeed / 4);
+
+            // Progressive Difficulty Scaling
+            if (frameCount % 300 === 0 && gameSpeed < maxSpeed) {
+                gameSpeed += 0.5;
+            }
+
+            // Player Steering Movement Updates
+            if (keys.ArrowLeft || keys.KeyA || touchLeft) {
+                playerX -= playerSpeedX;
+            }
+            if (keys.ArrowRight || keys.KeyD || touchRight) {
+                playerX += playerSpeedX;
+            }
+
+            // Keep Player inside Road Barriers
+            if (playerX < ROAD_X) playerX = ROAD_X;
+            if (playerX > ROAD_X + ROAD_WIDTH - CAR_WIDTH) playerX = ROAD_X + ROAD_WIDTH - CAR_WIDTH;
+
+            // Track Background Animations
+            roadLinesY += gameSpeed;
+            if (roadLinesY >= 40) roadLinesY = 0;
+
+            // Generate Enemy Logic
+            if (frameCount % Math.max(30, 60 - Math.floor(gameSpeed * 2)) === 0) {
+                let lanes = [80, 150, 220, 290];
+                let randomLane = lanes[Math.floor(Math.random() * lanes.length)];
+                
+                // Avoid instant stacking on same horizontal row
+                let canSpawn = !enemies.some(e => e.y < 100 && Math.abs(e.x - randomLane) < 20);
+                
+                if (canSpawn) {
+                    enemies.push({
+                        x: randomLane - CAR_WIDTH / 2,
+                        y: -CAR_HEIGHT,
+                        speedOffset: Math.random() * 2 - 1, // Dynamic traffic velocity variance
+                        color: `hsl(${Math.random() * 360}, 80%, 50%)`
+                    });
+                }
+            }
+
+            // Process Traffic Updates & Hitboxes
+            for (let i = enemies.length - 1; i >= 0; i--) {
+                let e = enemies[i];
+                e.y += (gameSpeed - e.speedOffset); // Speed relative to road motion
+
+                // Rigid Box-to-Box Collision Tracking
+                if (
+                    playerX < e.x + CAR_WIDTH - 4 &&
+                    playerX + CAR_WIDTH - 4 > e.x &&
+                    playerY < e.y + CAR_HEIGHT - 4 &&
+                    playerY + CAR_HEIGHT - 4 > e.y
+                ) {
+                    isGameOver = true;
+                    if (score > highScore) highScore = score;
+                }
+
+                // Clean memory cleanup
+                if (e.y > canvas.height) {
+                    enemies.splice(i, 1);
+                }
+            }
+        }
+
+        // Custom Retro Pixel Vehicle Matrix Renderer
+        function drawPixelCar(x, y, mainColor, isPlayer = false) {
+            ctx.lineWidth = 2;
+
+            // Wheel Blocks (4 Corners)
+            ctx.fillStyle = "#111";
+            ctx.fillRect(x - 2, y + 6, 6, 10);
+            ctx.fillRect(x + CAR_WIDTH - 4, y + 6, 6, 10);
+            ctx.fillRect(x - 2, y + CAR_HEIGHT - 16, 6, 10);
+            ctx.fillRect(x + CAR_WIDTH - 4, y + CAR_HEIGHT - 16, 6, 10);
+
+            // Main Aerodynamic Chassis Hull
+            ctx.fillStyle = mainColor;
+            ctx.fillRect(x + 4, y, CAR_WIDTH - 8, CAR_HEIGHT);
+            ctx.fillStyle = "#000";
+            ctx.strokeRect(x + 4, y, CAR_WIDTH - 8, CAR_HEIGHT);
+
+            // Aerodynamic Side Panels
+            ctx.fillStyle = mainColor;
+            ctx.fillRect(x, y + 12, CAR_WIDTH, CAR_HEIGHT - 24);
+            ctx.strokeRect(x, y + 12, CAR_WIDTH, CAR_HEIGHT - 24);
+
+            // Cockpit Windshield Glass Canopy
+            ctx.fillStyle = "#88ccff";
+            ctx.fillRect(x + 6, y + 16, CAR_WIDTH - 12, 12);
+            ctx.fillStyle = "#000";
+            ctx.strokeRect(x + 6, y + 16, CAR_WIDTH - 12, 12);
+
+            // Performance Racing Stripes or Tail Highlights
+            ctx.fillStyle = isPlayer ? "#fff" : "#ff3300";
+            ctx.fillRect(x + 6, y + CAR_HEIGHT - 6, CAR_WIDTH - 12, 4);
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // 1. Render Environment Backdrop (Grass fields)
+            ctx.fillStyle = "#3e8e41";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // 2. Render Highway Concrete Base
+            ctx.fillStyle = "#555555";
+            ctx.fillRect(ROAD_X, 0, ROAD_WIDTH, canvas.height);
+
+            // Solid White Road Outer Shoulders
+            ctx.fillStyle = "#ffffff";
+            ctx.fillRect(ROAD_X - 4, 0, 4, canvas.height);
+            ctx.fillRect(ROAD_X + ROAD_WIDTH, 0, 4, canvas.height);
+
+            // 3. Render Animated Center Dash Markings
+            ctx.fillStyle = "#f1c40f"; // High visibility road yellow
+            for (let y = roadLinesY - 40; y < canvas.height; y += 50) {
+                ctx.fillRect(canvas.width / 2 - 3, y, 6, 25);
+                ctx.fillRect(canvas.width / 2 - 70, y, 4, 25);
+                ctx.fillRect(canvas.width / 2 + 70, y, 4, 25);
+            }
+
+            // 4. Render Traffic Vehicles Array
+            enemies.forEach(e => {
+                drawPixelCar(e.x, e.y, e.color, false);
+            });
+
+            // 5. Render Controlled Player Asset
+            drawPixelCar(playerX, playerY, "#e74c3c", true);
+
+            // 6. UI HUD Canvas Text Processing
+            ctx.fillStyle = "#fff";
+            ctx.font = "bold 16px 'Courier New', monospace";
+            ctx.textAlign = "left";
+            ctx.fillText(`SCORE: ${score}`, 15, 30);
+            ctx.textAlign = "right";
+            ctx.fillText(`HI: ${highScore}`, canvas.width - 15, 30);
+
+            // Main Menu System States
+            if (!isGameStarted) {
+                ctx.fillStyle = "rgba(0,0,0,0.7)";
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.fillStyle = "#f1c40f";
+                ctx.textAlign = "center";
+                ctx.font = "bold 32px 'Courier New', monospace";
+                ctx.fillText("PIXEL RACER", canvas.width / 2, canvas.height / 2 - 40);
+                ctx.fillStyle = "#fff";
+                ctx.font = "14px 'Courier New', monospace";
+                ctx.fillText("[PRESS ENTER / SPACE / TAP]", canvas.width / 2, canvas.height / 2 + 10);
+                ctx.fillText("Use Arrow Keys or A/D to Steer", canvas.width / 2, canvas.height / 2 + 40);
+            }
+
+            if (isGameOver) {
+                ctx.fillStyle = "rgba(0,0,0,0.8)";
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.fillStyle = "#e74c3c";
+                ctx.textAlign = "center";
+                ctx.font = "bold 36px 'Courier New', monospace";
+                ctx.fillText("CRASHED!", canvas.width / 2, canvas.height / 2 - 40);
+                ctx.fillStyle = "#fff";
+                ctx.font = "18px 'Courier New', monospace";
+                ctx.fillText(`FINAL SCORE: ${score}`, canvas.width / 2, canvas.height / 2 + 10);
+                ctx.fillStyle = "#f1c40f";
+                ctx.font = "14px 'Courier New', monospace";
+                ctx.fillText("[TAP OR PRESS SPACE TO RETRY]", canvas.width / 2, canvas.height / 2 + 60);
+            }
+        }
+
+        function gameLoop() {
+            update();
+            draw();
+            requestAnimationFrame(gameLoop);
+        }
+
+        gameLoop();
+    </script>
+</body>
+</html>
