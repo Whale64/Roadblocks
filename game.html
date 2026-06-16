@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Flight Simulator 2</title>
+
+<script>window.CESIUM_BASE_URL = "https://cdnjs.cloudflare.com/ajax/libs/cesium/1.122.0/";</script>
+<link href="https://cdnjs.cloudflare.com/ajax/libs/cesium/1.122.0/Widgets/widgets.css" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/cesium/1.122.0/Cesium.js"></script>
+
+<style>
+  :root{
+    --panel:#0c1420; --panel2:#101b2b; --line:#1f3450;
+    --amber:#ffb347; --cyan:#5fd4e8; --green:#7ee08a; --red:#ff5a5a;
+    --ink:#dce8f4; --dim:#7e93ab;
+    --mono:"Courier New", ui-monospace, monospace;
+    --sans:"Segoe UI", system-ui, -apple-system, sans-serif;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{width:100%;height:100%;overflow:hidden;background:#06090f;font-family:var(--sans);color:var(--ink)}
+  #cesiumContainer{position:absolute;inset:0}
+  .cesium-widget-credits{font-size:9px !important;opacity:.55}
+  .cesium-viewer-bottom{bottom:2px}
+
+  .screen{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;z-index:40;
+    background:radial-gradient(1200px 700px at 50% 30%, #14253c 0%, #08101c 60%, #04070c 100%)}
+  .screen.hidden{display:none}
+  .menu-box{width:min(820px,94vw);max-height:94vh;overflow:auto;padding:32px 36px;
+    background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--line);
+    border-radius:12px;box-shadow:0 30px 80px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.04)}
+  h1.title{font-family:var(--mono);font-size:clamp(24px,4.2vw,38px);letter-spacing:.09em;color:var(--amber);
+    text-shadow:0 0 22px rgba(255,179,71,.35)}
+  h1.title span{color:var(--cyan);text-shadow:0 0 22px rgba(95,212,232,.35)}
+  .subtitle{font-family:var(--mono);color:var(--dim);letter-spacing:.22em;font-size:12px;margin:6px 0 8px}
+  .freetag{display:inline-block;font-family:var(--mono);font-size:10px;letter-spacing:.18em;color:var(--green);
+    border:1px solid rgba(126,224,138,.4);border-radius:5px;padding:3px 9px;margin-bottom:20px}
+  .label{font-family:var(--mono);font-size:11px;letter-spacing:.22em;color:var(--cyan);margin:20px 0 9px}
+  .note{font-size:12px;color:var(--dim);line-height:1.55;margin-top:10px}
+  .note a{color:var(--cyan)}
+
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px}
+  .card{position:relative;border:1px solid var(--line);border-radius:10px;padding:14px 16px;cursor:pointer;
+    background:linear-gradient(180deg,rgba(255,255,255,.035),rgba(255,255,255,.012));transition:.16s}
+  .card::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--chip,var(--line));opacity:.85;border-radius:10px 0 0 10px}
+  .card:hover{border-color:var(--cyan);transform:translateY(-2px)}
+  .card.sel{border-color:var(--amber);background:linear-gradient(180deg,rgba(255,179,71,.10),rgba(255,179,71,.04));box-shadow:inset 0 0 0 1px var(--amber)}
+  .card h3{font-size:15px;margin-bottom:4px}
+  .card p{font-size:12px;color:var(--dim);line-height:1.45}
+
+  .places{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:9px}
+  .place{border:1px solid var(--line);border-radius:8px;padding:9px 12px;cursor:pointer;background:rgba(255,255,255,.02);
+    font-family:var(--mono);font-size:12px;letter-spacing:.04em;transition:.16s;text-align:center}
+  .place:hover{border-color:var(--cyan)}
+  .place.sel{border-color:var(--amber);color:var(--amber);background:rgba(255,179,71,.07)}
+
+  .btn{margin-top:24px;padding:13px 40px;font-family:var(--mono);font-size:15px;letter-spacing:.2em;cursor:pointer;
+    color:#06121a;background:linear-gradient(180deg,#79e0f2,#3fb7cd);border:0;border-radius:6px;font-weight:bold;
+    box-shadow:0 0 24px rgba(95,212,232,.35);transition:.15s}
+  .btn:hover{filter:brightness(1.12);transform:translateY(-1px)}
+  .btn:disabled{opacity:.5;cursor:wait}
+  #err{color:var(--red);font-family:var(--mono);font-size:12px;margin-top:14px;min-height:16px;white-space:pre-wrap}
+
+  #hud{position:absolute;inset:0;pointer-events:none;z-index:10;display:none}
+  #hud.on{display:block}
+  #instruments{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);display:flex;gap:2px;align-items:center;
+    background:linear-gradient(180deg,rgba(13,21,33,.88),rgba(7,12,19,.88));border:1px solid var(--line);
+    border-radius:12px;padding:8px;backdrop-filter:blur(6px);box-shadow:0 14px 40px rgba(0,0,0,.45)}
+  #adi{border-radius:50%;border:2px solid var(--line);margin:0 8px 0 4px;box-shadow:inset 0 0 14px rgba(0,0,0,.6)}
+  .gauge{padding:2px 16px;text-align:center;border-right:1px solid var(--line)}
+  .gauge:last-child{border-right:0}
+  .gauge .g-label{font-family:var(--mono);font-size:9px;letter-spacing:.2em;color:var(--dim)}
+  .gauge .g-val{font-family:var(--mono);font-size:21px;color:var(--green);min-width:84px}
+  .gauge .g-unit{font-family:var(--mono);font-size:9px;color:var(--dim);letter-spacing:.1em}
+  #g-thr-bar{width:84px;height:7px;border:1px solid var(--line);border-radius:3px;margin:7px auto 3px;overflow:hidden}
+  #g-thr-fill{height:100%;width:0%;background:var(--amber)}
+
+  #topleft{position:absolute;top:14px;left:14px;background:linear-gradient(180deg,rgba(13,21,33,.88),rgba(7,12,19,.88));
+    border:1px solid var(--line);border-radius:12px;padding:11px 14px;backdrop-filter:blur(6px);min-width:210px}
+  #topleft h4{font-family:var(--mono);font-size:11px;letter-spacing:.18em;color:var(--amber)}
+  #coord{font-family:var(--mono);font-size:12px;color:var(--cyan);margin-top:5px;line-height:1.5}
+
+  #controls-hint{position:absolute;bottom:14px;left:14px;font-family:var(--mono);font-size:10.5px;color:var(--dim);
+    background:rgba(8,14,22,.7);border:1px solid var(--line);border-radius:8px;padding:8px 12px;line-height:1.7}
+  #controls-hint b{color:var(--ink);font-weight:normal}
+
+  #loading{position:absolute;inset:0;z-index:35;display:none;align-items:center;justify-content:center;
+    background:rgba(4,8,13,.86);font-family:var(--mono);letter-spacing:.2em;color:var(--cyan);text-align:center}
+  #loading.on{display:flex}
+</style>
+</head>
+<body>
+<div id="cesiumContainer"></div>
+
+<div id="menu" class="screen">
+  <div class="menu-box">
+    <h1 class="title">FLIGHT SIMULATOR <span>2</span></h1>
+
+
+    <div class="label">TAKE OFF FROM A RUNWAY</div>
+    <div class="places" id="airport-list"></div>
+
+    <div class="label">OR START AIRBORNE OVER…</div>
+    <div class="places" id="airborne-list"></div>
+
+    <button id="btn-start" class="btn">TAKE OFF</button>
+    <div id="err"></div>
+    <div class="note">
+
+    </div>
+  </div>
+</div>
+
+<div id="loading"><div>LOADING SENTINEL-2 IMAGERY…</div></div>
+
+<div id="hud">
+  <div id="topleft">
+    <h4 id="craft-name">AIRCRAFT</h4>
+    <div id="coord">—</div>
+  </div>
+  <div id="instruments">
+    <canvas id="adi" width="74" height="74"></canvas>
+    <div class="gauge"><div class="g-label">SPEED</div><div class="g-val" id="g-spd">0</div><div class="g-unit">KTS</div></div>
+    <div class="gauge"><div class="g-label">ALTITUDE</div><div class="g-val" id="g-alt">0</div><div class="g-unit">M MSL</div></div>
+    <div class="gauge"><div class="g-label">HEADING</div><div class="g-val" id="g-hdg">000</div><div class="g-unit">DEG</div></div>
+    <div class="gauge"><div class="g-label">V/S</div><div class="g-val" id="g-vs">0</div><div class="g-unit">M/S</div></div>
+    <div class="gauge"><div class="g-label">THROTTLE</div><div id="g-thr-bar"><div id="g-thr-fill"></div></div><div class="g-unit" id="g-thr-pct">0%</div></div>
+  </div>
+  <div id="controls-hint">
+    <b>W/S</b> pitch &nbsp;<b>A/D</b> roll &nbsp;<b>Q/E</b> rudder &nbsp;<b>SHIFT/CTRL</b> throttle<br>
+    <b>Takeoff:</b> SHIFT to full power, then <b>S</b> to rotate &nbsp;·&nbsp; <b>C</b> reset view &nbsp;<b>DRAG</b> orbit &nbsp;<b>SCROLL</b> zoom &nbsp;<b>ESC</b> menu
+  </div>
+</div>
+
+<script>
+"use strict";
+/* =====================================================================
+   FLIGHT SIMULATOR — COPERNICUS
+   Fly over ESA Copernicus Sentinel-2 imagery draped on a Cesium globe.
+   100% free / keyless. Flight dynamics run in a local East-North-Up
+   tangent frame (local "up" = vertical, gravity points down).
+   ===================================================================== */
+
+const R_EARTH = 6378137.0;
+
+const AIRCRAFT = {
+  boeing: { name:"Boeing 737", desc:"Airliner. Fast, heavy, stately turns.",
+            url:"https://assets.whale64.net/boeing737.glb",
+            vMax:255, pitchRate:0.32, rollRate:0.6, yawRate:0.22, accent:"#1f5fa8",
+            modelHpr:[-Math.PI/2, 0, 0] },
+};
+
+// Airborne scenic start points (lon, lat in degrees, height above sea level)
+const AIRBORNE = {
+  "NILE DELTA":   { lon:31.2, lat:30.6, h:9000 },
+  "ALPS":         { lon:7.66, lat:45.97, h:7000 },
+  "GRAND CANYON": { lon:-112.11, lat:36.10, h:6000 },
+  "AMAZON":       { lon:-60.0, lat:-3.1, h:7000 },
+  "HIMALAYA":     { lon:86.92, lat:27.99, h:9000 },
+  "GREEK ISLANDS":{ lon:25.3, lat:37.0, h:6000 },
+};
+// Real airports — spawn on the runway and take off. hdg = runway heading (° true).
+const AIRPORTS = {
+  "SAN FRANCISCO": { lon:-122.3790, lat:37.6213, elev:4,    hdg:281 },
+  "NEW YORK JFK":  { lon:-73.7781,  lat:40.6413, elev:4,    hdg:310 },
+  "LONDON HEATHROW":{lon:-0.4543,   lat:51.4700, elev:25,   hdg:270 },
+  "PARIS CDG":     { lon:2.5479,    lat:49.0097, elev:119,  hdg:270 },
+  "TOKYO HANEDA":  { lon:139.7798,  lat:35.5494, elev:6,    hdg:340 },
+  "DUBAI":         { lon:55.3657,   lat:25.2532, elev:19,   hdg:300 },
+  "GENEVA (ALPS)": { lon:6.1089,    lat:46.2381, elev:430,  hdg:230 },
+  "LUKLA (EVEREST)":{lon:86.7311,   lat:27.6869, elev:2845, hdg:60  },
+};
+
+const sel = { craft:"boeing", key:"ALPS", ground:false };
+
+/* ---------------- terrain: free, keyless global elevation ----------------
+   AWS open "Terrarium" DEM tiles (SRTM-derived) decoded into a Cesium custom
+   heightmap. No key, no account; the host just needs to reach the S3 bucket. */
+function makeTerrainProvider(){
+  const W = 64, H = 64;
+  return new Cesium.CustomHeightmapTerrainProvider({
+    width: W, height: H,
+    tilingScheme: new Cesium.WebMercatorTilingScheme(),
+    callback: function(x, y, level){
+      if(level > 13) return undefined;  // cap detail / request volume
+      const url = "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/"+level+"/"+x+"/"+y+".png";
+      return new Promise(resolve=>{
+        const img = new Image();
+        img.crossOrigin = "anonymous";
+        img.onload = ()=>{
+          try{
+            const c = document.createElement("canvas"); c.width=256; c.height=256;
+            const ctx = c.getContext("2d"); ctx.drawImage(img,0,0,256,256);
+            const d = ctx.getImageData(0,0,256,256).data;
+            const out = new Float32Array(W*H);
+            for(let j=0;j<H;j++) for(let i=0;i<W;i++){
+              const px = Math.min(255, Math.round(i/(W-1)*255));
+              const py = Math.min(255, Math.round(j/(H-1)*255));
+              const k = (py*256+px)*4;
+              out[j*W+i] = (d[k]*256 + d[k+1] + d[k+2]/256) - 32768; // Terrarium decode
+            }
+            resolve(out);
+          }catch(e){ resolve(undefined); }   // CORS/taint → treat as no data
+        };
+        img.onerror = ()=>resolve(undefined);
+        img.src = url;
+      });
+    }
+  });
+}
+
+/* ---------------- menu wiring ---------------- */
+const airportList = document.getElementById("airport-list");
+const airborneList = document.getElementById("airborne-list");
+function clearSel(){ [...airportList.children, ...airborneList.children].forEach(c=>c.classList.remove("sel")); }
+for(const name of Object.keys(AIRPORTS)){
+  const el = document.createElement("div");
+  el.className = "place" + (sel.ground && name===sel.key ? " sel":"");
+  el.textContent = "✈ " + name;
+  el.onclick = ()=>{ sel.key=name; sel.ground=true;  clearSel(); el.classList.add("sel"); };
+  airportList.appendChild(el);
+}
+for(const name of Object.keys(AIRBORNE)){
+  const el = document.createElement("div");
+  el.className = "place" + (!sel.ground && name===sel.key ? " sel":"");
+  el.textContent = name;
+  el.onclick = ()=>{ sel.key=name; sel.ground=false; clearSel(); el.classList.add("sel"); };
+  airborneList.appendChild(el);
+}
+document.getElementById("btn-start").addEventListener("click", startSim);
+
+/* ---------------- state ---------------- */
+let viewer=null, aircraftEntity=null, running=false;
+const G = {
+  lon:0, lat:0, h:0, heading:0, pitch:0, roll:0,
+  speed:40, throttle:0.55, vs:0,
+  camYaw:0, camPitch:0, camZoom:1,
+  onGround:false, groundElev:0,
+};
+const keys = {};
+const clamp=(v,a,b)=>v<a?a:(v>b?b:v);
+const lerp=(a,b,t)=>a+(b-a)*t;
+
+/* ---------------- input ---------------- */
+addEventListener("keydown", e=>{
+  keys[e.code]=true;
+  if(["ArrowUp","ArrowDown","ArrowLeft","ArrowRight","Space"].includes(e.code)) e.preventDefault();
+  if(!running) return;
+  if(e.code==="KeyC"){ G.camYaw=0; G.camPitch=0; G.camZoom=1; }  // reset chase view
+  if(e.code==="Escape") toMenu();
+});
+addEventListener("keyup", e=>{ keys[e.code]=false; });
+
+let dragging=false, lastX=0, lastY=0;
+function bindMouse(canvas){
+  canvas.addEventListener("pointerdown", e=>{ if(!running)return; dragging=true; lastX=e.clientX; lastY=e.clientY; canvas.setPointerCapture(e.pointerId); });
+  canvas.addEventListener("pointermove", e=>{ if(!dragging)return;
+    G.camYaw   -= (e.clientX-lastX)*0.006;
+    G.camPitch  = clamp(G.camPitch + (e.clientY-lastY)*0.006, -1.1, 1.2);
+    lastX=e.clientX; lastY=e.clientY; });
+  const end=e=>{ dragging=false; try{canvas.releasePointerCapture(e.pointerId);}catch(_){} };
+  canvas.addEventListener("pointerup", end);
+  canvas.addEventListener("pointercancel", end);
+  canvas.addEventListener("wheel", e=>{ if(!running)return; e.preventDefault();
+    G.camZoom = clamp(G.camZoom*(1+Math.sign(e.deltaY)*0.12), 0.4, 6); }, {passive:false});
+}
+
+/* ---------------- start ---------------- */
+async function startSim(){
+  const errEl = document.getElementById("err");
+  errEl.textContent = "";
+  const btn = document.getElementById("btn-start");
+  btn.disabled = true; btn.textContent = "INITIALISING…";
+
+  if(typeof Cesium === "undefined"){
+    errEl.textContent = "CesiumJS failed to load — check that the CDN is reachable from where you're hosting this.";
+    btn.disabled=false; btn.textContent="TAKE OFF"; return;
+  }
+
+  try{
+    if(!viewer){
+      // Sentinel-2 cloudless mosaic (EOX) — free, keyless, web-mercator XYZ tiles
+      const sentinel = new Cesium.UrlTemplateImageryProvider({
+        url: "https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless-2020_3857/default/g/{z}/{y}/{x}.jpg",
+        maximumLevel: 18,
+        credit: new Cesium.Credit('Sentinel-2 cloudless 2020 by <a href="https://s2maps.eu" target="_blank">EOX IT Services GmbH</a> (contains modified Copernicus Sentinel data 2020)')
+      });
+
+      viewer = new Cesium.Viewer("cesiumContainer", {
+        baseLayer: new Cesium.ImageryLayer(sentinel),  // replaces the default ion imagery
+        baseLayerPicker:false, geocoder:false, homeButton:false, sceneModePicker:false,
+        navigationHelpButton:false, animation:false, timeline:false, fullscreenButton:false,
+        infoBox:false, selectionIndicator:false, requestRenderMode:false,
+      });
+      viewer.scene.terrainProvider = makeTerrainProvider();      // real 3-D elevation
+      viewer.scene.globe.depthTestAgainstTerrain = true;          // hide what's behind hills
+      viewer.scene.skyAtmosphere.show = true;
+      viewer.scene.globe.showGroundAtmosphere = true;
+      viewer.scene.screenSpaceCameraController.enableInputs = false;
+      viewer.scene.screenSpaceCameraController.enableCollisionDetection = false; // no per-frame camera shoving
+      bindMouse(viewer.scene.canvas);
+    }
+
+    document.getElementById("loading").classList.add("on");
+    spawn();
+    // give the first tiles a moment to start streaming
+    await new Promise(r=>setTimeout(r, 400));
+    document.getElementById("loading").classList.remove("on");
+
+    document.getElementById("menu").classList.add("hidden");
+    document.getElementById("hud").classList.add("on");
+    document.getElementById("craft-name").textContent = AIRCRAFT[sel.craft].name.toUpperCase();
+    running = true;
+    lastTime = null;
+    viewer.scene.preUpdate.removeEventListener(onTick); // avoid stacking on re-entry
+    viewer.scene.preUpdate.addEventListener(onTick);
+  }catch(err){
+    document.getElementById("loading").classList.remove("on");
+    errEl.textContent = (err && err.message) ? err.message : String(err);
+    btn.disabled=false; btn.textContent="TAKE OFF";
+  }
+}
+
+function spawn(){
+  const A = AIRCRAFT[sel.craft];
+  const def = (sel.ground ? AIRPORTS : AIRBORNE)[sel.key];
+  G.lon = Cesium.Math.toRadians(def.lon);
+  G.lat = Cesium.Math.toRadians(def.lat);
+  G.heading = Cesium.Math.toRadians(def.hdg || 0);
+  G.pitch = 0; G.roll = 0; G.vs = 0;
+  G.camYaw = 0; G.camPitch = 0; G.camZoom = 1; camH = null;
+  if(sel.ground){
+    G.onGround = true; G.groundElev = def.elev || 0;
+    G.h = G.groundElev + 4;      // wheels on the runway
+    G.speed = 0; G.throttle = 0; // hold the brakes — push throttle to roll
+  } else {
+    G.onGround = false; G.groundElev = 0;
+    G.h = def.h;
+    G.speed = A.vMax*0.5; G.throttle = 0.6;
+  }
+
+  if(aircraftEntity){ viewer.entities.remove(aircraftEntity); aircraftEntity=null; }
+  aircraftEntity = viewer.entities.add({
+    position: new Cesium.CallbackProperty(()=>acPosition(), false),
+    orientation: new Cesium.CallbackProperty(()=>acOrientation(), false),
+    model: { uri:A.url, scale:1.0, maximumScale:20000 },
+  });
+}
+
+function toMenu(){
+  running = false;
+  if(viewer){ viewer.scene.preUpdate.removeEventListener(onTick); viewer.camera.lookAtTransform(Cesium.Matrix4.IDENTITY); }
+  document.getElementById("hud").classList.remove("on");
+  document.getElementById("menu").classList.remove("hidden");
+  const btn=document.getElementById("btn-start"); btn.disabled=false; btn.textContent="TAKE OFF";
+}
+
+/* ---------------- geometry ---------------- */
+function acPosition(){ return Cesium.Cartesian3.fromRadians(G.lon, G.lat, G.h); }
+function acOrientation(){
+  const A = AIRCRAFT[sel.craft];
+  const hpr = new Cesium.HeadingPitchRoll(G.heading+A.modelHpr[0], G.pitch+A.modelHpr[1], G.roll+A.modelHpr[2]);
+  return Cesium.Transforms.headingPitchRollQuaternion(acPosition(), hpr);
+}
+
+/* ---------------- loop (runs on scene.preUpdate, every rendered frame) ---------------- */
+let lastTime=null;
+function onTick(scene, time){
+  if(!running) return;
+  const now = performance.now()/1000;
+  let dt = lastTime==null ? 1/60 : now-lastTime;
+  lastTime = now; dt = clamp(dt, 0, 0.05);
+  physics(dt); updateCamera(dt); updateHUD();
+}
+
+function physics(dt){
+  const A = AIRCRAFT[sel.craft];
+  const g = 9.81;
+  const tp = (keys["KeyS"]||keys["ArrowDown"]?1:0) - (keys["KeyW"]||keys["ArrowUp"]?1:0); // S = nose up
+  const tr = (keys["KeyD"]||keys["ArrowRight"]?1:0) - (keys["KeyA"]||keys["ArrowLeft"]?1:0);
+  const ty = (keys["KeyQ"]?1:0) - (keys["KeyE"]?1:0);
+  if(keys["ShiftLeft"]||keys["ShiftRight"]||keys["KeyZ"]) G.throttle = clamp(G.throttle+dt*0.5,0,1);
+  if(keys["ControlLeft"]||keys["ControlRight"]||keys["KeyX"]) G.throttle = clamp(G.throttle-dt*0.5,0,1);
+
+  const Vr = A.vMax*0.34;   // rotation / approach speed
+
+  if(G.onGround){
+    // ---- ground roll: throttle accelerates, rudder steers, pull up to rotate ----
+    G.speed += 6.0 * G.throttle * dt;                 // ~15 s roll at full power
+    if(G.throttle < 0.05) G.speed -= 3.0 * dt;        // rolling friction / brakes
+    G.speed = clamp(G.speed, 0, A.vMax);
+    G.roll = lerp(G.roll, 0, Math.min(1, dt*4));
+    G.pitch = clamp(G.pitch + tp*A.pitchRate*dt, 0, 0.32); // raise the nose only
+    if(!tp) G.pitch = lerp(G.pitch, 0, Math.min(1, dt*2));
+    G.heading = (G.heading + ty*A.yawRate*1.2*dt*clamp(G.speed/25,0,1)) % (Math.PI*2); // nosewheel steering
+    // roll along the ground
+    const dist = G.speed*dt;
+    G.lat += (dist*Math.cos(G.heading))/R_EARTH;
+    G.lon += (dist*Math.sin(G.heading))/(R_EARTH*Math.cos(G.lat));
+    G.h = G.groundElev + 4; G.vs = 0;
+    // lift off once fast enough and the nose is raised
+    if(G.speed > Vr && G.pitch > 0.05){ G.onGround = false; G.vs = 3; G.h += 1; }
+    return;
+  }
+
+  // ---- airborne ----
+  G.pitch = clamp(G.pitch + tp*A.pitchRate*dt, -0.5, 0.5);
+  G.roll  = clamp(G.roll  + tr*A.rollRate*dt, -1.05, 1.05);
+  if(!tr) G.roll  = lerp(G.roll, 0, Math.min(1, dt*0.7));
+  if(!tp) G.pitch = lerp(G.pitch, 0, Math.min(1, dt*0.25));
+
+  const turn = (Math.tan(G.roll)*g/Math.max(G.speed,30)) + ty*A.yawRate;
+  G.heading = (G.heading + turn*dt) % (Math.PI*2);
+
+  const target = A.vMax*(0.25 + 0.75*G.throttle);
+  G.speed = lerp(G.speed, target, Math.min(1, dt*0.3));
+  G.speed = Math.max(G.speed - Math.sin(G.pitch)*g*dt*1.2, A.vMax*0.12);
+
+  const cP=Math.cos(G.pitch);
+  const east=cP*Math.sin(G.heading), north=cP*Math.cos(G.heading), up=Math.sin(G.pitch);
+  const dist=G.speed*dt; G.vs=G.speed*up;
+  G.lat += (dist*north)/R_EARTH;
+  G.lon += (dist*east)/(R_EARTH*Math.cos(G.lat));
+  G.h   += dist*up;
+
+  // terrain floor (sampled from loaded DEM tiles); land back on the ground if slow & low
+  let ground = G.groundElev;
+  try{
+    const gh = viewer.scene.globe.getHeight(new Cesium.Cartographic(G.lon, G.lat));
+    if(typeof gh === "number" && isFinite(gh)) ground = gh;
+  }catch(_){}
+  const floor = ground + 22;
+  if(G.h < floor){
+    G.h = floor; if(G.pitch < 0) G.pitch = 0;
+    if(G.speed < Vr*1.05 && G.vs > -4){ G.onGround = true; G.groundElev = ground; } // touchdown
+  }
+}
+
+/* ---------------- camera ----------------
+   Cesium's canonical "follow a moving object" method: lock the camera to the
+   aircraft's local East-North-Up frame and sit at a fixed offset within it.
+   This is the same mechanism Cesium's entity tracking uses internally, so it
+   is jitter-free; supplying the offset ourselves keeps orbit + heading-follow. */
+let camH = null;
+function updateCamera(dt){
+  const pos = acPosition();
+  const enu = Cesium.Transforms.eastNorthUpToFixedFrame(pos);
+  const A = AIRCRAFT[sel.craft];
+  const range = (60 + A.vMax*0.5) * G.camZoom;
+  // ease the camera heading toward the aircraft heading (kills tiny azimuth jitter)
+  if(camH===null) camH = G.heading;
+  let d = G.heading - camH; while(d>Math.PI)d-=2*Math.PI; while(d<-Math.PI)d+=2*Math.PI;
+  camH += d * Math.min(1, dt*6);
+  const h   = camH + G.camYaw;                       // drag to orbit around the plane
+  const pit = clamp(0.34 - G.camPitch, -0.25, 1.25); // drag up/down to tilt
+  const horiz = range*Math.cos(pit), vert = range*Math.sin(pit);
+  // offset in ENU (east, north, up): behind the direction of travel, raised up
+  const offset = new Cesium.Cartesian3(-Math.sin(h)*horiz, -Math.cos(h)*horiz, vert);
+  viewer.camera.lookAtTransform(enu, offset);
+}
+
+/* ---------------- HUD ---------------- */
+const adiCv=document.getElementById("adi"), adi=adiCv.getContext("2d");
+function drawADI(){
+  const S=74, c=S/2, R=c-3;
+  adi.clearRect(0,0,S,S); adi.save();
+  adi.beginPath(); adi.arc(c,c,R,0,7); adi.clip();
+  adi.translate(c,c); adi.rotate(-G.roll);
+  const py=G.pitch*R*1.5;
+  adi.fillStyle="#3d6f9e"; adi.fillRect(-S,-S*2+py,S*2,S*2);
+  adi.fillStyle="#6e5233"; adi.fillRect(-S,py,S*2,S*2);
+  adi.strokeStyle="#e8eef4"; adi.lineWidth=1.4;
+  adi.beginPath(); adi.moveTo(-S,py); adi.lineTo(S,py); adi.stroke();
+  adi.strokeStyle="rgba(232,238,244,.6)"; adi.lineWidth=1;
+  for(let d=-30;d<=30;d+=10){ if(!d)continue; const yy=py+(d*Math.PI/180)*R*1.5;
+    adi.beginPath(); adi.moveTo(-9,yy); adi.lineTo(9,yy); adi.stroke(); }
+  adi.restore();
+  adi.strokeStyle="#ffb347"; adi.lineWidth=2.2;
+  adi.beginPath(); adi.moveTo(c-16,c); adi.lineTo(c-5,c); adi.lineTo(c,c+4); adi.lineTo(c+5,c); adi.lineTo(c+16,c); adi.stroke();
+  adi.fillStyle="#ffb347"; adi.beginPath(); adi.arc(c,c,1.6,0,7); adi.fill();
+  adi.strokeStyle="rgba(95,212,232,.45)"; adi.lineWidth=1; adi.beginPath(); adi.arc(c,c,R,0,7); adi.stroke();
+}
+function updateHUD(){
+  document.getElementById("g-spd").textContent = Math.round(G.speed*1.944);
+  document.getElementById("g-alt").textContent = Math.round(G.h);
+  const hdg=(Cesium.Math.toDegrees(G.heading)+360)%360;
+  document.getElementById("g-hdg").textContent = String(Math.round(hdg)).padStart(3,"0");
+  const vsEl=document.getElementById("g-vs");
+  vsEl.textContent=(G.vs>=0?"+":"")+G.vs.toFixed(1);
+  vsEl.style.color = G.vs<-6?"var(--red)":(G.vs<0?"var(--amber)":"var(--green)");
+  document.getElementById("g-thr-fill").style.width=(G.throttle*100)+"%";
+  document.getElementById("g-thr-pct").textContent=Math.round(G.throttle*100)+"%";
+  document.getElementById("coord").textContent =
+    Cesium.Math.toDegrees(G.lat).toFixed(4)+"°, "+Cesium.Math.toDegrees(G.lon).toFixed(4)+"°";
+  drawADI();
+}
+</script>
+</body>
+</html>
