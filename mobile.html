@@ -1,0 +1,1056 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1">
+    <meta name="theme-color" content="#0d0d10">
+    <title>Roadblocks</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&family=Space+Mono:wght@700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg:        #0d0d10;
+            --surface:   #16161b;
+            --surface-2: #1d1d24;
+            --surface-3: #27272f;
+            --border:        rgba(255,255,255,0.07);
+            --border-strong: rgba(255,255,255,0.12);
+            --text:      #f5f5f7;
+            --dim:       #a1a1aa;
+            --faint:     #71717a;
+            --brand:     #3b82f6;
+            --brand-2:   #2563eb;
+            --accent:    #f7a40c;
+            --danger:    #ef4444;
+
+            --display: 'Space Grotesk', sans-serif;
+            --body: 'Inter', sans-serif;
+            --mono: 'Space Mono', monospace;
+
+            --app-max: 540px;
+            --header-h: 116px;
+            --nav-h: calc(64px + env(safe-area-inset-bottom, 0px));
+        }
+
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+        html, body { margin: 0; }
+
+        body {
+            font-family: var(--body);
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100dvh;
+            overflow-x: hidden;
+            /* arcade-screen bloom behind everything */
+            background-image:
+                radial-gradient(120% 60% at 50% -10%, rgba(59,130,246,0.16), transparent 60%);
+            background-attachment: fixed;
+        }
+
+        ::selection { background: var(--brand); color: #fff; }
+
+        /* ---- app shell: a centered phone column on big screens ---- */
+        .app {
+            max-width: var(--app-max);
+            margin: 0 auto;
+            min-height: 100dvh;
+            position: relative;
+        }
+
+        /* =================== GLOBAL BANNER =================== */
+        #global-banner {
+            display: none;
+            background: var(--brand-2);
+            color: #fff;
+            text-align: center;
+            padding: 9px 16px;
+            font-weight: 700;
+            font-size: 0.78rem;
+            letter-spacing: 0.01em;
+        }
+
+        /* =================== HEADER =================== */
+        header {
+            position: sticky;
+            top: 0;
+            z-index: 40;
+            padding: calc(env(safe-area-inset-top, 0px) + 14px) 18px 12px;
+            background: rgba(13,13,16,0.72);
+            backdrop-filter: blur(18px) saturate(140%);
+            -webkit-backdrop-filter: blur(18px) saturate(140%);
+            border-bottom: 1px solid var(--border);
+        }
+        .topbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 12px;
+        }
+        .topbar { gap: 10px; }
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 9px;
+            min-width: 0;
+        }
+        .brand img {
+            height: 30px; width: 30px;
+            object-fit: contain;
+            border-radius: 8px;
+            flex-shrink: 0;
+        }
+        .brand .wordmark {
+            font-family: var(--display);
+            font-weight: 700;
+            font-size: 1.18rem;
+            letter-spacing: -0.02em;
+            color: #fff;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .topbar-right { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+        #device-indicator {
+            font-family: var(--mono);
+            font-size: 9px;
+            letter-spacing: 0.08em;
+            color: var(--dim);
+            background: var(--surface-2);
+            border: 1px solid var(--border);
+            padding: 5px 8px;
+            border-radius: 7px;
+            white-space: nowrap;
+        }
+        .avatar {
+            width: 30px; height: 30px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--brand), #8b5cf6);
+            border: 1.5px solid var(--border-strong);
+            flex-shrink: 0;
+        }
+
+        /* search */
+        .search {
+            position: relative;
+        }
+        #search-input {
+            width: 100%;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 12px 14px 12px 42px;
+            color: var(--text);
+            font-family: var(--body);
+            font-size: 0.95rem;
+            outline: none;
+            transition: border-color .2s, background .2s, box-shadow .2s;
+        }
+        #search-input::placeholder { color: var(--faint); }
+        #search-input:focus {
+            border-color: var(--brand);
+            background: var(--surface-2);
+            box-shadow: 0 0 0 4px rgba(59,130,246,0.14);
+        }
+        .search svg {
+            position: absolute;
+            left: 14px; top: 50%;
+            transform: translateY(-50%);
+            color: var(--faint);
+            pointer-events: none;
+        }
+
+        /* =================== MAIN =================== */
+        main {
+            padding: 22px 0 calc(var(--nav-h) + 28px);
+        }
+        .gutter { padding-left: 18px; padding-right: 18px; }
+
+        .section-head {
+            display: flex;
+            align-items: center;
+            gap: 9px;
+            margin: 0 0 14px;
+            font-family: var(--display);
+            font-weight: 600;
+            font-size: 1.05rem;
+            letter-spacing: -0.01em;
+            color: #fff;
+        }
+        .tick {
+            width: 5px; height: 19px;
+            border-radius: 99px;
+            background: var(--brand);
+            flex-shrink: 0;
+        }
+        .tick.amber { background: var(--accent); }
+
+        /* =================== FEATURED RAIL =================== */
+        #featured-section-container { margin-bottom: 30px; }
+        #featured-grid {
+            display: flex;
+            gap: 14px;
+            overflow-x: auto;
+            scroll-snap-type: x mandatory;
+            padding: 2px 18px 6px;
+            -webkit-overflow-scrolling: touch;
+            scrollbar-width: none;
+        }
+        #featured-grid::-webkit-scrollbar { display: none; }
+
+        .feat-card {
+            position: relative;
+            flex: 0 0 82%;
+            scroll-snap-align: start;
+            aspect-ratio: 16 / 11;
+            border-radius: 22px;
+            overflow: hidden;
+            background: var(--surface-2);
+            border: 1px solid var(--border);
+            cursor: pointer;
+            transition: transform .25s cubic-bezier(.2,.8,.2,1);
+        }
+        .feat-card:active { transform: scale(0.975); }
+        .feat-card img.art {
+            position: absolute; inset: 0;
+            width: 100%; height: 100%;
+            object-fit: cover;
+        }
+        .feat-card .scrim {
+            position: absolute; inset: 0;
+            background: linear-gradient(180deg, rgba(0,0,0,0) 28%, rgba(0,0,0,0.55) 68%, rgba(8,8,10,0.92) 100%);
+        }
+        .feat-tag {
+            position: absolute;
+            top: 12px; left: 12px;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            background: var(--accent);
+            color: #2a1c00;
+            font-family: var(--display);
+            font-weight: 700;
+            font-size: 0.62rem;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            padding: 6px 9px;
+            border-radius: 99px;
+            box-shadow: 0 4px 14px rgba(247,164,12,0.35);
+        }
+        .feat-tag svg { width: 11px; height: 11px; fill: currentColor; }
+        .feat-meta {
+            position: absolute;
+            left: 16px; right: 16px; bottom: 14px;
+            display: flex;
+            align-items: flex-end;
+            justify-content: space-between;
+            gap: 12px;
+        }
+        .feat-meta .txt { min-width: 0; }
+        .feat-meta .name {
+            font-family: var(--display);
+            font-weight: 700;
+            font-size: 1.08rem;
+            color: #fff;
+            letter-spacing: -0.01em;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            text-shadow: 0 2px 12px rgba(0,0,0,0.6);
+        }
+        .feat-meta .feat-creator {
+            font-size: 0.78rem;
+            color: #d4d4d8;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            margin-top: 1px;
+            text-shadow: 0 1px 8px rgba(0,0,0,0.6);
+        }
+        .play-direct-btn {
+            flex-shrink: 0;
+            width: 46px; height: 46px;
+            border: none;
+            border-radius: 50%;
+            background: var(--brand);
+            color: #fff;
+            display: flex; align-items: center; justify-content: center;
+            cursor: pointer;
+            box-shadow: 0 6px 18px rgba(37,99,235,0.5);
+            transition: transform .15s, background .2s;
+        }
+        .play-direct-btn svg { width: 18px; height: 18px; fill: currentColor; margin-left: 2px; }
+        .play-direct-btn:active { transform: scale(0.88); background: var(--brand-2); }
+
+        /* =================== GAME GRID =================== */
+        #experience-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
+            gap: 14px;
+        }
+        .game-card {
+            cursor: pointer;
+            transition: transform .15s ease;
+        }
+        .game-card:active { transform: scale(0.96); }
+        .game-card .thumb {
+            position: relative;
+            aspect-ratio: 1;
+            border-radius: 18px;
+            overflow: hidden;
+            background: var(--surface-2);
+            border: 1px solid var(--border);
+            margin-bottom: 9px;
+        }
+        .game-card .thumb img {
+            width: 100%; height: 100%;
+            object-fit: cover;
+        }
+        .game-card .label {
+            font-family: var(--display);
+            font-weight: 600;
+            font-size: 0.86rem;
+            color: var(--text);
+            padding: 0 3px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            letter-spacing: -0.005em;
+        }
+
+        /* skeletons */
+        .skeleton-item .sk-thumb {
+            aspect-ratio: 1;
+            border-radius: 18px;
+            background: var(--surface-2);
+            margin-bottom: 9px;
+        }
+        .skeleton-item .sk-line {
+            height: 13px; width: 72%;
+            border-radius: 6px;
+            background: var(--surface-2);
+            margin: 0 3px;
+        }
+        @keyframes pulse { 0%,100% { opacity: 1 } 50% { opacity: 0.45 } }
+        .skeleton-item { animation: pulse 1.4s ease-in-out infinite; }
+
+        /* status / empty / error */
+        .status-card {
+            text-align: center;
+            color: var(--dim);
+            padding: 34px 20px;
+            border: 1px solid var(--border);
+            border-radius: 18px;
+            background: var(--surface);
+            font-size: 0.9rem;
+        }
+        .error-msg {
+            background: rgba(239,68,68,0.08);
+            border: 1px solid rgba(239,68,68,0.22);
+            color: #fca5a5;
+            padding: 16px;
+            border-radius: 16px;
+            font-size: 0.9rem;
+        }
+
+        /* =================== FOOTER (inline credits) =================== */
+        footer {
+            margin-top: 34px;
+            padding: 22px 18px 6px;
+            border-top: 1px solid var(--border);
+            text-align: center;
+            color: var(--faint);
+            font-size: 0.72rem;
+            line-height: 1.7;
+        }
+        footer a { color: var(--dim); text-decoration: none; font-weight: 600; }
+        footer a:hover { color: var(--text); }
+        footer a.src { color: var(--brand); }
+
+        /* =================== BOTTOM TAB BAR =================== */
+        .tabbar {
+            position: fixed;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 100%;
+            max-width: var(--app-max);
+            bottom: 0;
+            z-index: 50;
+            height: var(--nav-h);
+            padding: 6px 14px env(safe-area-inset-bottom, 0px);
+            display: flex;
+            align-items: flex-start;
+            justify-content: center;
+            gap: 6px;
+            background: rgba(13,13,16,0.82);
+            backdrop-filter: blur(20px) saturate(140%);
+            -webkit-backdrop-filter: blur(20px) saturate(140%);
+            border-top: 1px solid var(--border);
+        }
+        .tabbar-inner {
+            width: 100%;
+            max-width: var(--app-max);
+            display: flex;
+            align-items: stretch;
+            justify-content: space-around;
+            padding-top: 6px;
+        }
+        .tab {
+            appearance: none;
+            background: none;
+            border: none;
+            cursor: pointer;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+            padding: 4px 0;
+            color: var(--faint);
+            text-decoration: none;
+            font-family: var(--display);
+            font-size: 0.66rem;
+            font-weight: 600;
+            letter-spacing: 0.01em;
+            transition: color .18s;
+        }
+        .tab svg { width: 22px; height: 22px; }
+        .tab .dot {
+            width: 4px; height: 4px;
+            border-radius: 50%;
+            background: transparent;
+            margin-top: 1px;
+        }
+        .tab:active { color: var(--text); }
+        .tab.active { color: var(--brand); }
+        .tab.active .dot { background: var(--brand); box-shadow: 0 0 8px var(--brand); }
+
+        /* =================== DETAILS BOTTOM SHEET =================== */
+        #details-modal {
+            position: fixed;
+            inset: 0;
+            z-index: 100;
+            display: flex;
+            align-items: flex-end;
+            justify-content: center;
+            visibility: hidden;
+            pointer-events: none;
+        }
+        #details-modal .backdrop {
+            position: absolute;
+            inset: 0;
+            background: rgba(0,0,0,0.6);
+            backdrop-filter: blur(3px);
+            opacity: 0;
+            transition: opacity .28s ease;
+        }
+        .sheet {
+            position: relative;
+            width: 100%;
+            max-width: var(--app-max);
+            background: var(--surface);
+            border: 1px solid var(--border-strong);
+            border-bottom: none;
+            border-radius: 26px 26px 0 0;
+            padding: 10px 22px calc(22px + env(safe-area-inset-bottom, 0px));
+            transform: translateY(102%);
+            transition: transform .34s cubic-bezier(.2,.85,.25,1);
+            box-shadow: 0 -20px 60px rgba(0,0,0,0.55);
+        }
+        #details-modal.open { visibility: visible; pointer-events: auto; }
+        #details-modal.open .backdrop { opacity: 1; }
+        #details-modal.open .sheet { transform: translateY(0); }
+
+        .grabber {
+            width: 38px; height: 4px;
+            border-radius: 99px;
+            background: var(--surface-3);
+            margin: 4px auto 16px;
+        }
+        .sheet-top {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+        .sheet-icon {
+            width: 66px; height: 66px;
+            border-radius: 18px;
+            overflow: hidden;
+            background: var(--surface-2);
+            border: 1px solid var(--border-strong);
+            flex-shrink: 0;
+        }
+        .sheet-icon img { width: 100%; height: 100%; object-fit: cover; }
+        .sheet-titles { min-width: 0; }
+        #modal-title {
+            font-family: var(--display);
+            font-weight: 700;
+            font-size: 1.3rem;
+            color: #fff;
+            letter-spacing: -0.02em;
+            margin: 0;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .sheet-by { font-size: 0.82rem; color: var(--dim); margin-top: 3px; }
+        #modal-developer { color: var(--brand); font-weight: 600; }
+
+        #modal-description {
+            font-size: 0.92rem;
+            line-height: 1.62;
+            color: var(--dim);
+            white-space: pre-wrap;
+            max-height: 30vh;
+            overflow-y: auto;
+            margin: 18px 0 20px;
+            padding-top: 18px;
+            border-top: 1px solid var(--border);
+        }
+        #modal-play-btn {
+            width: 100%;
+            border: none;
+            cursor: pointer;
+            background: var(--brand);
+            color: #fff;
+            font-family: var(--display);
+            font-weight: 700;
+            font-size: 1.02rem;
+            letter-spacing: 0.01em;
+            padding: 16px;
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 9px;
+            box-shadow: 0 8px 22px rgba(37,99,235,0.4);
+            transition: transform .15s, background .2s;
+        }
+        #modal-play-btn svg { width: 18px; height: 18px; fill: currentColor; }
+        #modal-play-btn:active { transform: scale(0.97); background: var(--brand-2); }
+        .sheet-close {
+            position: absolute;
+            top: 14px; right: 16px;
+            width: 34px; height: 34px;
+            border: none;
+            border-radius: 50%;
+            background: var(--surface-2);
+            color: var(--dim);
+            display: flex; align-items: center; justify-content: center;
+            cursor: pointer;
+        }
+        .sheet-close:active { background: var(--surface-3); color: #fff; }
+
+        /* =================== GAME OVERLAY =================== */
+        #game-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: #000;
+            z-index: 1000;
+        }
+        #game-frame { width: 100%; height: 100%; border: none; display: block; }
+        .close-btn {
+            position: absolute;
+            top: calc(env(safe-area-inset-top, 0px) + 14px);
+            right: 14px;
+            width: 46px; height: 46px;
+            background: rgba(20,20,26,0.78);
+            border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            cursor: pointer;
+            backdrop-filter: blur(8px);
+            z-index: 1001;
+            color: #fff;
+            transition: background .2s, transform .2s;
+        }
+        .close-btn:active { background: var(--danger); transform: scale(0.92); }
+
+        @media (prefers-reduced-motion: reduce) {
+            *, .sheet, .feat-card, .game-card, #details-modal .backdrop {
+                transition: none !important;
+                animation: none !important;
+            }
+        }
+
+        /* On screens wider than the app column, frame it as a deliberate
+           device surface so the surrounding space reads as intentional. */
+        @media (min-width: 560px) {
+            .app {
+                border-left: 1px solid var(--border);
+                border-right: 1px solid var(--border);
+                background: rgba(20,20,25,0.45);
+                box-shadow: 0 0 80px rgba(0,0,0,0.4);
+            }
+            .tabbar {
+                border-left: 1px solid var(--border);
+                border-right: 1px solid var(--border);
+            }
+        }
+
+        /* Very narrow phones: drop the device pill before it can crowd the brand. */
+        @media (max-width: 360px) {
+            #device-indicator { display: none; }
+        }
+    </style>
+</head>
+<body>
+<div class="app">
+
+    <div id="global-banner"></div>
+
+    <header>
+        <div class="topbar">
+            <div class="brand">
+                <img src="https://github.com/Whale64/Roadblocks/raw/main/logo.png" alt="Roadblocks" onerror="this.src='https://placehold.co/100x100/2563eb/ffffff?text=RB'">
+                <span class="wordmark">Roadblocks</span>
+            </div>
+            <div class="topbar-right">
+                <div id="device-indicator">DETECTING…</div>
+                <div class="avatar"></div>
+            </div>
+        </div>
+        <div class="search">
+            <svg width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+            <input type="text" id="search-input" placeholder="Search experiences" autocomplete="off" autocorrect="off" spellcheck="false">
+        </div>
+    </header>
+
+    <main>
+        <section id="featured-section-container" class="hidden">
+            <h2 class="section-head gutter"><span class="tick amber"></span>Featured</h2>
+            <div id="featured-grid"><!-- dynamic --></div>
+        </section>
+
+        <div class="gutter">
+            <h1 class="section-head" id="view-title"><span class="tick"></span>Experiences</h1>
+            <div id="status-container"></div>
+            <div id="experience-grid"><!-- dynamic --></div>
+            <div id="load-more-trigger"></div>
+        </div>
+
+        <footer>
+            <p>Made by <a href="https://whale64.net" target="_blank">Whale64</a></p>
+            <p>Roadblocks is <a href="https://github.com/Whale64/Roadblocks" target="_blank" class="src">open source</a></p>
+        </footer>
+    </main>
+
+    <!-- DETAILS BOTTOM SHEET -->
+    <div id="details-modal">
+        <div class="backdrop" onclick="closeDetailsModal()"></div>
+        <div class="sheet" role="dialog" aria-modal="true">
+            <button class="sheet-close" onclick="closeDetailsModal()" aria-label="Close">
+                <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/></svg>
+            </button>
+            <div class="grabber"></div>
+            <div class="sheet-top">
+                <div class="sheet-icon"><img id="modal-icon" src="" alt="Icon"></div>
+                <div class="sheet-titles">
+                    <h2 id="modal-title">Game Title</h2>
+                    <p class="sheet-by">By <span id="modal-developer">Developer</span></p>
+                </div>
+            </div>
+            <p id="modal-description">Loading info…</p>
+            <button id="modal-play-btn">
+                <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                Play now
+            </button>
+        </div>
+    </div>
+
+    <!-- BOTTOM TAB BAR -->
+    <nav class="tabbar">
+        <div class="tabbar-inner">
+            <a href="#" class="tab active" id="tab-discover" onclick="scrollTop(event)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 22V12h6v10"/></svg>
+                Discover
+                <span class="dot"></span>
+            </a>
+            <button class="tab" id="tab-search" onclick="focusSearch()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                Search
+                <span class="dot"></span>
+            </button>
+            <a href="https://ohioroadblocks.vercel.app/dev.html" target="_blank" class="tab" id="tab-develop">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m16 18 6-6-6-6"/><path d="m8 6-6 6 6 6"/></svg>
+                Develop
+                <span class="dot"></span>
+            </a>
+        </div>
+    </nav>
+
+</div>
+
+<!-- FULLSCREEN GAME -->
+<div id="game-overlay">
+    <div class="close-btn" onclick="closeGame()">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+    </div>
+    <iframe id="game-frame" src="about:blank"></iframe>
+</div>
+
+<script>
+    const REPO_OWNER = "Whale64";
+    const REPO_NAME = "Roadblocks";
+    const API_URL = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents`;
+    const RAW_URL = `https://raw.githubusercontent.com/Whale64/${REPO_NAME}/main`;
+    const PAGES_URL = `https://ohioroadblocks.vercel.app`;
+
+    const grid = document.getElementById('experience-grid');
+    const featuredGrid = document.getElementById('featured-grid');
+    const featuredContainer = document.getElementById('featured-section-container');
+
+    const statusContainer = document.getElementById('status-container');
+    const overlay = document.getElementById('game-overlay');
+    const frame = document.getElementById('game-frame');
+    const deviceIndicator = document.getElementById('device-indicator');
+    const loadMoreTrigger = document.getElementById('load-more-trigger');
+    const searchInput = document.getElementById('search-input');
+    const viewTitle = document.getElementById('view-title');
+    const globalBanner = document.getElementById('global-banner');
+
+    const detailsModal = document.getElementById('details-modal');
+    const modalIcon = document.getElementById('modal-icon');
+    const modalTitle = document.getElementById('modal-title');
+    const modalDeveloper = document.getElementById('modal-developer');
+    const modalDescription = document.getElementById('modal-description');
+    const modalPlayBtn = document.getElementById('modal-play-btn');
+
+    let allFilteredFolders = [];
+    let currentDisplayFolders = [];
+    let currentIndex = 0;
+    const ITEMS_PER_PAGE = 20;
+    let isLoading = false;
+
+    const cacheBust = Date.now();
+
+    /* ---- tab bar helpers ---- */
+    function scrollTop(e) {
+        if (e) e.preventDefault();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+    function focusSearch() {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        setTimeout(() => searchInput.focus(), 280);
+    }
+
+    function getDeviceType() {
+        const ua = navigator.userAgent;
+        if (/(tablet|ipad|playbook|silk)|(android(?!.*mobi))/i.test(ua)) return "mobile";
+        if (/Mobile|Android|iP(hone|od)|IEMobile|BlackBerry|Kindle|Silk-Accelerated|(hpw|web)OS|Opera M(obi|ini)/.test(ua)) return "mobile";
+        return "pc";
+    }
+
+    const currentPlatform = getDeviceType();
+    deviceIndicator.textContent = `${currentPlatform.toUpperCase()} DETECTED`;
+
+    async function checkGlobalBanner() {
+        try {
+            const response = await fetch(`${RAW_URL}/banner.txt?v=${cacheBust}`);
+            if (response.ok) {
+                const text = await response.text();
+                if (text && text.trim() !== "") {
+                    globalBanner.textContent = text.trim();
+                    globalBanner.style.display = 'block';
+                }
+            }
+        } catch (e) {}
+    }
+
+    async function checkDeviceSupport(folderName) {
+        try {
+            const response = await fetch(`${RAW_URL}/${folderName}/device.txt?v=${cacheBust}`);
+            if (!response.ok) return true;
+            const rawText = await response.text();
+            if (!rawText || rawText.trim() === "") return true;
+            const supportedPlatforms = rawText.toLowerCase().split(',').map(item => item.trim()).filter(item => item !== "");
+            return supportedPlatforms.includes(currentPlatform);
+        } catch (e) { return true; }
+    }
+
+    async function isFeatured(folderName) {
+        try {
+            const response = await fetch(`${RAW_URL}/${folderName}/featured.txt?v=${cacheBust}`);
+            return response.ok;
+        } catch (e) { return false; }
+    }
+
+    function shuffleArray(array) {
+        for (let i = array.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [array[i], array[j]] = [array[j], array[i]];
+        }
+        return array;
+    }
+
+    function showSkeletons() {
+        const skeletons = Array(6).fill(0).map(() => `
+            <div class="skeleton-item">
+                <div class="sk-thumb"></div>
+                <div class="sk-line"></div>
+            </div>
+        `).join('');
+        grid.insertAdjacentHTML('beforeend', skeletons);
+    }
+
+    function removeSkeletons() {
+        document.querySelectorAll('.skeleton-item').forEach(s => s.remove());
+    }
+
+    async function fetchExperiences() {
+        if (isLoading) return;
+        isLoading = true;
+        showSkeletons();
+
+        checkGlobalBanner();
+
+        try {
+            const response = await fetch(API_URL);
+            if (!response.ok) throw new Error('Failed to fetch repository contents');
+
+            const contents = await response.json();
+            const folders = contents.filter(item =>
+                item.type === 'dir' &&
+                !item.name.startsWith('#') &&
+                !item.name.startsWith('?')
+            );
+
+            const metadataPromises = folders.map(async (folder) => {
+                const isSupported = await checkDeviceSupport(folder.name);
+                if (isSupported) {
+                    const featured = await isFeatured(folder.name);
+                    return { ...folder, featured };
+                }
+                return null;
+            });
+
+            const results = await Promise.all(metadataPromises);
+            allFilteredFolders = results.filter(f => f !== null);
+
+            const featuredExperiences = allFilteredFolders.filter(f => f.featured);
+            const normalExperiences = allFilteredFolders.filter(f => !f.featured);
+
+            const shuffledNormal = shuffleArray(normalExperiences);
+
+            removeSkeletons();
+            isLoading = false;
+
+            if (featuredExperiences.length > 0) {
+                featuredContainer.classList.remove('hidden');
+                featuredContainer.style.display = 'block';
+                renderFeaturedExperiences(featuredExperiences);
+            } else {
+                featuredContainer.style.display = 'none';
+            }
+
+            currentDisplayFolders = [...shuffledNormal];
+
+            if (currentDisplayFolders.length === 0 && featuredExperiences.length === 0) {
+                statusContainer.innerHTML = `<div class="status-card">No experiences available for your device type yet.</div>`;
+                return;
+            }
+
+            loadNextBatch();
+
+        } catch (error) {
+            console.error(error);
+            removeSkeletons();
+            isLoading = false;
+            statusContainer.innerHTML = `<div class="error-msg"><strong>Couldn't reach Roadblocks.</strong> Check your connection and pull to refresh.</div>`;
+        }
+    }
+
+    function loadNextBatch() {
+        if (currentIndex >= currentDisplayFolders.length) return;
+        const nextBatch = currentDisplayFolders.slice(currentIndex, currentIndex + ITEMS_PER_PAGE);
+        renderExperiences(nextBatch);
+        currentIndex += ITEMS_PER_PAGE;
+    }
+
+    function handleImageError(img, folderName, formatsIndex) {
+        const formats = ['png', 'jpg', 'jpeg', 'webp'];
+        if (formatsIndex < formats.length - 1) {
+            const nextIndex = formatsIndex + 1;
+            img.src = `${RAW_URL}/${folderName}/icon.${formats[nextIndex]}?v=${cacheBust}`;
+            img.setAttribute('data-format-index', nextIndex);
+        } else {
+            img.src = `https://placehold.co/400x400/1e1e24/ffffff?text=${encodeURIComponent(folderName)}`;
+            img.onerror = null;
+        }
+    }
+
+    function renderFeaturedExperiences(folders) {
+        featuredGrid.innerHTML = '';
+        folders.forEach(folder => {
+            const card = document.createElement('div');
+            card.className = 'feat-card';
+
+            const displayName = folder.name.replace(/([A-Z])/g, ' $1').trim();
+            const initialIconUrl = `${RAW_URL}/${folder.name}/icon.png?v=${cacheBust}`;
+            const gameUrl = `${PAGES_URL}/${folder.name}/game.html`;
+
+            card.innerHTML = `
+                <img class="art" src="${initialIconUrl}" alt="${displayName}" loading="lazy" data-format-index="0">
+                <div class="scrim"></div>
+                <div class="feat-tag">
+                    <svg viewBox="0 0 24 24"><path d="M18 2H6a2 2 0 0 0-2 2v3c0 3.31 2.69 6 6 6h4c3.31 0 6-2.69 6-6V4a2 2 0 0 0-2-2zM4 6V4h2v5.17A4 4 0 0 1 4 6zm16 3.17A4 4 0 0 1 18 6V4h2v2zM12 15c-3.31 0-6 2.69-6 6v1h12v-1c0-3.31-2.69-6-6-6z"/></svg>
+                    Featured
+                </div>
+                <div class="feat-meta">
+                    <div class="txt">
+                        <p class="name" title="${displayName}">${displayName}</p>
+                        <p class="feat-creator">By Creator</p>
+                    </div>
+                    <button class="play-direct-btn" aria-label="Play ${displayName}">
+                        <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                    </button>
+                </div>
+            `;
+
+            const img = card.querySelector('img.art');
+            img.onerror = () => handleImageError(img, folder.name, 0);
+
+            const creatorLabel = card.querySelector('.feat-creator');
+            fetch(`${RAW_URL}/${folder.name}/developer.txt?v=${cacheBust}`)
+                .then(res => { if (res.ok) return res.text(); throw new Error(); })
+                .then(text => {
+                    if (creatorLabel) creatorLabel.textContent = `By ${ (text && text.trim() !== "") ? text.trim() : "Community Creator" }`;
+                })
+                .catch(() => {
+                    if (creatorLabel) creatorLabel.textContent = "By Community Creator";
+                });
+
+            card.onclick = () => openDetailsModal(folder, displayName, initialIconUrl, gameUrl);
+
+            const playBtn = card.querySelector('.play-direct-btn');
+            playBtn.onclick = (e) => {
+                e.stopPropagation();
+                launchGame(gameUrl);
+            };
+
+            featuredGrid.appendChild(card);
+        });
+    }
+
+    function renderExperiences(folders) {
+        folders.forEach(folder => {
+            const card = document.createElement('div');
+            card.className = 'game-card';
+
+            const displayName = folder.name.replace(/([A-Z])/g, ' $1').trim();
+            const initialIconUrl = `${RAW_URL}/${folder.name}/icon.png?v=${cacheBust}`;
+            const gameUrl = `${PAGES_URL}/${folder.name}/game.html`;
+
+            card.innerHTML = `
+                <div class="thumb">
+                    <img src="${initialIconUrl}" alt="${displayName}" loading="lazy" data-format-index="0">
+                </div>
+                <p class="label" title="${displayName}">${displayName}</p>
+            `;
+
+            const img = card.querySelector('img');
+            img.onerror = () => handleImageError(img, folder.name, 0);
+
+            card.onclick = () => openDetailsModal(folder, displayName, initialIconUrl, gameUrl);
+            grid.appendChild(card);
+        });
+    }
+
+    async function openDetailsModal(folder, displayName, iconUrl, gameUrl) {
+        modalTitle.textContent = displayName;
+        modalIcon.src = iconUrl;
+
+        modalIcon.setAttribute('data-format-index', "0");
+        modalIcon.onerror = function() {
+            handleImageError(this, folder.name, parseInt(this.getAttribute('data-format-index')));
+        };
+
+        modalDeveloper.textContent = "Loading…";
+        modalDescription.textContent = "Fetching game details…";
+
+        detailsModal.classList.add('open');
+        document.body.style.overflow = 'hidden';
+
+        fetch(`${RAW_URL}/${folder.name}/developer.txt?v=${cacheBust}`)
+            .then(res => { if (res.ok) return res.text(); throw new Error(); })
+            .then(text => {
+                modalDeveloper.textContent = (text && text.trim() !== "") ? text.trim() : "Community Creator";
+            })
+            .catch(() => {
+                modalDeveloper.textContent = "Community Creator";
+            });
+
+        fetch(`${RAW_URL}/${folder.name}/description.txt?v=${cacheBust}`)
+            .then(res => { if (res.ok) return res.text(); throw new Error(); })
+            .then(text => {
+                modalDescription.textContent = (text && text.trim() !== "") ? text.trim() : "Launch and enjoy this experience right in your browser.";
+            })
+            .catch(() => {
+                modalDescription.textContent = "Launch and enjoy this experience right in your browser.";
+            });
+
+        modalPlayBtn.onclick = () => {
+            closeDetailsModal();
+            launchGame(gameUrl);
+        };
+    }
+
+    function closeDetailsModal() {
+        detailsModal.classList.remove('open');
+        document.body.style.overflow = 'auto';
+    }
+
+    searchInput.addEventListener('input', (e) => {
+        const query = e.target.value.toLowerCase().trim();
+        if (query === "") {
+            const featuredExperiences = allFilteredFolders.filter(f => f.featured);
+            if (featuredExperiences.length > 0) {
+                featuredContainer.style.display = 'block';
+            }
+            currentDisplayFolders = allFilteredFolders.filter(f => !f.featured);
+            viewTitle.innerHTML = `<span class="tick"></span>Experiences`;
+        } else {
+            featuredContainer.style.display = 'none';
+            currentDisplayFolders = allFilteredFolders.filter(folder => {
+                const readableName = folder.name.replace(/([A-Z])/g, ' $1').toLowerCase();
+                return folder.name.toLowerCase().includes(query) || readableName.includes(query);
+            });
+            viewTitle.innerHTML = `<span class="tick"></span>Results for “${query}”`;
+        }
+
+        grid.innerHTML = '';
+        currentIndex = 0;
+
+        if (currentDisplayFolders.length === 0) {
+            statusContainer.innerHTML = `<div class="status-card">Nothing matches “${query}”. Try another name.</div>`;
+        } else {
+            statusContainer.innerHTML = '';
+            loadNextBatch();
+        }
+    });
+
+    const observer = new IntersectionObserver((entries) => {
+        if (entries[0].isIntersecting && !isLoading && currentIndex < currentDisplayFolders.length) {
+            loadNextBatch();
+        }
+    }, { threshold: 0.1 });
+
+    observer.observe(loadMoreTrigger);
+
+    function launchGame(url) {
+        frame.src = url;
+        overlay.style.display = 'block';
+        document.body.style.overflow = 'hidden';
+    }
+
+    function closeGame() {
+        overlay.style.display = 'none';
+        frame.src = 'about:blank';
+        document.body.style.overflow = 'auto';
+    }
+
+    window.onload = fetchExperiences;
+</script>
+</body>
+</html>
