@@ -1,0 +1,1305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Boat n' Fish</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --abyss:#04182b; --deep:#0a2f4d; --mid:#13567f; --shallow:#2f8aa6; --shoal:#7fc7c0;
+    --chart:#f2e7cd; --chart-2:#e7d8b4; --chart-line:#c6ab78; --chart-edge:#b89a63;
+    --ink:#143240; --ink-soft:#46606b; --brass:#cf9a23; --brass-deep:#946b12;
+    --buoy:#d9512a; --good:#3f9c6a; --bad:#c0392b;
+    --display:'Oswald',sans-serif; --mono:'Space Mono',monospace;
+    --body:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%;overflow:hidden}
+  body{
+    font-family:var(--body); color:var(--ink); background:var(--abyss);
+    user-select:none; -webkit-user-select:none;
+  }
+  #app{position:fixed;inset:0;display:flex;flex-direction:column}
+
+  /* ---------- shared chrome ---------- */
+  .screen{position:absolute;inset:0;display:none;flex-direction:column}
+  .screen.active{display:flex}
+
+  .paper{
+    background:
+      repeating-linear-gradient(0deg, rgba(0,0,0,.012) 0 1px, transparent 1px 26px),
+      radial-gradient(120% 120% at 30% 0%, var(--chart) 0%, var(--chart-2) 100%);
+  }
+
+  /* ---------- BOATYARD ---------- */
+  #yard{overflow-y:auto}
+  .yard-wrap{max-width:980px;margin:0 auto;width:100%;padding:18px 18px 40px}
+  .topbar{
+    display:flex;align-items:flex-end;justify-content:space-between;gap:12px;
+    border-bottom:2px solid var(--chart-edge);padding-bottom:10px;margin-bottom:14px;flex-wrap:wrap
+  }
+  .brand{line-height:.9}
+  .brand .small{font-family:var(--mono);font-size:11px;letter-spacing:3px;color:var(--ink-soft);text-transform:uppercase}
+  .brand h1{font-family:var(--display);font-weight:700;font-size:clamp(30px,7vw,52px);letter-spacing:1px;color:var(--ink)}
+  .brand h1 em{color:var(--buoy);font-style:normal}
+  .purse{
+    font-family:var(--mono);font-weight:700;text-align:right;
+    background:var(--ink);color:var(--chart);padding:8px 14px;border-radius:4px;
+    box-shadow:inset 0 0 0 2px var(--brass)
+  }
+  .purse .lbl{font-size:9px;letter-spacing:2px;color:var(--brass);display:block}
+  .purse .val{font-size:22px}
+
+  .layout{display:grid;grid-template-columns:1fr;gap:16px}
+  @media(min-width:760px){.layout{grid-template-columns:300px 1fr}}
+
+  .panel{
+    background:rgba(255,255,255,.35);border:1.5px solid var(--chart-edge);border-radius:6px;
+    padding:14px;backdrop-filter:blur(1px)
+  }
+  .panel h2{
+    font-family:var(--display);font-weight:600;text-transform:uppercase;letter-spacing:2px;
+    font-size:14px;color:var(--ink);border-bottom:1px dashed var(--chart-edge);padding-bottom:6px;margin-bottom:10px;
+    display:flex;justify-content:space-between;align-items:baseline
+  }
+  .panel h2 .tag{font-family:var(--mono);font-size:9px;letter-spacing:1px;color:var(--ink-soft)}
+
+  /* blueprint boat preview */
+  #boatPreview{width:100%;aspect-ratio:4/3;border-radius:4px;display:block;
+    background:linear-gradient(160deg,#10465f,#0a2f4d);border:1.5px solid var(--chart-edge)}
+  .nameRow{display:flex;gap:8px;margin-top:10px}
+  .nameRow input{
+    flex:1;font-family:var(--display);font-size:16px;letter-spacing:1px;padding:6px 9px;
+    border:1.5px solid var(--chart-edge);border-radius:4px;background:rgba(255,255,255,.6);color:var(--ink)
+  }
+  .swatches{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
+  .sw{width:26px;height:26px;border-radius:50%;border:2px solid rgba(0,0,0,.15);cursor:pointer}
+  .sw.on{border-color:var(--ink);box-shadow:0 0 0 2px var(--chart)}
+
+  .specs{font-family:var(--mono);font-size:12px;margin-top:10px;display:grid;grid-template-columns:1fr auto;gap:3px 8px}
+  .specs .k{color:var(--ink-soft)}
+  .specs .v{text-align:right;font-weight:700}
+  .warn{color:var(--bad)}
+
+  /* shop */
+  .shopgroup{margin-bottom:14px}
+  .shoprow{
+    display:flex;align-items:center;gap:10px;padding:8px;border-radius:5px;margin-bottom:6px;
+    border:1.5px solid transparent;background:rgba(255,255,255,.25);cursor:pointer;transition:.12s
+  }
+  .shoprow:hover{background:rgba(255,255,255,.5)}
+  .shoprow.owned{border-color:var(--good);background:rgba(63,156,106,.12)}
+  .shoprow.equipped{border-color:var(--brass);box-shadow:inset 0 0 0 1px var(--brass)}
+  .shoprow.locked{opacity:.55;cursor:not-allowed}
+  .shopicon{width:34px;height:34px;flex:none;display:grid;place-items:center}
+  .shopmeta{flex:1;min-width:0}
+  .shopmeta .nm{font-family:var(--display);font-weight:600;letter-spacing:.5px;font-size:15px}
+  .shopmeta .ds{font-size:11px;color:var(--ink-soft);font-family:var(--mono)}
+  .shopbtn{
+    font-family:var(--mono);font-weight:700;font-size:12px;white-space:nowrap;
+    padding:6px 10px;border-radius:4px;border:none;cursor:pointer;background:var(--ink);color:var(--chart)
+  }
+  .shopbtn.have{background:var(--good)}
+  .shopbtn.use{background:var(--brass);color:var(--ink)}
+  .shopbtn:disabled{cursor:not-allowed;filter:grayscale(.4)}
+
+  .sail{
+    margin-top:8px;width:100%;font-family:var(--display);font-weight:700;letter-spacing:3px;
+    text-transform:uppercase;font-size:20px;padding:14px;border:none;border-radius:6px;cursor:pointer;
+    background:var(--buoy);color:#fff;box-shadow:0 4px 0 #a83a1c;transition:.08s
+  }
+  .sail:active{transform:translateY(3px);box-shadow:0 1px 0 #a83a1c}
+  .sail:disabled{background:#a98; box-shadow:0 4px 0 #876; cursor:not-allowed}
+  .hint{font-family:var(--mono);font-size:11px;color:var(--ink-soft);text-align:center;margin-top:6px}
+
+  /* ---------- LAKE ---------- */
+  #lake{background:var(--abyss)}
+  #cv{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none}
+
+  /* HUD gauges */
+  .hud{position:absolute;top:10px;left:10px;right:10px;display:flex;justify-content:space-between;gap:8px;pointer-events:none;flex-wrap:wrap}
+  .gauges{display:flex;gap:8px;flex-wrap:wrap}
+  .gauge{
+    pointer-events:none;background:rgba(8,30,46,.82);border:1.5px solid var(--brass);border-radius:6px;
+    padding:5px 9px;min-width:74px;backdrop-filter:blur(2px)
+  }
+  .gauge .lbl{font-family:var(--mono);font-size:8px;letter-spacing:2px;color:var(--brass);text-transform:uppercase}
+  .gauge .num{font-family:var(--display);font-weight:600;font-size:19px;color:#eaf3f5;line-height:1}
+  .gauge .num small{font-size:11px;color:#9fc1cc;font-weight:400}
+  .bar{height:6px;border-radius:3px;background:rgba(255,255,255,.12);margin-top:4px;overflow:hidden}
+  .bar i{display:block;height:100%;width:50%;background:var(--good);transition:width .15s, background .2s}
+
+  .dockBtn{
+    pointer-events:auto;font-family:var(--display);font-weight:700;letter-spacing:2px;text-transform:uppercase;
+    font-size:13px;padding:8px 12px;border:none;border-radius:6px;background:var(--chart);color:var(--ink);
+    border:1.5px solid var(--brass);cursor:pointer;height:fit-content
+  }
+
+  /* touch controls */
+  .touch{position:absolute;bottom:16px;left:0;right:0;display:none;justify-content:space-between;padding:0 16px;pointer-events:none}
+  .pad{display:flex;gap:10px;pointer-events:auto}
+  .tbtn{
+    width:62px;height:62px;border-radius:50%;border:2px solid var(--brass);
+    background:rgba(8,30,46,.7);color:#eaf3f5;font-family:var(--display);font-weight:600;font-size:13px;
+    display:grid;place-items:center;cursor:pointer;backdrop-filter:blur(2px);touch-action:none
+  }
+  .tbtn.big{width:78px;height:78px;background:var(--buoy);border-color:#fff;font-size:14px;color:#fff}
+  .tbtn:active{transform:scale(.94)}
+
+  /* fishing overlay — side-view reel scene */
+  #fishUI{position:absolute;inset:0;display:none;align-items:center;justify-content:center;
+    pointer-events:none;background:rgba(4,16,26,.55);backdrop-filter:blur(2px)}
+  .reel{
+    pointer-events:auto;position:relative;width:min(440px,93vw);background:rgba(8,30,46,.95);border:2px solid var(--brass);
+    border-radius:12px;padding:12px;box-shadow:0 18px 50px rgba(0,0,0,.5)
+  }
+  .reelX{
+    position:absolute;top:-12px;right:-12px;width:34px;height:34px;border-radius:50%;
+    background:var(--ink);color:#eaf3f5;border:2px solid var(--brass);cursor:pointer;
+    font-family:var(--mono);font-size:15px;line-height:1;display:grid;place-items:center;z-index:2
+  }
+  .reelX:active{transform:scale(.92)}
+  #reelCanvas{width:100%;height:min(56vh,440px);display:block;border-radius:8px;background:#04101c}
+  .reelHint{font-family:var(--mono);font-size:11px;color:#cdd;margin-top:10px;text-align:center;line-height:1.5}
+  .reelHint b{color:var(--brass)}
+
+  /* toast */
+  #toast{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+    pointer-events:none;display:flex;flex-direction:column;gap:8px;align-items:center;z-index:40}
+  .msg{
+    font-family:var(--display);font-weight:600;letter-spacing:1px;font-size:18px;
+    background:rgba(8,30,46,.9);color:#eaf3f5;border:1.5px solid var(--brass);border-radius:8px;
+    padding:10px 18px;opacity:0;transform:translateY(8px);animation:pop 2.2s ease forwards;text-align:center;max-width:80vw
+  }
+  .msg.good{border-color:var(--good)} .msg.bad{border-color:var(--bad)}
+  @keyframes pop{8%{opacity:1;transform:translateY(0)}80%{opacity:1;transform:translateY(0)}100%{opacity:0;transform:translateY(-10px)}}
+
+  /* trip report modal */
+  #report{position:absolute;inset:0;display:none;align-items:center;justify-content:center;background:rgba(4,16,26,.6);z-index:50}
+  .card{
+    width:min(420px,90vw);background:var(--chart);border:2px solid var(--brass);border-radius:10px;padding:20px;
+    box-shadow:0 20px 60px rgba(0,0,0,.5)
+  }
+  .card h3{font-family:var(--display);font-weight:700;text-transform:uppercase;letter-spacing:2px;font-size:22px;margin-bottom:4px}
+  .card .sub{font-family:var(--mono);font-size:11px;color:var(--ink-soft);margin-bottom:14px}
+  .catchlist{font-family:var(--mono);font-size:13px;max-height:38vh;overflow-y:auto;margin-bottom:12px}
+  .catchlist .ci{display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px dashed var(--chart-edge)}
+  .catchlist .empty{color:var(--ink-soft);text-align:center;padding:14px 0}
+  .total{display:flex;justify-content:space-between;font-family:var(--display);font-weight:600;font-size:18px;border-top:2px solid var(--ink);padding-top:8px;margin-top:4px}
+  .total .v{color:var(--good)}
+  .closeBtn{margin-top:14px;width:100%;font-family:var(--display);font-weight:700;letter-spacing:2px;text-transform:uppercase;
+    font-size:16px;padding:12px;border:none;border-radius:6px;background:var(--ink);color:var(--chart);cursor:pointer}
+
+  /* help line on lake */
+  #help{position:absolute;bottom:8px;left:0;right:0;text-align:center;pointer-events:none}
+  #help span{font-family:var(--mono);font-size:11px;color:rgba(234,243,245,.6);background:rgba(8,30,46,.4);padding:3px 8px;border-radius:4px}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- ============ BOATYARD ============ -->
+  <section id="yard" class="screen active paper">
+    <div class="yard-wrap">
+      <div class="topbar">
+        <div class="brand">
+          <span class="small">The Boatyard &middot; Fathom Bay</span>
+          <h1>Boat <em>n'</em> Fish</h1>
+        </div>
+        <div class="purse"><span class="lbl">Doubloons</span><span class="val" id="money">$0</span></div>
+      </div>
+
+      <div class="layout">
+        <!-- left: design -->
+        <div class="panel">
+          <h2>Your Vessel <span class="tag" id="vesselTag">RIG</span></h2>
+          <canvas id="boatPreview" width="400" height="300"></canvas>
+          <div class="nameRow"><input id="boatName" maxlength="18" value="The Minnow"></div>
+          <div class="swatches" id="swatches"></div>
+          <div class="specs" id="specs"></div>
+        </div>
+
+        <!-- right: shop + sail -->
+        <div class="panel">
+          <h2>Chandlery <span class="tag">BUY &amp; EQUIP</span></h2>
+          <div class="shopgroup"><div style="font-family:var(--mono);font-size:10px;letter-spacing:2px;color:var(--ink-soft);margin-bottom:6px">HULLS — displacement &amp; cargo</div><div id="shopHull"></div></div>
+          <div class="shopgroup"><div style="font-family:var(--mono);font-size:10px;letter-spacing:2px;color:var(--ink-soft);margin-bottom:6px">ENGINES — thrust &amp; thirst</div><div id="shopEngine"></div></div>
+          <div class="shopgroup"><div style="font-family:var(--mono);font-size:10px;letter-spacing:2px;color:var(--ink-soft);margin-bottom:6px">FUEL TANKS — range = depth</div><div id="shopTank"></div></div>
+
+          <button class="sail" id="sailBtn">Cast Off &amp; Go Fishing</button>
+          <div class="hint" id="sailHint">Fill the tank, then set sail.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ LAKE ============ -->
+  <section id="lake" class="screen">
+    <canvas id="cv"></canvas>
+
+    <div class="hud">
+      <div class="gauges">
+        <div class="gauge"><div class="lbl">Speed</div><div class="num" id="gSpeed">0<small> kn</small></div></div>
+        <div class="gauge"><div class="lbl">Depth</div><div class="num" id="gDepth">0<small> m</small></div></div>
+        <div class="gauge"><div class="lbl">Fuel</div><div class="num" id="gFuel">0<small> L</small></div><div class="bar"><i id="gFuelBar"></i></div></div>
+        <div class="gauge"><div class="lbl">Load</div><div class="num" id="gLoad">0<small>%</small></div><div class="bar"><i id="gLoadBar"></i></div></div>
+      </div>
+      <button class="dockBtn" id="dockHint">⚓ Dock &nbsp;<span id="dockDist" style="font-family:var(--mono);font-size:11px"></span></button>
+    </div>
+
+    <div id="fishUI">
+      <div class="reel">
+        <button class="reelX" id="reelX" aria-label="Let the fish go">✕</button>
+        <canvas id="reelCanvas"></canvas>
+        <div class="reelHint">Hold <b id="reelKey">SPACE</b> to reel &mdash; when it <b>runs</b> and the line glows red, <b>let go</b> or it snaps.</div>
+      </div>
+    </div>
+
+    <div class="touch" id="touch">
+      <div class="pad">
+        <button class="tbtn" data-k="left">◄</button>
+        <button class="tbtn" data-k="right">►</button>
+      </div>
+      <div class="pad">
+        <button class="tbtn big" data-k="cast" id="castBtn">CAST</button>
+        <button class="tbtn" data-k="rev">REV</button>
+        <button class="tbtn" data-k="thr">▲</button>
+      </div>
+    </div>
+
+    <div id="help"><span id="helpTxt">W/S throttle · A/D steer · ease up to a fish, then SPACE to hook &amp; reel</span></div>
+    <div id="toast"></div>
+
+    <div id="report">
+      <div class="card">
+        <h3 id="reportTitle">Back at the dock</h3>
+        <div class="sub" id="reportSub">Your haul has been sold at market.</div>
+        <div class="catchlist" id="reportList"></div>
+        <div class="total"><span>Trip total</span><span class="v" id="reportTotal">$0</span></div>
+        <button class="closeBtn" id="closeReport">Back to the Boatyard</button>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<script>
+"use strict";
+/* ============================================================
+   BOAT N' FISH  — physics-driven fishing/economy loop
+   ============================================================ */
+
+const RHO = 1000;        // water density kg/m^3
+const G = 9.81;          // gravity
+const FUEL_DENSITY = 0.74; // kg/L (gasoline)
+const FUEL_PRICE = 1.6;  // $/L to refuel at dock
+const TOW_FEE = 20;      // $ to be towed home if stranded
+const KN = 0.514444;     // m/s per knot
+
+/* ---------- catalogs ---------- */
+// Hulls: V = displacement volume (m^3) -> mass it can float = RHO*V
+//        m = dry mass, A = frontal drag area, Cd = drag coeff, len = drawing length(m)
+// kDrag = effective hydrodynamic drag constant (F_drag = kDrag*v^2). Boats skim
+// rather than push their full displacement through the water, so this is tuned
+// per-hull to give believable top speeds instead of submarine-like values.
+const HULLS = [
+  {id:'dinghy',  name:'Tin Dinghy',   price:0,    V:0.55, m:55,  A:0.55, kDrag:20, len:3.6, beam:1.5},
+  {id:'skiff',   name:'Cedar Skiff',  price:160,  V:1.2,  m:130, A:0.85, kDrag:9,  len:5.0, beam:1.9},
+  {id:'trawler', name:'Bay Trawler',  price:850,  V:2.6,  m:300, A:1.35, kDrag:11, len:7.5, beam:2.6},
+  {id:'cutter',  name:'Deep Cutter',  price:4200, V:5.2,  m:560, A:2.0,  kDrag:10, len:10.5,beam:3.3},
+];
+// Engines: T = max thrust (N), m = mass, burn = L/s at full throttle
+const ENGINES = [
+  {id:'troll', name:'Trolling Motor', price:0,    T:260,  m:14,  burn:0.008},
+  {id:'ob15',  name:'15 hp Outboard', price:130,  T:750,  m:42,  burn:0.03},
+  {id:'ob50',  name:'50 hp Outboard', price:760,  T:1900, m:85,  burn:0.08},
+  {id:'v8',    name:'V8 Inboard',     price:3600, T:4400, m:190, burn:0.2},
+];
+// Tanks: cap = liters, m = dry mass
+const TANKS = [
+  {id:'t10',  name:'Jerry Can',   price:0,    cap:2,   m:3},
+  {id:'t30',  name:'Belly Tank',  price:110,  cap:6,   m:9},
+  {id:'t90',  name:'Saddle Tanks',price:640,  cap:18,  m:22},
+  {id:'t220', name:'Bladder Cell',price:3100, cap:50,  m:48},
+];
+const COLORS = ['#d9512a','#cf9a23','#3f9c6a','#2f8aa6','#7b5ea7','#e2e2e2','#1a1a1a'];
+
+/* ---------- fish by depth band (m) ----------
+   wMin/wMax kg, $/kg, fight = base difficulty 0..1, rarity weight  */
+const SPECIES = [
+  {name:'Bluegill',      band:[0,8],    w:[0.15,0.6],  ppk:5,  fight:.10, col:'#5b8fb0'},
+  {name:'Yellow Perch',  band:[0,12],   w:[0.25,1.1],  ppk:6,  fight:.14, col:'#d6b24a'},
+  {name:'Largemouth Bass',band:[8,28],  w:[1.0,4.2],   ppk:9,  fight:.30, col:'#4e7d52'},
+  {name:'Northern Pike', band:[14,40],  w:[2.5,9.0],   ppk:11, fight:.42, col:'#6f8d52'},
+  {name:'Lake Trout',    band:[30,70],  w:[3.0,16],    ppk:14, fight:.52, col:'#7a6f8c'},
+  {name:'Muskie',        band:[40,85],  w:[6,22],      ppk:18, fight:.62, col:'#8a8546'},
+  {name:'Lake Sturgeon', band:[70,130], w:[18,110],    ppk:24, fight:.78, col:'#5a6b6e'},
+  {name:'Deep Leviathan',band:[120,300],w:[80,320],    ppk:34, fight:.92, col:'#3a4f63'},
+];
+
+/* ---------- world ---------- */
+const WORLD = {w:2200, h:2800};          // meters
+const DOCK = {x:1100, y:2680};           // dock position (south shore)
+const SHORE_Y = 2740;                    // beach line
+const MAX_DEPTH = 300;
+// depth grows the further north (smaller y) you travel
+function depthAt(x,y){
+  const fromShore = Math.max(0, SHORE_Y - y);  // meters north of beach
+  // smooth ramp; plus gentle east-west basin
+  let d = MAX_DEPTH * Math.pow(Math.min(1, fromShore/2500), 1.35);
+  const basin = 1 - Math.pow(Math.abs(x-1100)/1400, 2)*0.25;
+  d *= Math.max(0.5, basin);
+  return Math.max(0, d);
+}
+
+/* ---------- game state ---------- */
+const G_STATE = {
+  money: 75,
+  hull:'dinghy', engine:'troll', tank:'t10',
+  owned:{hull:['dinghy'],engine:['troll'],tank:['t10']},
+  color:'#d9512a', name:'The Minnow',
+};
+function hullOf(){return HULLS.find(h=>h.id===G_STATE.hull);}
+function engOf(){return ENGINES.find(e=>e.id===G_STATE.engine);}
+function tankOf(){return TANKS.find(t=>t.id===G_STATE.tank);}
+
+function dryMass(){ return hullOf().m + engOf().m + tankOf().m; }
+function capacityKg(){ return RHO * hullOf().V; }   // max floatable mass
+
+/* ---------- persistence (graceful) ---------- */
+async function saveGame(){
+  try{ if(window.storage) await window.storage.set('boatnfish:save', JSON.stringify(G_STATE), false); }catch(e){}
+}
+async function loadGame(){
+  try{
+    if(!window.storage) return;
+    const r = await window.storage.get('boatnfish:save', false);
+    if(r && r.value){ Object.assign(G_STATE, JSON.parse(r.value)); }
+  }catch(e){}
+}
+
+/* ============================================================
+   BOATYARD UI
+   ============================================================ */
+const $ = s=>document.querySelector(s);
+const moneyEl=$('#money');
+function fmt(n){ return '$'+Math.round(n).toLocaleString(); }
+
+function renderMoney(){ moneyEl.textContent=fmt(G_STATE.money); }
+
+function buildSwatches(){
+  const box=$('#swatches'); box.innerHTML='';
+  COLORS.forEach(c=>{
+    const d=document.createElement('div');
+    d.className='sw'+(c===G_STATE.color?' on':''); d.style.background=c;
+    d.onclick=()=>{ G_STATE.color=c; buildSwatches(); drawPreview(); saveGame(); };
+    box.appendChild(d);
+  });
+}
+
+function shopRow(item, kind, ownedList, equippedId){
+  const owned = ownedList.includes(item.id);
+  const equipped = item.id===equippedId;
+  const afford = G_STATE.money>=item.price;
+  const row=document.createElement('div');
+  row.className='shoprow'+(owned?' owned':'')+(equipped?' equipped':'')+((!owned&&!afford)?' locked':'');
+  // describe
+  let ds='';
+  if(kind==='hull') ds=`float ${Math.round(RHO*item.V)} kg · drag A ${item.A}`;
+  if(kind==='engine') ds=`${item.T} N thrust · ${item.burn} L/s`;
+  if(kind==='tank') ds=`${item.cap} L capacity`;
+  row.innerHTML=`
+    <div class="shopicon">${iconFor(kind,item)}</div>
+    <div class="shopmeta"><div class="nm">${item.name}</div><div class="ds">${ds}</div></div>`;
+  const btn=document.createElement('button');
+  btn.className='shopbtn'+(equipped?' use':owned?' have':'');
+  btn.textContent = equipped? 'Equipped' : owned? 'Equip' : (item.price===0?'Free':fmt(item.price));
+  if(equipped) btn.disabled=true;
+  if(!owned && !afford) btn.disabled=true;
+  btn.onclick=(ev)=>{
+    ev.stopPropagation();
+    if(equipped) return;
+    if(!owned){
+      if(G_STATE.money<item.price) return;
+      G_STATE.money-=item.price; ownedList.push(item.id);
+    }
+    G_STATE[kind]=item.id;
+    renderMoney(); renderShops(); drawPreview(); renderSpecs(); saveGame();
+  };
+  row.appendChild(btn);
+  row.onclick=()=>{ if(owned){ G_STATE[kind]=item.id; renderShops(); drawPreview(); renderSpecs(); saveGame(); } };
+  return row;
+}
+function iconFor(kind,item){
+  if(kind==='hull') return `<svg width="30" height="20" viewBox="0 0 30 20"><path d="M2 6 H28 L24 16 H6 Z" fill="none" stroke="#143240" stroke-width="2"/></svg>`;
+  if(kind==='engine') return `<svg width="26" height="24" viewBox="0 0 26 24"><rect x="8" y="2" width="10" height="12" rx="2" fill="none" stroke="#143240" stroke-width="2"/><path d="M13 14 V20 M9 22 H17" stroke="#143240" stroke-width="2"/></svg>`;
+  return `<svg width="24" height="24" viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="15" rx="2" fill="none" stroke="#143240" stroke-width="2"/><path d="M9 5 V2 H15 V5" stroke="#143240" stroke-width="2" fill="none"/></svg>`;
+}
+function renderShops(){
+  const mk=(sel,arr,kind)=>{
+    const box=$(sel); box.innerHTML='';
+    arr.forEach(it=>box.appendChild(shopRow(it,kind,G_STATE.owned[kind],G_STATE[kind])));
+  };
+  mk('#shopHull',HULLS,'hull');
+  mk('#shopEngine',ENGINES,'engine');
+  mk('#shopTank',TANKS,'tank');
+  renderMoney();
+}
+
+function renderSpecs(){
+  const h=hullOf(),e=engOf(),t=tankOf();
+  const dry=dryMass();
+  const fullFuel=t.cap*FUEL_DENSITY;
+  const loaded=dry+fullFuel;
+  const cap=capacityKg();
+  const subPct=Math.round(loaded/cap*100);
+  // top speed: thrust balances drag -> kDrag*v^2 = T  ->  v = sqrt(T/kDrag)
+  const vmax=Math.sqrt(e.T/h.kDrag);
+  // range: full throttle burns the tank; keep half the fuel as return reserve
+  const cruise=vmax*0.85;
+  const range=(t.cap/e.burn)*cruise;          // meters until dry at cruise
+  const reach=range/2;                          // usable out-and-back distance
+  const reachDepth=depthAt(1100, SHORE_Y-reach); // depth you could reach & return
+  const refuel=Math.max(0,(t.cap)*FUEL_PRICE);
+  $('#vesselTag').textContent=h.name.toUpperCase();
+  const fishHere=SPECIES.filter(s=> reachDepth>=s.band[0]-2).slice(-3).map(s=>s.name).join(', ');
+  $('#specs').innerHTML=`
+    <div class="k">Top speed</div><div class="v">${(vmax/KN).toFixed(1)} kn</div>
+    <div class="k">Thrust</div><div class="v">${e.T} N</div>
+    <div class="k">Dry weight</div><div class="v">${Math.round(dry)} kg</div>
+    <div class="k">Float capacity</div><div class="v">${Math.round(cap)} kg</div>
+    <div class="k">Loaded draft</div><div class="v ${subPct>85?'warn':''}">${subPct}%</div>
+    <div class="k">Fuel</div><div class="v">${t.cap} L</div>
+    <div class="k">Est. reach</div><div class="v">${(reach/1000).toFixed(1)} km</div>
+    <div class="k">Depth in range</div><div class="v">${Math.round(reachDepth)} m</div>
+    <div class="k">Refuel cost</div><div class="v">${fmt(refuel)}</div>
+  `;
+  const hint=$('#sailHint');
+  if(G_STATE.money < refuel && G_STATE.money<5 && false){}
+  hint.textContent = `Reachable fish: ${fishHere||'shallows only'}. Refuel on launch costs ${fmt(refuel)}.`;
+}
+
+/* blueprint preview */
+function drawPreview(){
+  const c=$('#boatPreview'), x=c.getContext('2d');
+  const W=c.width,H=c.height;
+  x.clearRect(0,0,W,H);
+  // blueprint grid
+  x.strokeStyle='rgba(255,255,255,.07)';x.lineWidth=1;
+  for(let i=0;i<W;i+=20){x.beginPath();x.moveTo(i,0);x.lineTo(i,H);x.stroke();}
+  for(let i=0;i<H;i+=20){x.beginPath();x.moveTo(0,i);x.lineTo(W,i);x.stroke();}
+  const h=hullOf(),e=engOf(),t=tankOf();
+  const cx=W/2, cy=H/2+10;
+  const scale = Math.min(W*0.7/(h.len), 70);
+  const L=h.len*scale, B=h.beam*scale*0.9;
+  // waterline
+  x.strokeStyle='rgba(127,199,192,.5)';x.setLineDash([6,5]);
+  x.beginPath();x.moveTo(0,cy+B*0.18);x.lineTo(W,cy+B*0.18);x.stroke();x.setLineDash([]);
+  // hull (top-ish profile)
+  x.save();x.translate(cx,cy);
+  x.beginPath();
+  x.moveTo(-L/2, 0);
+  x.quadraticCurveTo(-L/2, B/2, -L/2+B*0.5, B/2);
+  x.lineTo(L/2-B*0.7, B/2);
+  x.quadraticCurveTo(L/2, B/2, L/2, 0);                 // bow point
+  x.quadraticCurveTo(L/2, -B/2, L/2-B*0.7, -B/2);
+  x.lineTo(-L/2+B*0.5, -B/2);
+  x.quadraticCurveTo(-L/2, -B/2, -L/2, 0);
+  x.closePath();
+  x.fillStyle=G_STATE.color; x.globalAlpha=.92; x.fill(); x.globalAlpha=1;
+  x.lineWidth=2; x.strokeStyle='#eaf3f5'; x.stroke();
+  // deck stripe
+  x.beginPath();x.moveTo(-L/2+B*0.5,0);x.lineTo(L/2-B*0.2,0);x.strokeStyle='rgba(255,255,255,.5)';x.lineWidth=1.5;x.stroke();
+  // engine box at stern
+  const ew=Math.max(10,e.m*0.12);
+  x.fillStyle='#143240';x.fillRect(-L/2-2,-ew/2,ew,ew);
+  // tank circle
+  const tr=Math.max(5, Math.sqrt(t.cap)*1.4);
+  x.beginPath();x.arc(-L/4,0,tr,0,7);x.fillStyle='rgba(20,50,64,.85)';x.fill();
+  x.strokeStyle='#eaf3f5';x.lineWidth=1;x.stroke();
+  x.restore();
+  // labels
+  x.fillStyle='rgba(234,243,245,.85)';x.font='12px "Space Mono",monospace';
+  x.fillText(`L ${h.len} m  ·  beam ${h.beam} m`, 12, H-14);
+  x.textAlign='right';x.fillText(G_STATE.name, W-12, 22);x.textAlign='left';
+}
+
+$('#boatName').addEventListener('input',ev=>{ G_STATE.name=ev.target.value||'Unnamed'; drawPreview(); });
+$('#boatName').addEventListener('blur',saveGame);
+
+/* ============================================================
+   LAKE / GAMEPLAY
+   ============================================================ */
+const cv=$('#cv'); const ctx=cv.getContext('2d');
+let DPR=1, VW=0, VH=0;
+function resize(){
+  DPR=Math.min(2,window.devicePixelRatio||1);
+  VW=cv.clientWidth; VH=cv.clientHeight;
+  cv.width=VW*DPR; cv.height=VH*DPR;
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+}
+window.addEventListener('resize',()=>{ if(scene==='lake'){resize(); if(fishing) sizeReel();} });
+
+let scene='yard';
+const cam={x:DOCK.x,y:DOCK.y,scale:14}; // px per meter (zoomed in close)
+// boat runtime
+const boat={
+  x:DOCK.x, y:DOCK.y-12, vx:0, vy:0, heading:-Math.PI/2, // pointing north
+  throttle:0, fuel:0, cargoKg:0, alive:true, left:false,
+};
+let caught=[];          // {name, kg, value}
+let fishlets=[];        // visible swimmers
+let wake=[];            // wake particles
+const keys={};
+let fishing=null;       // active reel state
+let targetFish=null;    // nearest hookable swimmer (when slow & close)
+let stranded=false, dockEntering=false;
+
+/* input */
+window.addEventListener('keydown',e=>{
+  if(scene!=='lake')return;
+  const k=e.key.toLowerCase();
+  keys[k]=true;
+  if(k===' '||k==='spacebar'){ e.preventDefault(); onCast(); }
+});
+window.addEventListener('keyup',e=>{ keys[e.key.toLowerCase()]=false; });
+
+// touch buttons
+const touchState={left:false,right:false,thr:false,rev:false};
+document.querySelectorAll('.tbtn').forEach(b=>{
+  const k=b.dataset.k;
+  const on=e=>{e.preventDefault(); if(k==='cast'){onCast();} else touchState[k]=true; };
+  const off=e=>{e.preventDefault(); if(k!=='cast') touchState[k]=false; };
+  b.addEventListener('touchstart',on,{passive:false});
+  b.addEventListener('touchend',off,{passive:false});
+  b.addEventListener('touchcancel',off,{passive:false});
+  b.addEventListener('mousedown',on); b.addEventListener('mouseup',off); b.addEventListener('mouseleave',off);
+});
+// reel: hold anywhere / hold cast btn while fishing handled in loop via flags
+let reelHold=false;
+function setReelHold(v){ reelHold=v; }
+window.addEventListener('keydown',e=>{ if((e.key===' ')&&fishing) setReelHold(true); });
+window.addEventListener('keyup',e=>{ if(e.key===' ') setReelHold(false); });
+$('#castBtn').addEventListener('touchstart',()=>{ if(fishing) setReelHold(true); },{passive:true});
+$('#castBtn').addEventListener('touchend',()=>{ setReelHold(false); });
+$('#castBtn').addEventListener('mousedown',()=>{ if(fishing) setReelHold(true); });
+$('#castBtn').addEventListener('mouseup',()=>{ setReelHold(false); });
+$('#reelX').addEventListener('click',()=>cancelReel());
+window.addEventListener('keydown',e=>{ if(e.key==='Escape'&&fishing) cancelReel(); });
+
+/* start a trip */
+function startTrip(){
+  const t=tankOf();
+  // pay for as much fuel as you can afford, up to a full tank...
+  let liters = Math.min(t.cap, G_STATE.money/FUEL_PRICE);
+  const charge = liters*FUEL_PRICE;
+  G_STATE.money -= charge;
+  // ...but the harbormaster always spots you a small reserve so you can never strand at the dock
+  if(liters < 1.5) liters = Math.min(t.cap, 1.5);
+  boat.fuel = liters;
+  boat.x=DOCK.x; boat.y=DOCK.y-22; boat.vx=0; boat.vy=0; boat.heading=-Math.PI/2;
+  boat.throttle=0; boat.cargoKg=0; boat.alive=true; boat.left=false;
+  caught=[]; fishlets=[]; wake=[]; fishing=null; stranded=false; dockEntering=false;
+  cam.x=boat.x; cam.y=boat.y;
+  spawnFish(true);
+  scene='lake';
+  $('#yard').classList.remove('active'); $('#lake').classList.add('active');
+  // show touch controls on touch devices
+  if('ontouchstart' in window) $('#touch').style.display='flex';
+  resize();
+  if(liters<t.cap*0.999) toast(`Low on funds — only ${liters.toFixed(0)} L aboard`,'bad');
+  else toast(`Fueled up. ${liters.toFixed(0)} L aboard`,'good');
+  saveGame();
+}
+$('#sailBtn').addEventListener('click',startTrip);
+
+/* fish population near camera */
+const FISH_TARGET=160;
+function spawnFish(reset){
+  if(reset) fishlets=[];
+  let guard=0;
+  while(fishlets.length<FISH_TARGET && guard++<2000){
+    // spawn close to the boat (just within and just beyond the view)
+    const ang=Math.random()*7, r=20+Math.random()*150;
+    const fx=boat.x+Math.cos(ang)*r, fy=boat.y+Math.sin(ang)*r;
+    if(fy>SHORE_Y-3) continue;
+    const d=depthAt(fx,fy);
+    if(d<1) continue;
+    const sp=pickSpecies(d);
+    if(!sp) continue;
+    // small schools: occasionally drop a cluster of the same species nearby
+    const cluster = Math.random()<0.4 ? 1+Math.floor(Math.random()*4) : 1;
+    for(let k=0;k<cluster && fishlets.length<FISH_TARGET;k++){
+      const ox=fx+(Math.random()-0.5)*30, oy=fy+(Math.random()-0.5)*30;
+      if(oy>SHORE_Y-3||depthAt(ox,oy)<1) continue;
+      fishlets.push({x:ox,y:oy, sp, t:Math.random()*7, spd:0.4+Math.random()*0.8, dir:Math.random()*7, kg:randW(sp)});
+    }
+  }
+}
+function pickSpecies(d){
+  const pool=SPECIES.filter(s=> d>=s.band[0] && d<=s.band[1]+8);
+  if(!pool.length) return SPECIES[0];
+  // weight toward rarer/deeper when deep, but keep some variety
+  let total=0; const w=pool.map(s=>{ const ww=1/(1+s.fight*1.5); total+=ww; return ww;});
+  let r=Math.random()*total;
+  for(let i=0;i<pool.length;i++){ r-=w[i]; if(r<=0) return pool[i]; }
+  return pool[pool.length-1];
+}
+function randW(sp){ return sp.w[0]+Math.random()*(sp.w[1]-sp.w[0]); }
+
+/* casting */
+function onCast(){
+  if(scene!=='lake'||fishing||!boat.alive||stranded) return;
+  if(Math.hypot(boat.vx,boat.vy)>1.6){ toast('Slow down to cast','bad'); return; }
+  if(!targetFish){ toast('Get closer to a fish','bad'); return; }
+  const f=targetFish;
+  const d=depthAt(boat.x,boat.y);
+  beginReel(f.sp, f.kg, Math.max(4, Math.min(90, d)));
+  fishlets=fishlets.filter(x=>x!==f);  // it's on the line now
+  targetFish=null;
+}
+function beginReel(sp,kg,hookDepth){
+  const wf=(kg-sp.w[0])/Math.max(0.01,(sp.w[1]-sp.w[0])); // size within band 0..1
+  const diff=Math.min(0.98, sp.fight + wf*0.25);
+  fishing={
+    sp,kg, diff, depth:hookDepth,
+    catch:8,                 // % toward the boat (drives the fish's rise)
+    tension:14,              // % line tension
+    pull: 22+diff*30,        // tension gain while reeling (%/s)
+    ease: 70,                // tension drop while easing (%/s)
+    gain: 18+(1-diff)*14,    // rise rate while reeling below redline (%/s)
+    slip: 4+diff*6,          // it sinks back this fast when you stop (%/s)
+    redline: 82,
+    snapAt: 100,
+    phase: Math.random()*6,  // animation phase
+    running:false, runT:0, runTimer: 1.2+Math.random()*1.6, // periodic runs
+    landed:false, landFlash:0,
+  };
+  $('#reelKey').textContent = ('ontouchstart' in window)?'CAST':'SPACE';
+  $('#fishUI').style.display='flex';
+  sizeReel();
+}
+function endReel(landed){
+  const f=fishing; fishing=null; reelHold=false; $('#fishUI').style.display='none';
+  if(!f) return;
+  if(landed){
+    const value=f.kg*f.sp.ppk;
+    caught.push({name:f.sp.name, kg:f.kg, value});
+    boat.cargoKg+=f.kg;
+    toast(`Landed ${f.sp.name}! ${f.kg.toFixed(1)} kg`,'good');
+    // overload check
+    if(dryMass()+boat.fuel*FUEL_DENSITY+boat.cargoKg > capacityKg()*1.0){
+      sink();
+    }
+  }else{
+    toast('Line snapped! It got away','bad');
+  }
+}
+function cancelReel(){
+  if(!fishing) return;
+  fishing=null; reelHold=false; $('#fishUI').style.display='none';
+  toast('You let it go','');
+}
+
+/* sinking / stranding */
+function sink(){
+  boat.alive=false;
+  // lose half the cargo value
+  let kept=[]; let lost=0;
+  caught.forEach((c,i)=>{ if(i%2===0) kept.push(c); else lost+=c.value; });
+  caught=kept;
+  toast('OVERLOADED — she\'s going down!','bad');
+  setTimeout(()=>endTrip('Capsized! Towed home — half the catch lost.'),1400);
+}
+function strand(){
+  if(stranded) return; stranded=true;
+  toast('Out of fuel! Calling for a tow…','bad');
+  setTimeout(()=>{
+    G_STATE.money-=TOW_FEE; if(G_STATE.money<0)G_STATE.money=0;
+    endTrip(`Towed back to the dock (−${fmt(TOW_FEE)} tow fee).`);
+  },1800);
+}
+
+/* docking */
+function tryDock(){ // called when near dock
+  if(dockEntering) return;
+  dockEntering=true;
+  endTrip('Back at the dock. Your haul has been sold at market.');
+}
+$('#dockHint').addEventListener('click',()=>{
+  const dist=Math.hypot(boat.x-DOCK.x,boat.y-DOCK.y);
+  if(dist>=60){ toast('Sail closer to the dock','bad'); return; }
+  if(Math.hypot(boat.vx,boat.vy)>=2.5){ toast('Slow down to dock','bad'); return; }
+  if(caught.length===0 && !boat.left){ toast('Head out and catch something first','bad'); return; }
+  tryDock();
+});
+
+function endTrip(subtitle){
+  // sell
+  let total=0; caught.forEach(c=>total+=c.value);
+  G_STATE.money+=total;
+  // build report
+  $('#reportSub').textContent=subtitle;
+  const list=$('#reportList'); list.innerHTML='';
+  if(!caught.length){ list.innerHTML='<div class="empty">No fish this trip.</div>'; }
+  else{
+    // group
+    const grp={};
+    caught.forEach(c=>{ if(!grp[c.name])grp[c.name]={n:0,kg:0,v:0}; const g=grp[c.name]; g.n++;g.kg+=c.kg;g.v+=c.value; });
+    Object.entries(grp).forEach(([nm,g])=>{
+      const div=document.createElement('div');div.className='ci';
+      div.innerHTML=`<span>${nm} ×${g.n} <span style="color:var(--ink-soft)">(${g.kg.toFixed(1)} kg)</span></span><span>${fmt(g.v)}</span>`;
+      list.appendChild(div);
+    });
+  }
+  $('#reportTotal').textContent=fmt(total);
+  $('#report').style.display='flex';
+  saveGame();
+}
+$('#closeReport').addEventListener('click',()=>{
+  $('#report').style.display='none';
+  scene='yard';
+  $('#lake').classList.remove('active'); $('#yard').classList.add('active');
+  $('#touch').style.display='none';
+  renderMoney(); renderShops(); renderSpecs(); drawPreview();
+});
+
+/* ---------- physics step ---------- */
+let last=performance.now();
+function loop(now){
+  let dt=(now-last)/1000; last=now;
+  if(dt>0.05) dt=0.05;            // clamp
+  if(scene==='lake') step(dt);
+  if(scene==='lake') render();
+  requestAnimationFrame(loop);
+}
+function step(dt){
+  const h=hullOf(),e=engOf();
+  const fuelMass=boat.fuel*FUEL_DENSITY;
+  const mass=dryMass()+fuelMass+boat.cargoKg;
+  const cap=capacityKg();
+  const sub=Math.min(1.2, mass/cap);            // submersion fraction
+  // controls
+  let thrInput=0, steer=0;
+  if(!fishing && boat.alive && !stranded){
+    if(keys['w']||keys['arrowup']||touchState.thr) thrInput=1;
+    if(keys['s']||keys['arrowdown']||touchState.rev) thrInput=-0.5;
+    if(keys['a']||keys['arrowleft']||touchState.left) steer-=1;
+    if(keys['d']||keys['arrowright']||touchState.right) steer+=1;
+  }
+  // fuel gate
+  if(boat.fuel<=0){ thrInput=0; if(Math.hypot(boat.vx,boat.vy)<0.6 && !stranded && boat.alive) strand(); }
+  boat.throttle=thrInput;
+
+  // thrust force along heading
+  const hx=Math.cos(boat.heading), hy=Math.sin(boat.heading);
+  let T = e.T*thrInput;
+  // sitting low in water kills thrust efficiency
+  T *= (1 - Math.max(0, sub-0.85)*1.4);
+  let fxF=hx*T, fyF=hy*T;
+
+  // drag — quadratic, split into forward/lateral (keel)
+  const v=Math.hypot(boat.vx,boat.vy);
+  if(v>1e-4){
+    const vxn=boat.vx/v, vyn=boat.vy/v;
+    // forward component of velocity
+    const fwd=boat.vx*hx+boat.vy*hy;
+    const latx=boat.vx-fwd*hx, laty=boat.vy-fwd*hy; // lateral velocity vector
+    const latv=Math.hypot(latx,laty);
+    // forward drag — tuned hydrodynamic constant; rises when boat sits low
+    const dragF=h.kDrag*v*v*(1+Math.max(0,sub-0.6)*1.8);
+    fxF-=vxn*dragF; fyF-=vyn*dragF;
+    // lateral resistance (keel) — strong
+    const latCd=4.5;
+    if(latv>1e-4){
+      const dl=0.5*RHO*latCd*h.A*latv*latv;
+      fxF-=(latx/latv)*dl; fyF-=(laty/latv)*dl;
+    }
+  }
+  // integrate
+  const ax=fxF/mass, ay=fyF/mass;
+  boat.vx+=ax*dt; boat.vy+=ay*dt;
+  // gentle linear damping for stability at very low speed
+  boat.vx*=(1-0.02); boat.vy*=(1-0.02);
+  boat.x+=boat.vx*dt; boat.y+=boat.vy*dt;
+
+  // steering: rudder authority needs flow over rudder (speed) — realistic
+  const fwdSpeed=boat.vx*hx+boat.vy*hy;
+  const authority=Math.min(1, Math.abs(fwdSpeed)/3) ; // ramps with speed
+  const turnRate=1.7*authority*(fwdSpeed<0?-1:1); // reverse steers opposite
+  boat.heading+=steer*turnRate*dt;
+
+  // fuel burn ∝ throttle magnitude
+  boat.fuel-=Math.abs(thrInput)*e.burn*dt;
+  if(boat.fuel<0)boat.fuel=0;
+
+  // keep in world / bounce off shore
+  if(boat.y>SHORE_Y-2){ boat.y=SHORE_Y-2; boat.vy=Math.min(0,boat.vy)*0.3; }
+  boat.x=Math.max(40,Math.min(WORLD.w-40,boat.x));
+  boat.y=Math.max(40,boat.y);
+
+  // wake particles
+  if(v>1.5 && Math.random()<0.6){
+    wake.push({x:boat.x-hx*h.len*0.4, y:boat.y-hy*h.len*0.4, t:0, life:0.8+Math.random()*0.5});
+  }
+  wake.forEach(p=>p.t+=dt); wake=wake.filter(p=>p.t<p.life);
+
+  // fish swim (m/s, slower than the boat so you can stalk them)
+  fishlets.forEach(f=>{
+    f.t+=dt; f.dir+=Math.sin(f.t*0.7)*dt*0.9;
+    f.x+=Math.cos(f.dir)*f.spd*dt; f.y+=Math.sin(f.dir)*f.spd*dt;
+  });
+  // recycle fish that drift far from the boat, keep the area densely populated
+  fishlets=fishlets.filter(f=>Math.hypot(f.x-boat.x,f.y-boat.y)<300 && f.y<SHORE_Y);
+  if(fishlets.length<FISH_TARGET) spawnFish(false);
+
+  // find the nearest fish within casting reach (must be moving slowly)
+  targetFish=null;
+  if(!fishing && boat.alive && !stranded && v<1.6){
+    let best=20; // hook range in meters
+    for(const f of fishlets){
+      const dd=Math.hypot(f.x-boat.x,f.y-boat.y);
+      if(dd<best){ best=dd; targetFish=f; }
+    }
+  }
+
+  // camera follow (smooth) + pull back at speed so fast boats stay readable
+  const targScale = 14 - Math.min(7, v*0.55);
+  cam.scale+=(targScale-cam.scale)*0.06;
+  cam.x+=(boat.x-cam.x)*0.08; cam.y+=(boat.y-cam.y)*0.08;
+
+  // fishing reel update
+  if(fishing){
+    const f=fishing;
+    f.phase+=dt;
+    if(f.landed){
+      f.landFlash+=dt;
+      if(f.landFlash>0.5) endReel(true);
+    } else {
+      // schedule periodic "runs" where the fish bolts and tension spikes
+      if(f.running){
+        f.runT-=dt;
+        if(f.runT<=0){ f.running=false; f.runTimer=1.1+Math.random()*1.9; }
+      } else {
+        f.runTimer-=dt;
+        if(f.runTimer<=0){ f.running=true; f.runT=0.6+f.diff*1.0+Math.random()*0.5; }
+      }
+      const runMul=f.running?2.4:1;
+      if(reelHold){
+        f.tension+=f.pull*runMul*dt;
+        if(f.running) f.catch-=f.gain*0.3*dt;            // fighting the run loses ground
+        else if(f.tension<f.redline) f.catch+=f.gain*dt; // good pulling
+        else f.catch+=f.gain*0.2*dt;                     // redlined: barely helps
+      } else {
+        f.tension-=f.ease*dt;
+        f.catch-=f.slip*dt;                              // it sinks back if you do nothing
+      }
+      f.tension=Math.max(0,f.tension);
+      f.catch=Math.max(0,f.catch);
+      if(f.tension>=f.snapAt){ endReel(false); }
+      else if(f.catch>=100){ f.catch=100; f.landed=true; f.landFlash=0; }
+    }
+  }
+
+  // auto-dock detection (only after you've actually left the harbor)
+  const dockDist=Math.hypot(boat.x-DOCK.x,boat.y-DOCK.y);
+  if(dockDist>90) boat.left=true;
+  if(boat.left && dockDist<26 && v<1.6 && boat.alive && !dockEntering){ tryDock(); }
+
+  updateHUD(dockDist, v, sub);
+}
+
+function updateHUD(dockDist,v,sub){
+  const d=depthAt(boat.x,boat.y);
+  $('#gSpeed').innerHTML=(v/KN).toFixed(1)+'<small> kn</small>';
+  $('#gDepth').innerHTML=Math.round(d)+'<small> m</small>';
+  const t=tankOf();
+  $('#gFuel').innerHTML=boat.fuel.toFixed(1)+'<small> L</small>';
+  const fp=Math.max(0,Math.min(1,boat.fuel/t.cap));
+  const fb=$('#gFuelBar'); fb.style.width=(fp*100)+'%';
+  fb.style.background = fp<0.2?'var(--bad)':fp<0.4?'var(--brass)':'var(--good)';
+  const loadPct=Math.round(sub*100);
+  $('#gLoad').innerHTML=loadPct+'<small>%</small>';
+  const lb=$('#gLoadBar'); lb.style.width=Math.min(100,loadPct)+'%';
+  lb.style.background = loadPct>90?'var(--bad)':loadPct>70?'var(--brass)':'var(--good)';
+  $('#dockDist').textContent = (dockDist/1000).toFixed(2)+' km';
+}
+
+/* ---------- render ---------- */
+function w2s(wx,wy){ return [ (wx-cam.x)*cam.scale + VW/2, (wy-cam.y)*cam.scale + VH/2 ]; }
+
+function depthColor(d){
+  // chart palette by depth
+  if(d<=0) return '#9bbf8e';
+  const stops=[
+    [0,[127,199,192]],[12,[47,138,166]],[40,[19,86,127]],
+    [80,[10,47,77]],[150,[6,30,52]],[300,[4,16,28]]
+  ];
+  for(let i=0;i<stops.length-1;i++){
+    if(d>=stops[i][0]&&d<=stops[i+1][0]){
+      const t=(d-stops[i][0])/(stops[i+1][0]-stops[i][0]);
+      const a=stops[i][1],b=stops[i+1][1];
+      return `rgb(${a[0]+(b[0]-a[0])*t|0},${a[1]+(b[1]-a[1])*t|0},${a[2]+(b[2]-a[2])*t|0})`;
+    }
+  }
+  return '#04101c';
+}
+
+function render(){
+  const now=performance.now();
+  ctx.clearRect(0,0,VW,VH);
+
+  // visible world bounds
+  const topWy = cam.y-(VH/2)/cam.scale, botWy = cam.y+(VH/2)/cam.scale;
+  const startWx=cam.x-(VW/2)/cam.scale, endWx=cam.x+(VW/2)/cam.scale;
+
+  // smooth water: vertical depth gradient sampled down the view (no blocky tiles)
+  const grad=ctx.createLinearGradient(0,0,0,VH);
+  for(let i=0;i<=10;i++){
+    const wy=topWy+(botWy-topWy)*(i/10);
+    grad.addColorStop(i/10, depthColor(depthAt(cam.x, Math.min(wy,SHORE_Y))));
+  }
+  ctx.fillStyle=grad; ctx.fillRect(0,0,VW,VH);
+
+  drawWaterTexture();   // world-anchored flecks — slide past as you move
+  drawContours(startWx,endWx,topWy-40,botWy+40); // chart fathom lines
+
+  // land / beach below the shoreline
+  const [,shy]=w2s(0,SHORE_Y);
+  if(shy<VH){
+    const lg=ctx.createLinearGradient(0,shy,0,shy+70);
+    lg.addColorStop(0,'#b7a067'); lg.addColorStop(1,'#d3c694');
+    ctx.fillStyle=lg; ctx.fillRect(0,shy,VW,VH-shy);
+    // pebbles anchored in world space (scroll with the shore)
+    ctx.fillStyle='rgba(70,58,30,.35)';
+    const off=(cam.x*cam.scale)%40;
+    for(let i=0;i<60;i++){
+      const px=((i*61.7-off)%VW+VW)%VW;
+      const py=shy+10+((i*131.7)%Math.max(10,VH-shy-10));
+      ctx.fillRect(px,py,2,2);
+    }
+    // wet-sand band along the waterline
+    ctx.fillStyle='rgba(60,50,26,.28)'; ctx.fillRect(0,shy,VW,7);
+  }
+  // static foam line where water meets sand
+  ctx.strokeStyle='rgba(225,242,240,.55)'; ctx.lineWidth=2;
+  ctx.beginPath();
+  const foamOff=cam.x*cam.scale;
+  for(let sx=0;sx<=VW;sx+=10){ const y=shy+Math.sin((sx+foamOff)*0.05)*2; sx===0?ctx.moveTo(sx,y):ctx.lineTo(sx,y); }
+  ctx.stroke();
+
+  // dock
+  drawDock();
+
+  // fish (depth-faded, animated, culled to view)
+  fishlets.forEach(f=>{
+    const [sx,sy]=w2s(f.x,f.y);
+    if(sx<-40||sx>VW+40||sy<-40||sy>VH+40) return;
+    const d=depthAt(f.x,f.y);
+    const alpha=Math.max(0.4, Math.min(0.95, 1.05-d/140));
+    drawFish(sx,sy,f.dir,f.sp.col, Math.max(7,Math.min(38,6+Math.cbrt(f.kg)*6)), alpha, f.t);
+  });
+
+  // wake
+  wake.forEach(p=>{
+    const [sx,sy]=w2s(p.x,p.y);
+    const a=1-p.t/p.life;
+    ctx.fillStyle=`rgba(220,240,245,${a*0.4})`;
+    ctx.beginPath(); ctx.arc(sx,sy,(3+p.t*10),0,7); ctx.fill();
+  });
+
+  // boat
+  drawBoat();
+
+  // highlight the fish you can hook, with a cast prompt
+  if(targetFish && !fishing){
+    const [fx,fy]=w2s(targetFish.x,targetFish.y);
+    const r=16+Math.sin(performance.now()/180)*3;
+    ctx.strokeStyle='rgba(207,154,35,.95)'; ctx.lineWidth=2.5;
+    ctx.beginPath(); ctx.arc(fx,fy,r,0,7); ctx.stroke();
+    ctx.strokeStyle='rgba(207,154,35,.35)'; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.arc(fx,fy,r+5,0,7); ctx.stroke();
+    const [bx,by]=w2s(boat.x,boat.y);
+    ctx.fillStyle='#cf9a23'; ctx.font='700 13px "Oswald"'; ctx.textAlign='center';
+    ctx.fillText(('ontouchstart' in window?'TAP CAST':'PRESS SPACE')+' TO CAST', bx, by-30);
+    ctx.textAlign='left';
+  }
+
+  // depth vignette
+  const g=ctx.createRadialGradient(VW/2,VH/2,VH*0.3,VW/2,VH/2,VH*0.8);
+  g.addColorStop(0,'rgba(0,0,0,0)'); g.addColorStop(1,'rgba(0,0,0,.35)');
+  ctx.fillStyle=g; ctx.fillRect(0,0,VW,VH);
+
+  if(fishing) drawReel();
+}
+
+/* ---------- side-view reel scene ---------- */
+const reelCv=$('#reelCanvas'); const rctx=reelCv.getContext('2d');
+let rDPR=1;
+function sizeReel(){
+  rDPR=Math.min(2,window.devicePixelRatio||1);
+  const w=reelCv.clientWidth, h=reelCv.clientHeight;
+  if(!w||!h) return;
+  reelCv.width=Math.round(w*rDPR); reelCv.height=Math.round(h*rDPR);
+  rctx.setTransform(rDPR,0,0,rDPR,0,0);
+}
+function drawReel(){
+  const f=fishing; if(!f) return;
+  const W=reelCv.clientWidth, H=reelCv.clientHeight;
+  if(!W||!H) return;
+  if(reelCv.width!==Math.round(W*rDPR)) sizeReel();
+  const x=rctx;
+  x.clearRect(0,0,W,H);
+
+  const headH=44, footH=26;
+  const surfaceY=headH+14, bottom=H-footH;
+  const cx=W/2;
+  const colH=bottom-surfaceY;
+
+  // air strip above the surface
+  x.fillStyle='#0b2433'; x.fillRect(0,0,W,surfaceY);
+  // water column, colored by depth
+  const grad=x.createLinearGradient(0,surfaceY,0,bottom);
+  grad.addColorStop(0, depthColor(1));
+  grad.addColorStop(0.3, depthColor(f.depth*0.35));
+  grad.addColorStop(1, depthColor(f.depth));
+  x.fillStyle=grad; x.fillRect(0,surfaceY,W,colH);
+
+  // sun rays
+  x.save(); x.globalAlpha=0.06; x.fillStyle='#bfe9e3';
+  for(let i=0;i<4;i++){ const rx=cx-90+i*70; x.beginPath();
+    x.moveTo(rx,surfaceY); x.lineTo(rx+24,surfaceY); x.lineTo(rx+70,bottom); x.lineTo(rx+34,bottom); x.closePath(); x.fill(); }
+  x.restore();
+
+  // depth ticks
+  x.fillStyle='rgba(234,243,245,.45)'; x.font='10px "Space Mono"'; x.textAlign='left';
+  x.fillText('0 m', 8, surfaceY+12);
+  x.fillText(Math.round(f.depth)+' m', 8, bottom-6);
+
+  // progress 0..1 -> fish height (1 = at the hull)
+  const prog=Math.max(0,Math.min(1,f.catch/100));
+  const fishY=bottom - prog*colH;
+  const runShake=f.running?1:0;
+  const wig=Math.sin(f.phase*5)*(4+runShake*7);
+  const fishX=cx+wig+(runShake?Math.sin(f.phase*14)*9:0);
+
+  // line tension color
+  const tcol = f.tension>82?'#e2533c' : f.tension>55?'#e7c14a' : 'rgba(225,240,242,.85)';
+  const rodTipX=cx+12, rodTipY=surfaceY-16+Math.sin(f.phase*2)*2;
+  x.strokeStyle=tcol; x.lineWidth=f.tension>82?2.6:1.4;
+  x.beginPath(); x.moveTo(rodTipX,rodTipY);
+  x.quadraticCurveTo((rodTipX+fishX)/2+(runShake?16:6),(rodTipY+fishY)/2, fishX, fishY-6);
+  x.stroke();
+
+  drawSideBoat(x,cx,surfaceY,f.phase);
+  drawSideFish(x,fishX,fishY,f);
+
+  // landed flash
+  if(f.landed){
+    x.fillStyle='rgba(63,156,106,'+(0.25+0.2*Math.sin(f.landFlash*30))+')'; x.fillRect(0,surfaceY,W,colH);
+    x.fillStyle='#eafff2'; x.font='700 22px "Oswald"'; x.textAlign='center';
+    x.fillText('LANDED!', cx, surfaceY+colH/2);
+  } else if(f.running){
+    x.fillStyle='#e2533c'; x.font='700 13px "Oswald"'; x.textAlign='center';
+    x.fillText("IT'S RUNNING — LET GO!", cx, surfaceY+18);
+  }
+
+  // header
+  x.textAlign='left'; x.fillStyle='#eaf3f5'; x.font='600 20px "Oswald"';
+  x.fillText(f.sp.name, 12, 26);
+  x.fillStyle='#9fc1cc'; x.font='12px "Space Mono"';
+  x.fillText(f.kg.toFixed(1)+' kg  ·  ~'+fmt(f.kg*f.sp.ppk), 12, 40);
+  x.textAlign='right'; x.fillStyle='#eaf3f5'; x.font='600 18px "Oswald"';
+  x.fillText(Math.round(prog*100)+'%', W-12, 26);
+  x.fillStyle='#9fc1cc'; x.font='9px "Space Mono"'; x.fillText('TO THE BOAT', W-12, 39);
+
+  // tension bar
+  const bw=W-20, bx0=10, by=H-16;
+  x.fillStyle='rgba(255,255,255,.1)'; x.fillRect(bx0,by,bw,9);
+  x.fillStyle='rgba(226,83,60,.3)'; x.fillRect(bx0+bw*0.82,by,bw*0.18,9);
+  x.fillStyle=f.tension>82?'#e2533c':f.tension>55?'#e7c14a':'#3f9c6a';
+  x.fillRect(bx0,by,bw*Math.min(1,f.tension/100),9);
+  x.fillStyle='#9fc1cc'; x.font='8px "Space Mono"'; x.textAlign='left';
+  x.fillText('LINE TENSION', bx0, by-3);
+  x.textAlign='left';
+}
+function drawSideBoat(x,cx,sy,phase){
+  const bob=Math.sin(phase*2)*2;
+  x.save(); x.translate(cx,sy+bob);
+  // surface line
+  x.strokeStyle='rgba(127,199,192,.45)'; x.lineWidth=1;
+  x.beginPath(); x.moveTo(-W2(),0); x.lineTo(W2(),0); x.stroke();
+  // hull (side profile)
+  x.beginPath();
+  x.moveTo(-28,-3); x.quadraticCurveTo(-32,9,-19,10); x.lineTo(18,10);
+  x.quadraticCurveTo(32,9,32,-4); x.closePath();
+  x.fillStyle=G_STATE.color; x.fill();
+  x.strokeStyle='rgba(255,255,255,.7)'; x.lineWidth=1.5; x.stroke();
+  // rod
+  x.strokeStyle='#caa15a'; x.lineWidth=2; x.beginPath(); x.moveTo(2,-4); x.lineTo(12,-18); x.stroke();
+  x.restore();
+}
+function W2(){ return reelCv.clientWidth; }
+function drawSideFish(x,fx,fy,f){
+  const len=Math.max(26, Math.min(130, 20+Math.cbrt(f.kg)*22));
+  const h=len*0.42;
+  const tilt=f.running?0.55:-0.22;        // dives during a run, noses up while rising
+  x.save(); x.translate(fx,fy); x.rotate(tilt);
+  x.fillStyle=f.sp.col;
+  // tail
+  x.beginPath(); x.moveTo(-len*0.5,0); x.lineTo(-len*0.5-h*0.55,-h*0.5); x.lineTo(-len*0.5-h*0.55,h*0.5); x.closePath(); x.fill();
+  // body
+  x.beginPath(); x.ellipse(0,0,len*0.5,h*0.5,0,0,7); x.fill();
+  // dorsal fin
+  x.beginPath(); x.moveTo(-len*0.12,-h*0.45); x.lineTo(len*0.06,-h*0.95); x.lineTo(len*0.2,-h*0.4); x.closePath(); x.fill();
+  // pectoral fin
+  x.beginPath(); x.moveTo(len*0.05,h*0.2); x.lineTo(len*0.22,h*0.7); x.lineTo(len*0.28,h*0.25); x.closePath(); x.fill();
+  // belly sheen
+  x.fillStyle='rgba(255,255,255,.22)'; x.beginPath(); x.ellipse(0,h*0.14,len*0.4,h*0.26,0,0,7); x.fill();
+  // eye
+  x.fillStyle='#fff'; x.beginPath(); x.arc(len*0.33,-h*0.08,h*0.13,0,7); x.fill();
+  x.fillStyle='#10202b'; x.beginPath(); x.arc(len*0.35,-h*0.08,h*0.07,0,7); x.fill();
+  x.restore();
+}
+
+// little glints/flecks fixed in world space — no time animation, but they
+// slide past as the boat moves, which is what sells the sense of motion
+function hashCell(x,y){ let n=(x*73856093)^(y*19349663); n=(n^(n>>13))*1274126177; return (n>>>0); }
+function drawWaterTexture(){
+  const cell=20; // world meters between flecks
+  const wx0=Math.floor((cam.x-(VW/2)/cam.scale)/cell)*cell - cell;
+  const wx1=cam.x+(VW/2)/cam.scale + cell;
+  const wy0=Math.floor((cam.y-(VH/2)/cam.scale)/cell)*cell - cell;
+  const wy1=cam.y+(VH/2)/cam.scale + cell;
+  ctx.lineWidth=1.5; ctx.lineCap='round';
+  for(let wy=wy0; wy<wy1; wy+=cell){
+    for(let wx=wx0; wx<wx1; wx+=cell){
+      if(wy>SHORE_Y) continue;
+      const h=hashCell(wx,wy);
+      const jx=wx+(h%1000)/1000*cell;
+      const jy=wy+((h>>10)%1000)/1000*cell;
+      const d=depthAt(jx,jy);
+      const vis=Math.max(0.2, 1-d/200);          // a touch denser in the shallows
+      const [sx,sy]=w2s(jx,jy);
+      const len=(1.4+(h%3))*Math.min(1.6,cam.scale/9);
+      const light=((h>>6)&1);
+      ctx.globalAlpha=(light?0.11:0.07)*vis;
+      ctx.strokeStyle=light?'#d8efec':'#06202f';
+      ctx.beginPath(); ctx.moveTo(sx-len,sy); ctx.lineTo(sx+len,sy); ctx.stroke();
+    }
+  }
+  ctx.globalAlpha=1;
+}
+
+function drawContours(x0,x1,y0,y1){
+  const levels=[8,20,40,70,120,200];
+  ctx.lineWidth=1;
+  ctx.font='9px "Space Mono",monospace';
+  const step=4; // sampling resolution in world meters
+  levels.forEach(L=>{
+    ctx.strokeStyle='rgba(205,230,228,'+(L<40?0.08:0.055)+')';
+    // marching: sample grid, draw where depth crosses L (approx by checking sign change horizontally)
+    for(let wy=y0; wy<y1; wy+=step*2){
+      let pen=false;
+      ctx.beginPath();
+      for(let wx=x0; wx<x1; wx+=step){
+        const d=depthAt(wx,wy);
+        const near=Math.abs(d-L) < (L*0.08+1.5);
+        const [sx,sy]=w2s(wx,wy);
+        if(near){ if(!pen){ctx.moveTo(sx,sy);pen=true;} else ctx.lineTo(sx,sy);} else pen=false;
+      }
+      ctx.stroke();
+    }
+  });
+}
+
+function drawDock(){
+  const [dx,dy]=w2s(DOCK.x,DOCK.y);
+  const s=cam.scale;
+  // pier planks (about 6m wide, 16m long, extending toward shore/south)
+  ctx.fillStyle='#7c5a32';
+  ctx.fillRect(dx-3*s, dy, 6*s, 16*s);
+  ctx.fillStyle='#5e441f';
+  for(let i=0;i<6;i++) ctx.fillRect(dx-3*s, dy + i*2.6*s, 6*s, 0.8*s);
+  // dock zone ring (the 26m auto-dock radius)
+  ctx.strokeStyle='rgba(207,154,35,.55)';ctx.setLineDash([6,6]);ctx.lineWidth=1.5;
+  ctx.beginPath();ctx.arc(dx,dy,26*s,0,7);ctx.stroke();ctx.setLineDash([]);
+  // mooring buoy
+  ctx.fillStyle='#d9512a';ctx.beginPath();ctx.arc(dx,dy-9*s,2.2*s,0,7);ctx.fill();
+  ctx.strokeStyle='#fff';ctx.lineWidth=1;ctx.stroke();
+  // label
+  ctx.fillStyle='#eaf3f5';ctx.font='700 13px "Oswald"';ctx.textAlign='center';
+  ctx.fillText('DOCK', dx, dy+22*s); ctx.textAlign='left';
+}
+
+function drawFish(x,y,dir,col,size,alpha,wt){
+  ctx.save(); ctx.translate(x,y); ctx.rotate(dir);
+  // soft shadow on the water
+  ctx.globalAlpha=alpha*0.45; ctx.fillStyle='rgba(2,12,20,.9)';
+  ctx.beginPath(); ctx.ellipse(1,2,size*1.1,size*0.5,0,0,7); ctx.fill();
+  const tail=Math.sin(wt*6)*size*0.4;
+  // tail fin (wags)
+  ctx.globalAlpha=alpha; ctx.fillStyle=col;
+  ctx.beginPath(); ctx.moveTo(-size,0);
+  ctx.lineTo(-size*1.6,-size*0.45+tail); ctx.lineTo(-size*1.6,size*0.45+tail); ctx.closePath(); ctx.fill();
+  // body
+  ctx.beginPath(); ctx.ellipse(0,0,size,size*0.42,0,0,7); ctx.fill();
+  // dorsal fin
+  ctx.beginPath(); ctx.moveTo(-size*0.1,-size*0.4); ctx.lineTo(size*0.08,-size*0.62); ctx.lineTo(size*0.26,-size*0.34); ctx.closePath(); ctx.fill();
+  // belly sheen
+  ctx.fillStyle='rgba(255,255,255,.18)'; ctx.beginPath(); ctx.ellipse(0,size*0.12,size*0.7,size*0.22,0,0,7); ctx.fill();
+  // eye
+  ctx.fillStyle='rgba(255,255,255,.92)'; ctx.beginPath(); ctx.arc(size*0.62,-size*0.08,size*0.13,0,7); ctx.fill();
+  ctx.fillStyle='#0b1a22'; ctx.beginPath(); ctx.arc(size*0.65,-size*0.08,size*0.06,0,7); ctx.fill();
+  ctx.globalAlpha=1; ctx.restore();
+}
+
+function drawBoat(){
+  const h=hullOf();
+  const [bx,by]=w2s(boat.x,boat.y);
+  const s=cam.scale;
+  const L=h.len*s, B=h.beam*s;
+  ctx.save(); ctx.translate(bx,by); ctx.rotate(boat.heading);
+  // shadow
+  ctx.fillStyle='rgba(0,0,0,.25)';
+  ctx.beginPath();ctx.ellipse(0,2,L*0.55,B*0.55,0,0,7);ctx.fill();
+  // hull
+  ctx.beginPath();
+  ctx.moveTo(L/2,0);                       // bow
+  ctx.quadraticCurveTo(L*0.15,-B/2, -L/2,-B*0.4);
+  ctx.lineTo(-L/2,B*0.4);
+  ctx.quadraticCurveTo(L*0.15,B/2, L/2,0);
+  ctx.closePath();
+  ctx.fillStyle=boat.alive?G_STATE.color:'#5a6b6e'; ctx.fill();
+  ctx.lineWidth=1.5;ctx.strokeStyle='rgba(255,255,255,.85)';ctx.stroke();
+  // deck line
+  ctx.beginPath();ctx.moveTo(L*0.35,0);ctx.lineTo(-L*0.35,0);ctx.strokeStyle='rgba(255,255,255,.4)';ctx.stroke();
+  // motor
+  ctx.fillStyle='#143240';ctx.fillRect(-L/2-3, -B*0.16, 5, B*0.32);
+  ctx.restore();
+}
+
+/* ---------- toast ---------- */
+function toast(text,kind){
+  const box=$('#toast');
+  const d=document.createElement('div');
+  d.className='msg'+(kind?(' '+kind):'');
+  d.textContent=text; box.appendChild(d);
+  setTimeout(()=>d.remove(),2200);
+}
+
+/* ============================================================
+   BOOT
+   ============================================================ */
+(async function boot(){
+  await loadGame();
+  $('#boatName').value=G_STATE.name;
+  buildSwatches(); renderShops(); renderSpecs(); drawPreview(); renderMoney();
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
