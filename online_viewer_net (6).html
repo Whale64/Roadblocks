@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Global Capital Hopper</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #111;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            color: white;
+            font-family: Arial, sans-serif;
+            overflow: hidden;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        #ui {
+            font-size: 16px;
+            margin-bottom: 10px;
+            font-weight: bold;
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            width: 95%;
+            max-width: 800px;
+        }
+        .ui-element {
+            background: rgba(0, 0, 0, 0.6);
+            padding: 6px 12px;
+            border-radius: 5px;
+            border: 1px solid #444;
+        }
+        #city-box { color: #5adbb5; font-size: 18px; flex-grow: 1; text-align: center; }
+        #death-box { color: #ff4757; }
+        #coin-box { color: #ffd32a; }
+        
+        #canvas-container {
+            position: relative;
+            width: 100%;
+            max-width: 800px;
+            aspect-ratio: 2 / 1;
+        }
+        canvas {
+            width: 100%;
+            height: 100%;
+            box-shadow: 0 0 20px rgba(255, 255, 255, 0.1);
+            display: block;
+        }
+        #controls {
+            display: flex;
+            justify-content: space-between;
+            width: 100%;
+            max-width: 800px;
+            padding: 15px 20px;
+            box-sizing: border-box;
+        }
+        .d-pad { display: flex; gap: 15px; }
+        .btn {
+            width: 65px;
+            height: 65px;
+            background: rgba(255, 255, 255, 0.2);
+            border: 3px solid #fff;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 24px;
+            color: white;
+            touch-action: manipulation;
+        }
+        .btn:active { background: rgba(255, 255, 255, 0.5); }
+        #jump-btn { background: rgba(255, 71, 87, 0.4); border-color: #ff4757; }
+        #jump-btn:active { background: rgba(255, 71, 87, 0.7); }
+        
+        @media (min-width: 801px) {
+            #controls { display: none; }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="ui">
+        <div class="ui-element" id="city-box">📍 Lvl <span id="level-num">1</span>/20: <span id="city-name">Loading...</span></div>
+        <div class="ui-element" id="coin-box">Coins: <span id="coins">0</span></div>
+        <div class="ui-element" id="death-box">Deaths: <span id="deaths">0</span></div>
+    </div>
+    
+    <div id="canvas-container">
+        <canvas id="gameCanvas" width="800" height="400"></canvas>
+    </div>
+
+    <div id="controls">
+        <div class="d-pad">
+            <div class="btn" id="left-btn">←</div>
+            <div class="btn" id="right-btn">→</div>
+        </div>
+        <div class="btn" id="jump-btn">↑</div>
+    </div>
+
+<script>
+const canvas = document.getElementById("gameCanvas");
+const ctx = canvas.getContext("2d");
+const levelNumElement = document.getElementById("level-num");
+const cityNameElement = document.getElementById("city-name");
+const coinsElement = document.getElementById("coins");
+const deathsElement = document.getElementById("deaths");
+
+let coinCount = 0;
+let deathCount = 0;
+let currentLevelIndex = 0;
+let portalAngle = 0;
+const gravity = 0.5;
+
+const player = {
+    x: 60,
+    y: 200,
+    width: 25,
+    height: 35,
+    vx: 0,
+    vy: 0,
+    speed: 4.5,
+    jumpForce: 11.5,
+    grounded: false,
+    color: "#ffffff"
+};
+
+const inputs = { left: false, right: false, jump: false };
+
+// 20 Capital Cities Level Data Array
+const levels = [
+    {
+        name: "Reykjavík (Iceland)", skyColor: "#2c3e50", platformColor: "#95a5a6", accentColor: "#7f8c8d", spawnLeft: true,
+        portal: { x: 730, y: 140, width: 40, height: 60 },
+        platforms: [{ x: 0, y: 360, width: 250, height: 40 }, { x: 320, y: 300, width: 180, height: 100 }, { x: 570, y: 240, width: 230, height: 160 }],
+        coins: [{ x: 150, y: 320, radius: 8, collected: false }, { x: 400, y: 250, radius: 8, collected: false }, { x: 620, y: 180, radius: 8, collected: false }]
+    },
+    {
+        name: "Ulaanbaatar (Mongolia)", skyColor: "#2980b9", platformColor: "#f1c40f", accentColor: "#f39c12", spawnLeft: true,
+        portal: { x: 720, y: 290, width: 40, height: 60 },
+        platforms: [{ x: 0, y: 360, width: 150, height: 40 }, { x: 220, y: 280, width: 120, height: 20 }, { x: 400, y: 220, width: 120, height: 20 }, { x: 580, y: 290, width: 100, height: 20 }, { x: 710, y: 350, width: 90, height: 50 }],
+        coins: [{ x: 280, y: 240, radius: 8, collected: false }, { x: 460, y: 180, radius: 8, collected: false }]
+    },
+    {
+        name: "Antananarivo (Madagascar)", skyColor: "#27ae60", platformColor: "#d35400", accentColor: "#e67e22", spawnLeft: false,
+        portal: { x: 40, y: 140, width: 40, height: 60 },
+        platforms: [{ x: 0, y: 360, width: 800, height: 40 }, { x: 600, y: 280, width: 150, height: 20 }, { x: 380, y: 220, width: 160, height: 20 }, { x: 150, y: 260, width: 120, height: 20 }, { x: 20, y: 200, width: 90, height: 20 }],
+        coins: [{ x: 670, y: 240, radius: 8, collected: false }, { x: 200, y: 220, radius: 8, collected: false }]
+    },
+    {
+        name: "Thimphu (Bhutan)", skyColor: "#8e44ad", platformColor: "#16a085", accentColor: "#1abc9c", spawnLeft: true,
+        portal: { x: 720, y: 140, width: 40, height: 60 },
+        platforms: [{ x: 0, y: 360, width: 120, height: 40 }, { x: 200, y: 320, width: 100, height: 80 }, { x: 360, y: 260, width: 100, height: 140 }, { x: 520, y: 200, width: 100, height: 200 }, { x: 680, y: 200, width: 120, height: 200 }],
+        coins: [{ x: 250, y: 280, radius: 8, collected: false }, { x: 570, y: 160, radius: 8, collected: false }]
+    },
+    {
+        name: "Suva (Fiji)", skyColor: "#3498db", platformColor: "#e67e22", accentColor: "#d35400", spawnLeft: true,
+        portal: { x: 740, y: 220, width: 40, height: 60 },
+        platforms: [{ x: 0, y: 360, width: 200, height: 40 }, { x: 250, y: 280, width: 150, height: 20 }, { x: 450, y: 240, width: 120, height: 20 }, { x: 620, y: 280, width: 180, height: 120 }],
+        coins: [{ x: 320, y: 230, radius: 8, collected: false }, { x: 510, y: 190, radius: 8, collected: false }]
+    },
+    {
+        name: "Asmara (Eritrea)", skyColor: "#e67e22", platformColor: "#2c3e50", accentColor: "#1a252f", spawnLeft: false,
+        portal: { x: 50, y: 240, width: 40, height: 60 },
+        platforms: [{ x: 0, y: 360, width: 180, height: 40 }, { x: 220, y: 300, width: 200, height: 20 }, { x: 470, y: 300, width: 150, height: 20 }, { x: 660, y: 360, width: 140, height: 40 }],
+        coins: [{ x: 320, y: 250, radius: 8, collected: false }, { x: 540, y: 250, radius: 8, collected: false }]
+    },
+    {
+        name: "Ljubljana (Slovenia)", skyColor: "#1abc9c", platformColor: "#7f8c8d", accentColor: "#95a5a6", spawnLeft: true,
+        portal: { x: 730, y: 140, width: 40, height: 60 },
+        platforms: [{ x: 0, y: 360, width: 300, height: 40 }, { x: 350, y: 260, width: 120, height: 20 }, { x: 520, y: 200, width: 280, height: 200 }],
+        coins: [{ x: 410, y: 210, radius: 8, collected: false }, { x: 600, y: 150, radius: 8, collected: false }]
+    },
+    {
+        name: "Paramaribo (Suriname)", skyColor: "#27ae60", platformColor: "#c0392b", accentColor: "#962d22", spawnLeft: true,
+        portal: { x: 740, y: 300, width: 40, height: 60 },
+        platforms: [{ x: 0, y: 360, width: 220, height: 40 }, { x: 300, y: 280, width: 100, height: 20 }, { x: 480, y: 280, width: 100, height: 20 }, { x: 640, y: 360, width: 160, height: 40 }],
+        coins: [{ x: 350, y: 230, radius: 8, collected: false }, { x: 530, y: 230, radius: 8, collected: false }]
+    },
+    {
+        name: "Mascat (Oman)", skyColor: "#d35400", platformColor: "#bdc3c7", accentColor: "#7f8c8d", spawnLeft: false,
+        portal: { x: 40, y: 240, width: 40, height: 60 },
+        platforms: [{ x: 0, y: 300, width: 120, height: 100 }, { x: 180, y: 350, width: 120, height: 50 }, { x: 350, y: 350, width: 120, height: 50 }, { x: 520, y: 350, width: 120, height: 50 }, { x: 680, y: 300, width: 120, height: 100 }],
+        coins: [{ x: 240, y: 300, radius: 8, collected: false }, { x: 580, y: 300, radius: 8, collected: false }]
+    },
+    {
+        name: "Windhoek (Namibia)", skyColor: "#f39c12", platformColor: "#27ae60", accentColor: "#219653", spawnLeft: true,
+        portal: { x: 720, y: 140, width: 40, height: 60 },
+        platforms: [{ x: 0, y: 360, width: 150, height: 40 }, { x: 200, y: 280, width: 150, height: 20 }, { x: 420, y: 220, width: 150, height: 20 }, { x: 640, y: 200, width: 160, height: 200 }],
+        coins: [{ x: 275, y: 230, radius: 8, collected: false }, { x: 495, y: 170, radius: 8, collected: false }]
+    },
+    {
+        name: "Valletta (Malta)", skyColor: "#2980b9", platformColor: "#ecf0f1", accentColor: "#bdc3c7", spawnLeft: true,
+        portal: { x: 740, y: 300, width: 40, height: 60 },
+        platforms: [{ x: 0, y: 360, width: 350, height: 40 }, { x: 450, y: 360, width: 350, height: 40 }],
+        coins: [{ x: 400, y: 300, radius: 8, collected: false }]
+    },
+    {
+        name: "Bishkek (Kyrgyzstan)", skyColor: "#c0392b", platformColor: "#f1c40f", accentColor: "#d35400", spawnLeft: false,
+        portal: { x: 40, y: 140, width: 40, height: 60 },
+        platforms: [{ x: 0, y: 200, width: 120, height: 200 }, { x: 180, y: 260, width: 120, height: 20 }, { x: 360, y: 320, width: 120, height: 20 }, { x: 540, y: 380, width: 260, height: 20 }],
+        coins: [{ x: 240, y: 210, radius: 8, collected: false }, { x: 420, y: 270, radius: 8, collected: false }]
+    },
+    {
+        name: "Nassau (Bahamas)", skyColor: "#00ced1", platformColor: "#ffecb3", accentColor: "#ffe082", spawnLeft: true,
+        portal: { x: 730, y: 200, width: 40, height: 60 },
+        platforms: [{ x: 0, y: 360, width: 200, height: 40 }, { x: 260, y: 300, width: 120, height: 20 }, { x: 440, y: 260, width: 120, height: 20 }, { x: 620, y: 260, width: 180, height: 140 }],
+        coins: [{ x: 320, y: 250, radius: 8, collected: false }, { x: 500, y: 210, radius: 8, collected: false }]
+    },
+    {
+        name: "Gaborone (Botswana)", skyColor: "#3498db", platformColor: "#34495e", accentColor: "#2c3e50", spawnLeft: true,
+        portal: { x: 740, y: 260, width: 40, height: 60 },
+        platforms: [{ x: 0, y: 360, width: 150, height: 40 }, { x: 200, y: 320, width: 150, height: 20 }, { x: 400, y: 320, width: 150, height: 20 }, { x: 600, y: 320, width: 200, height: 80 }],
+        coins: [{ x: 275, y: 270, radius: 8, collected: false }, { x: 475, y: 270, radius: 8, collected: false }]
+    },
+    {
+        name: "Vaduz (Liechtenstein)", skyColor: "#2c3e50", platformColor: "#d35400", accentColor: "#2980b9", spawnLeft: false,
+        portal: { x: 40, y: 140, width: 40, height: 60 },
+        platforms: [{ x: 0, y: 200, width: 100, height: 200 }, { x: 160, y: 260, width: 140, height: 20 }, { x: 360, y: 320, width: 140, height: 20 }, { x: 560, y: 360, width: 240, height: 40 }],
+        coins: [{ x: 230, y: 210, radius: 8, collected: false }, { x: 430, y: 270, radius: 8, collected: false }]
+    },
+    {
+        name: "Kampala (Uganda)", skyColor: "#f39c12", platformColor: "#c0392b", accentColor: "#2c3e50", spawnLeft: true,
+        portal: { x: 720, y: 140, width: 40, height: 60 },
+        platforms: [{ x: 0, y: 360, width: 150, height: 40 }, { x: 220, y: 300, width: 120, height: 20 }, { x: 400, y: 240, width: 120, height: 20 }, { x: 580, y: 200, width: 220, height: 200 }],
+        coins: [{ x: 280, y: 250, radius: 8, collected: false }, { x: 460, y: 190, radius: 8, collected: false }]
+    },
+    {
+        name: "Roseau (Dominica)", skyColor: "#27ae60", platformColor: "#f1c40f", accentColor: "#c0392b", spawnLeft: true,
+        portal: { x: 730, y: 300, width: 40, height: 60 },
+        platforms: [{ x: 0, y: 360, width: 250, height: 40 }, { x: 350, y: 280, width: 100, height: 20 }, { x: 550, y: 360, width: 250, height: 40 }],
+        coins: [{ x: 400, y: 230, radius: 8, collected: false }]
+    },
+    {
+        name: "Ashgabat (Turkmenistan)", skyColor: "#1abc9c", platformColor: "#ecf0f1", accentColor: "#bdc3c7", spawnLeft: false,
+        portal: { x: 40, y: 140, width: 40, height: 60 },
+        platforms: [{ x: 0, y: 200, width: 120, height: 200 }, { x: 180, y: 200, width: 120, height: 20 }, { x: 360, y: 250, width: 120, height: 20 }, { x: 540, y: 300, width: 260, height: 100 }],
+        coins: [{ x: 240, y: 150, radius: 8, collected: false }, { x: 420, y: 200, radius: 8, collected: false }]
+    },
+    {
+        name: "Kigali (Rwanda)", skyColor: "#2980b9", platformColor: "#27ae60", accentColor: "#f1c40f", spawnLeft: true,
+        portal: { x: 720, y: 240, width: 40, height: 60 },
+        platforms: [{ x: 0, y: 360, width: 200, height: 40 }, { x: 260, y: 300, width: 120, height: 20 }, { x: 440, y: 300, width: 120, height: 20 }, { x: 620, y: 300, width: 180, height: 100 }],
+        coins: [{ x: 320, y: 250, radius: 8, collected: false }, { x: 500, y: 250, radius: 8, collected: false }]
+    },
+    {
+        name: "San Marino (San Marino)", skyColor: "#3498db", platformColor: "#95a5a6", accentColor: "#ecf0f1", spawnLeft: true,
+        portal: { x: 730, y: 140, width: 40, height: 60 },
+        platforms: [{ x: 0, y: 360, width: 150, height: 40 }, { x: 200, y: 300, width: 100, height: 100 }, { x: 350, y: 240, width: 100, height: 160 }, { x: 500, y: 180, width: 100, height: 220 }, { x: 650, y: 200, width: 150, height: 200 }],
+        coins: [{ x: 250, y: 250, radius: 8, collected: false }, { x: 400, y: 190, radius: 8, collected: false }, { x: 550, y: 130, radius: 8, collected: false }]
+    }
+];
+
+function getLevel() {
+    return levels[currentLevelIndex];
+}
+
+function updateLevelUI() {
+    const lvl = getLevel();
+    levelNumElement.innerText = currentLevelIndex + 1;
+    cityNameElement.innerText = lvl.name;
+    canvas.style.background = lvl.skyColor;
+}
+
+// Controls configuration
+window.addEventListener("keydown", (e) => {
+    if (e.code === "ArrowLeft" || e.code === "KeyA") inputs.left = true;
+    if (e.code === "ArrowRight" || e.code === "KeyD") inputs.right = true;
+    if (e.code === "ArrowUp" || e.code === "KeyW" || e.code === "Space") inputs.jump = true;
+});
+
+window.addEventListener("keyup", (e) => {
+    if (e.code === "ArrowLeft" || e.code === "KeyA") inputs.left = false;
+    if (e.code === "ArrowRight" || e.code === "KeyD") inputs.right = false;
+    if (e.code === "ArrowUp" || e.code === "KeyW" || e.code === "Space") inputs.jump = false;
+});
+
+function setupMobileButton(elementId, inputProperty) {
+    const btn = document.getElementById(elementId);
+    btn.addEventListener("touchstart", (e) => { e.preventDefault(); inputs[inputProperty] = true; }, { passive: false });
+    btn.addEventListener("touchend", (e) => { e.preventDefault(); inputs[inputProperty] = false; }, { passive: false });
+    btn.addEventListener("touchcancel", (e) => { e.preventDefault(); inputs[inputProperty] = false; }, { passive: false });
+}
+setupMobileButton("left-btn", "left");
+setupMobileButton("right-btn", "right");
+setupMobileButton("jump-btn", "jump");
+
+function checkCollision(rect1, rect2) {
+    return rect1.x < rect2.x + rect2.width &&
+           rect1.x + rect1.width > rect2.x &&
+           rect1.y < rect2.y + rect2.height &&
+           rect1.y + rect1.height > rect2.y;
+}
+
+function handleDeath() {
+    deathCount++;
+    deathsElement.innerText = deathCount;
+    resetPlayerPosition();
+}
+
+function resetPlayerPosition() {
+    const lvl = getLevel();
+    if (lvl.spawnLeft) {
+        player.x = 60;
+    } else {
+        player.x = 710;
+    }
+    player.y = 100;
+    player.vx = 0;
+    player.vy = 0;
+    player.grounded = false;
+}
+
+function advanceLevel() {
+    currentLevelIndex++;
+    if (currentLevelIndex >= levels.length) {
+        currentLevelIndex = 0; // Loop back to level 1 after level 20
+    }
+    updateLevelUI();
+    resetPlayerPosition();
+}
+
+function update() {
+    const currentLevel = getLevel();
+
+    if (inputs.left) player.vx = -player.speed;
+    else if (inputs.right) player.vx = player.speed;
+    else player.vx = 0;
+
+    if (inputs.jump && player.grounded) {
+        player.vy = -player.jumpForce;
+        player.grounded = false;
+    }
+
+    player.vy += gravity;
+    player.x += player.vx;
+    player.y += player.vy;
+
+    if (player.x < 0) player.x = 0;
+    if (player.x + player.width > canvas.width) player.x = canvas.width - player.width;
+
+    player.grounded = false;
+    for (let plat of currentLevel.platforms) {
+        if (checkCollision(player, plat)) {
+            if (player.vy > 0 && player.y + player.height - player.vy <= plat.y) {
+                player.y = plat.y - player.height;
+                player.vy = 0;
+                player.grounded = true;
+            }
+            else if (player.vy < 0 && player.y - player.vy >= plat.y + plat.height) {
+                player.y = plat.y + plat.height;
+                player.vy = 0;
+            }
+        }
+    }
+
+    for (let coin of currentLevel.coins) {
+        if (!coin.collected) {
+            let coinBox = { x: coin.x - coin.radius, y: coin.y - coin.radius, width: coin.radius * 2, height: coin.radius * 2 };
+            if (checkCollision(player, coinBox)) {
+                coin.collected = true;
+                coinCount++;
+                coinsElement.innerText = coinCount;
+            }
+        }
+    }
+
+    if (checkCollision(player, currentLevel.portal)) {
+        advanceLevel();
+        return;
+    }
+
+    if (player.y > canvas.height) {
+        handleDeath();
+    }
+
+    portalAngle += 0.05;
+}
+
+function draw() {
+    const currentLevel = getLevel();
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Platforms
+    for (let plat of currentLevel.platforms) {
+        ctx.fillStyle = currentLevel.platformColor; 
+        ctx.fillRect(plat.x, plat.y, plat.width, plat.height);
+        ctx.fillStyle = currentLevel.accentColor;
+        ctx.fillRect(plat.x, plat.y + 8, plat.width, plat.height - 8);
+    }
+
+    // Coins
+    ctx.fillStyle = "#ffd32a";
+    for (let coin of currentLevel.coins) {
+        if (!coin.collected) {
+            ctx.beginPath();
+            ctx.arc(coin.x, coin.y, coin.radius, 0, Math.PI * 2);
+            ctx.fill();
+        }
+    }
+
+    // Portal
+    const p = currentLevel.portal;
+    const centerX = p.x + p.width / 2;
+    const centerY = p.y + p.height / 2;
+    
+    ctx.save();
+    ctx.translate(centerX, centerY);
+    ctx.rotate(portalAngle);
+    
+    ctx.fillStyle = "#a29bfe";
+    ctx.beginPath();
+    ctx.ellipse(0, 0, p.width / 1.1, p.height / 1.1, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = "#6c5ce7";
+    ctx.beginPath();
+    ctx.ellipse(0, 0, p.width / 1.4, p.height / 1.4, 0, 0, Math.PI * 2);
+    ctx.fill();
+    
+    ctx.restore();
+
+    // Player
+    ctx.fillStyle = player.color;
+    ctx.fillRect(player.x, player.y, player.width, player.height);
+    
+    ctx.fillStyle = "#111";
+    let eyeOffset = player.vx >= 0 ? 16 : 4;
+    ctx.fillRect(player.x + eyeOffset, player.y + 8, 5, 5);
+}
+
+function gameLoop() {
+    update();
+    draw();
+    requestAnimationFrame(gameLoop);
+}
+
+updateLevelUI();
+resetPlayerPosition();
+gameLoop();
+</script>
+
+</body>
+</html>
